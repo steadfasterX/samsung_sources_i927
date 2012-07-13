@@ -1545,8 +1545,11 @@ static void composite_disconnect(struct usb_gadget *gadget)
 	if (!cdev->mute_switch) 
 #endif
   {
-		CSY_DBG2("call switch_work\n");
-		schedule_work(&cdev->switch_work);
+		if(cdev->bEndofWQ)
+		{
+			CSY_DBG_ESS("call switch_work\n");
+			schedule_work(&cdev->switch_work);
+		}	
 #ifdef CONFIG_USB_ANDROID_ACCESSORY
 		cdev->accessory_mode = 0;
 #endif
@@ -1689,6 +1692,7 @@ static int composite_bind(struct usb_gadget *gadget)
 		return status;
 
 	spin_lock_init(&cdev->lock);
+	cdev->bEndofWQ = false;
 	cdev->gadget = gadget;
 	set_gadget_data(gadget, cdev);
 	INIT_LIST_HEAD(&cdev->configs);
@@ -1737,6 +1741,7 @@ static int composite_bind(struct usb_gadget *gadget)
 		goto fail;	
 	INIT_WORK(&cdev->switch_work, composite_switch_work);
 
+	cdev->bEndofWQ = true;
 	cdev->desc = *composite->dev;
 	cdev->desc.bMaxPacketSize0 = gadget->ep0->maxpacket;
 

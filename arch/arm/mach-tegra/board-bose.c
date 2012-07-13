@@ -2111,7 +2111,7 @@ static u8 t9_config_e[] = {TOUCH_MULTITOUCHSCREEN_T9,
 				139, 0, 0, 19, 11, 0, 32, MXT224E_THRESHOLD_BATT, 2, 7,
 				10, 3, 1, 46, MXT224_MAX_MT_FINGERS, 5, 40, 10, 31, 3,
 				223, 1, 10, 10, 10, 10, 143, 40, 143, 80,
-				18, 15, 50, 50, 0};
+				18, 15, 50, 50, 2};
 
 static u8 t15_config_e[] = {TOUCH_KEYARRAY_T15,
 				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -2142,8 +2142,8 @@ static u8 t47_config_e[] = {PROCI_STYLUS_T47,
 
 static u8 t48_config_e[] = {PROCG_NOISESUPPRESSION_T48,
 				3, 132, MXT224E_CALCFG_BATT, 0, 0, 0, 0, 0, 10, 20,
-				0, 0, 0, 6, 6, 0, 0, 100, 4, 64,
-				10, 0, 20, 5, 0, 38, 0, 5, 0, 0,
+				0, 0, 0, 6, 6, 0, 0, 48, 4, 40,
+				10, 0, 10, 5, 0, 20, 0, 5, 0, 0,
 				0, 0, 0, 0, 32, MXT224E_THRESHOLD_BATT, 2, 3, 1, 46,
 				MXT224_MAX_MT_FINGERS, 5, 40, 10, 10, 10, 10, 143, 40, 143,
 				80, 18, 15, 0 };
@@ -2151,7 +2151,7 @@ static u8 t48_config_e[] = {PROCG_NOISESUPPRESSION_T48,
 static u8 t48_config_chrg_e[] = {PROCG_NOISESUPPRESSION_T48,
 				3, 132, MXT224E_CALCFG_CHRG, 0, 0, 0, 0, 0, 10, 20,
 				0, 0, 0, 6, 6, 0, 0, 64, 4, 64,
-				10, 0, 20, 5, 0, 38, 0, 20, 0, 0,
+				10, 0, 9, 5, 0, 15, 0, 20, 0, 0,
 				0, 0, 0, 0, 0, MXT224E_THRESHOLD_CHRG, 2, 5, 2, 47,
 				MXT224_MAX_MT_FINGERS, 5, 40, 246, 246, 10, 10, 150, 50, 143,
 				80, 18, 15, 0 };

@@ -385,6 +385,7 @@ struct usb_composite_dev {
 #ifdef CONFIG_USB_ANDROID_ACCESSORY
 	unsigned char	accessory_mode;		/* usb accessory mode */
 #endif
+	bool			bEndofWQ;
 };
 
 extern int usb_string_id(struct usb_composite_dev *c);

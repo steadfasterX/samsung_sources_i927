@@ -1,7 +1,7 @@
 How to build platform
 
 1. Get android open source.
-    : version info - Android gingerbread 2.3.5
+    : version info - Android gingerbread 2.3.6
     ( Download site : http://source.android.com )
 
 2. Copy the files to original Gingerbread source tree (overwrite) and then make
