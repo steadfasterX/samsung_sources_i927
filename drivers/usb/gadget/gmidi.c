@@ -67,7 +67,7 @@ MODULE_PARM_DESC(index, "Index value for the USB MIDI Gadget adapter.");
 module_param(id, charp, 0444);
 MODULE_PARM_DESC(id, "ID string for the USB MIDI Gadget adapter.");
 
-/* Some systems will want different product identifers published in the
+/* Some systems will want different product identifiers published in the
  * device descriptor, either numbers or strings or both.  These string
  * parameters are in UTF-8 (superset of ASCII's 7 bit characters).
  */
@@ -537,14 +537,16 @@ static int set_gmidi_config(struct gmidi_device *dev, gfp_t gfp_flags)
 	struct usb_ep *ep;
 	unsigned i;
 
-	err = usb_ep_enable(dev->in_ep, &bulk_in_desc);
+	dev->in_ep->desc = &bulk_in_desc;
+	err = usb_ep_enable(dev->in_ep);
 	if (err) {
 		ERROR(dev, "can't start %s: %d\n", dev->in_ep->name, err);
 		goto fail;
 	}
 	dev->in_ep->driver_data = dev;
 
-	err = usb_ep_enable(dev->out_ep, &bulk_out_desc);
+	dev->out_ep->desc = &bulk_out_desc;
+	err = usb_ep_enable(dev->out_ep);
 	if (err) {
 		ERROR(dev, "can't start %s: %d\n", dev->out_ep->name, err);
 		goto fail;
@@ -693,6 +695,7 @@ static int gmidi_setup(struct usb_gadget *gadget,
 		switch (w_value >> 8) {
 
 		case USB_DT_DEVICE:
+			device_desc.bMaxPacketSize0 = gadget->ep0->maxpacket;
 			value = min(w_length, (u16) sizeof(device_desc));
 			memcpy(req->buf, &device_desc, value);
 			break;
@@ -1157,7 +1160,7 @@ fail:
 /*
  * Creates an output endpoint, and initializes output ports.
  */
-static int __ref gmidi_bind(struct usb_gadget *gadget)
+static int __init gmidi_bind(struct usb_gadget *gadget)
 {
 	struct gmidi_device *dev;
 	struct usb_ep *in_ep, *out_ep;
@@ -1247,8 +1250,6 @@ autoconf_fail:
 
 	dev->req->complete = gmidi_setup_complete;
 
-	device_desc.bMaxPacketSize0 = gadget->ep0->maxpacket;
-
 	gadget->ep0->driver_data = dev;
 
 	INFO(dev, "%s, version: " DRIVER_VERSION "\n", longname);
@@ -1292,7 +1293,6 @@ static void gmidi_resume(struct usb_gadget *gadget)
 static struct usb_gadget_driver gmidi_driver = {
 	.speed		= USB_SPEED_FULL,
 	.function	= (char *)longname,
-	.bind		= gmidi_bind,
 	.unbind		= gmidi_unbind,
 
 	.setup		= gmidi_setup,
@@ -1309,7 +1309,7 @@ static struct usb_gadget_driver gmidi_driver = {
 
 static int __init gmidi_init(void)
 {
-	return usb_gadget_register_driver(&gmidi_driver);
+	return usb_gadget_probe_driver(&gmidi_driver, gmidi_bind);
 }
 module_init(gmidi_init);
 

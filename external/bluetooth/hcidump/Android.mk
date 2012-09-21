@@ -1,4 +1,3 @@
-ifneq ($(TARGET_SIMULATOR),true)
 ifeq ($(BOARD_HAVE_BLUETOOTH),true)
 
 LOCAL_PATH:= $(call my-dir)
@@ -8,9 +7,10 @@ LOCAL_C_INCLUDES:= \
 	$(call include-path-for,bluez)/lib/ \
 
 LOCAL_CFLAGS:= \
-	-DVERSION=\"1.42\"
+	-DVERSION=\"2.0\"
 
 LOCAL_SRC_FILES:= \
+	parser/att.c \
 	parser/avctp.c \
 	parser/avdtp.c \
 	parser/bnep.c \
@@ -30,6 +30,8 @@ LOCAL_SRC_FILES:= \
 	parser/rfcomm.c \
 	parser/sdp.c \
 	parser/tcpip.c \
+	parser/avrcp.c \
+	parser/smp.c \
 	src/hcidump.c
 
 LOCAL_SHARED_LIBRARIES := \
@@ -40,5 +42,4 @@ LOCAL_MODULE_TAGS := debug
 LOCAL_MODULE:=hcidump
 
 include $(BUILD_EXECUTABLE)
-endif
 endif

@@ -2,7 +2,7 @@
  *
  *  BlueZ - Bluetooth protocol stack for Linux
  *
- *  Copyright (C) 2004-2007  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2004-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -30,11 +30,9 @@
 #include <ctype.h>
 #include <sys/socket.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-#include <bluetooth/hci_lib.h>
-
-#include "parser.h"
+#include "parser/parser.h"
+#include "lib/hci.h"
+#include "lib/hci_lib.h"
 
 #define LMP_U8(frm)  (get_u8(frm))
 #define LMP_U16(frm) (btohs(htons(get_u16(frm))))

@@ -20,9 +20,6 @@ enum stmpe_block {
 };
 
 enum stmpe_partnum {
-#if defined (CONFIG_MACH_BOSE_ATT)
-	STMPE1801= 0,
-#endif
 	STMPE811,
 	STMPE1601,
 	STMPE2401,
@@ -35,16 +32,6 @@ enum stmpe_partnum {
  */
 enum {
 	STMPE_IDX_CHIP_ID,
-#if defined (CONFIG_MACH_BOSE_ATT)
-	STMPE_IDX_VERSION_ID,		
-	STMPE_IDX_SYS_CTRL,
-	STMPE_IDX_ICR_LOW = 4,
-	STMPE_IDX_ICR_HIGH,
-	STMPE_IDX_IEMR_LOW,
-	STMPE_IDX_IEMR_HIGH,
-	STMPE_IDX_ISR_LOW,
-	STMPE_IDX_ISR_HIGH,
-#endif
 	STMPE_IDX_ICR_LSB,
 	STMPE_IDX_IER_LSB,
 	STMPE_IDX_ISR_MSB,
@@ -70,6 +57,7 @@ struct stmpe_variant_info;
  * @irq_lock: IRQ bus lock
  * @dev: device, mostly for dev_dbg()
  * @i2c: i2c client
+ * @partnum: part number
  * @variant: the detected STMPE model number
  * @regs: list of addresses of registers which are at different addresses on
  *	  different variants.  Indexed by one of STMPE_IDX_*.
@@ -125,13 +113,21 @@ struct stmpe_keypad_platform_data {
 	bool no_autorepeat;
 };
 
+#define STMPE_GPIO_NOREQ_811_TOUCH	(0xf0)
+
 /**
  * struct stmpe_gpio_platform_data - STMPE GPIO platform data
  * @gpio_base: first gpio number assigned.  A maximum of
  *	       %STMPE_NR_GPIOS GPIOs will be allocated.
+ * @norequest_mask: bitmask specifying which GPIOs should _not_ be
+ *		    requestable due to different usage (e.g. touch, keypad)
+ *		    STMPE_GPIO_NOREQ_* macros can be used here.
+ * @setup: board specific setup callback.
+ * @remove: board specific remove callback
  */
 struct stmpe_gpio_platform_data {
 	int gpio_base;
+	unsigned norequest_mask;
 	void (*setup)(struct stmpe *stmpe, unsigned gpio_base);
 	void (*remove)(struct stmpe *stmpe, unsigned gpio_base);
 };

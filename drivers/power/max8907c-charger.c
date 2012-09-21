@@ -38,21 +38,23 @@ static void max8907c_charger_init_register(struct max8907c_charger *charger)
 	max8907c_reg_write(charger->i2c, MAX8907C_REG_LBCNFG, 0x97);
 	max8907c_reg_write(charger->i2c, MAX8907C_REG_CHG_CNTL2, 0x34);
 	max8907c_reg_write(charger->i2c, MAX8907C_REG_BBAT_CNFG, 0x3);
-//	max8907c_reg_write(charger->i2c, MAX8907C_REG_CHG_IRQ1_MASK, 0x07);
-//	max8907c_reg_write(charger->i2c, MAX8907C_REG_CHG_IRQ2_MASK, 0xBF);
+	/* Following are not needed for now
+	max8907c_reg_write(charger->i2c, MAX8907C_REG_CHG_IRQ1_MASK, 0x07);
+	max8907c_reg_write(charger->i2c, MAX8907C_REG_CHG_IRQ2_MASK, 0xBF);
+	*/
 }
 
 static bool max8907c_check_detbat(struct max8907c_charger *charger)
 {
 	u8 chg_stat = 0;
-	
+
 	chg_stat = max8907c_reg_read(charger->i2c, MAX8907C_REG_CHG_STAT);
 
 	if (chg_stat & CHGSTAT_MBDET_MASK) {
-		printk("%s: batt not detected(0x%x)\n", __func__, chg_stat);
+		pr_err("%s: batt not detected(0x%x)\n", __func__, chg_stat);
 		return true;
-	}		
-	
+	}
+
 	return false;
 }
 
@@ -61,10 +63,10 @@ static bool max8907c_check_vdcin(struct max8907c_charger *charger)
 	u8 chg_stat = 0;
 
 	chg_stat = max8907c_reg_read(charger->i2c, MAX8907C_REG_CHG_STAT);
-	
+
 	if (chg_stat & CHGSTAT_VCHG_OK_MASK)
 		return true;
-	
+
 	return false;
 }
 
@@ -78,7 +80,8 @@ static int max8907c_charger_topoff_irq(struct max8907c_charger *charger)
 	return ret;
 }
 
-static int max8907c_charger_removal_irq(struct max8907c_charger *charger, int vdcin)
+static int max8907c_charger_removal_irq(struct max8907c_charger *charger,
+								int vdcin)
 {
 	int ret = 0;
 
@@ -97,28 +100,30 @@ static irqreturn_t max8907c_charger_vchg_r_f_isr(int irq, void *dev_id)
 
 	switch (irq - chip->irq_base) {
 	case MAX8907C_IRQ_VCHG_DC_R:
-		pr_info("max8907c-charger : MAX8907C_IRQ_VCHG_DC_R \n");
+		pr_info("max8907c-charger : MAX8907C_IRQ_VCHG_DC_R.\n");
 
 		if (charger->pdata->vchg_r_f_cb)
 				ret = charger->pdata->vchg_r_f_cb(1);
-		
+
 		if (unlikely(ret != 0))
-		pr_err("max8907c-charger : Error max8907c_charger_vchg_r_f_isr %d\n", ret);
+			pr_err("max8907c-charger :"
+			" Error max8907c_charger_vchg_r_f_isr %d\n", ret);
 		break;
 	case MAX8907C_IRQ_VCHG_DC_F:
-		pr_info("max8907c-charger : MAX8907C_IRQ_VCHG_DC_F \n");
+		pr_info("max8907c-charger : MAX8907C_IRQ_VCHG_DC_F.\n");
 
 		if (charger->pdata->vchg_r_f_cb)
 				ret = charger->pdata->vchg_r_f_cb(0);
-		
+
 		if (unlikely(ret != 0))
-		pr_err("max8907c-charger : Error max8907c_charger_vchg_r_f_isr %d\n", ret);
+			pr_err("max8907c-charger :"
+			" Error max8907c_charger_vchg_r_f_isr %d\n", ret);
 		break;
 	}
 
 	return IRQ_HANDLED;
 }
-	
+
 static irqreturn_t max8907c_charger_removal_isr(int irq, void *dev_id)
 {
 	int vdcin, ret;
@@ -126,13 +131,15 @@ static irqreturn_t max8907c_charger_removal_isr(int irq, void *dev_id)
 	struct max8907c_charger *charger = dev_id;
 
 	vdcin = max8907c_check_vdcin(charger);
-	dev_info(charger->chip->dev, "max8907c-charger : Occurred charger removal IRQ (%d)",vdcin);
+	dev_info(charger->chip->dev, "max8907c-charger :"
+			" Occurred charger removal IRQ (%d)", vdcin);
 
 	ret = max8907c_charger_removal_irq(charger, vdcin);
 
 	if (unlikely(ret != 0))
-		pr_err("max8907c-charger : Error from charger_removal_irq %d\n", ret);
-	
+		pr_err("max8907c-charger :"
+			" Error from charger_removal_irq %d\n", ret);
+
 	return IRQ_HANDLED;
 }
 
@@ -145,13 +152,15 @@ static irqreturn_t max8907c_charger_isr(int irq, void *dev_id)
 	cable_state = max8907c_check_vdcin(charger);
 
 	if (cable_state) {
-		dev_info(charger->chip->dev, "Max8907c-Charger : Occurred Topoff IRQ");
+		dev_info(charger->chip->dev, "Max8907c-Charger :"
+				" Occurred Topoff IRQ");
 		ret = max8907c_charger_topoff_irq(charger);
 
 		if (unlikely(ret != 0))
-			pr_err("max8907c-charger : Error from topoff_irq %d\n", ret);
+			pr_err("max8907c-charger : "
+					"Error from topoff_irq %d\n", ret);
 	}
-	
+
 	return IRQ_HANDLED;
 }
 
@@ -161,7 +170,7 @@ static int max8907c_charger_get_property(struct power_supply *psy,
 {
 	struct max8907c_charger *charger = dev_get_drvdata(psy->dev->parent);
 	int ret;
-	
+
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = 1;
@@ -171,7 +180,7 @@ static int max8907c_charger_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
-		if(max8907c_check_detbat(charger))
+		if (max8907c_check_detbat(charger))
 			val->intval = BAT_NOT_DETECTED;
 		else
 			val->intval = BAT_DETECTED;
@@ -180,7 +189,7 @@ static int max8907c_charger_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_ONLINE:
 		/* Remove this */
 		ret = max8907c_reg_read(charger->i2c, MAX8907C_REG_CHG_STAT);
-		pr_info("MAX8907C_REG_CHG_STAT = 0x%x \n", ret);
+		pr_info("MAX8907C_REG_CHG_STAT = 0x%x\n", ret);
 		/* battery is always online */
 		val->intval = 1;
 		break;
@@ -209,7 +218,7 @@ static int max8907c_enable_charging(struct max8907c_charger *charger)
 {
 	int ret = 0;
 	int chg_stat;
-	int chg_mode=0;
+	int chg_mode = 0;
 
 	/* set charging enable */
 	dev_info(charger->chip->dev, "MAX8907c-charger : enable charging\n");
@@ -219,11 +228,13 @@ static int max8907c_enable_charging(struct max8907c_charger *charger)
 		goto err;
 
 	chg_stat = max8907c_reg_read(charger->i2c, MAX8907C_REG_CHG_STAT);
-	chg_mode = ((chg_stat & CHGSTAT_CHG_MODE_MASK) >> CHGSTAT_CHG_MODE_SHIFT);
+	chg_mode =
+		((chg_stat & CHGSTAT_CHG_MODE_MASK) >> CHGSTAT_CHG_MODE_SHIFT);
 
-	if(chg_mode == MAX8907C_TOP_OFF)
-	{
-		pr_info("%s : MAX8907C_REG_CHG_STAT = 0x%x , TOPOFFed. disable ane re-enable charging\n",__func__, chg_stat);
+	if (chg_mode == MAX8907C_TOP_OFF) {
+		pr_info("%s : "
+		"MAX8907C_REG_CHG_STAT = 0x%x , TOPOFFed. "
+		"disable ane re-enable charging\n", __func__, chg_stat);
 
 		ret = max8907c_set_bits(charger->i2c, MAX8907C_REG_CHG_CNTL1,
 			CHGCNTL1_NCHGEN_MASK, (1 << CHGCNTL1_NCHGEN_SHIFT));
@@ -231,18 +242,22 @@ static int max8907c_enable_charging(struct max8907c_charger *charger)
 		ret = max8907c_set_bits(charger->i2c, MAX8907C_REG_CHG_CNTL1,
 			CHGCNTL1_NCHGEN_MASK, (0 << CHGCNTL1_NCHGEN_SHIFT));
 
-		chg_stat = max8907c_reg_read(charger->i2c, MAX8907C_REG_CHG_STAT);
-		pr_info("%s : MAX8907C_REG_CHG_STAT = 0x%x \n",__func__, chg_stat);
+		chg_stat = max8907c_reg_read(charger->i2c,
+			MAX8907C_REG_CHG_STAT);
+		pr_info("%s : MAX8907C_REG_CHG_STAT"
+				" = 0x%x.\n", __func__, chg_stat);
 	}
 
 	return 0;
 err:
-	dev_err(charger->chip->dev, "%s: max8907c update reg error!(%d)\n", __func__, ret);
+	dev_err(charger->chip->dev, "%s: max8907c update reg error!(%d)\n",
+			__func__, ret);
 	return ret;
 }
 
 
-static int max8907c_set_charging_current(struct max8907c_charger *charger, int chg_current)
+static int max8907c_set_charging_current(struct max8907c_charger *charger,
+								int chg_current)
 {
 	int ret = 0;
 
@@ -271,7 +286,8 @@ static int max8907c_set_charging_current(struct max8907c_charger *charger, int c
 
 	return 0;
 err:
-	dev_err(charger->chip->dev, "%s: max8907c update reg error!(%d)\n", __func__, ret);
+	dev_err(charger->chip->dev,
+	"%s: max8907c update reg error!(%d)\n", __func__, ret);
 	return ret;
 }
 
@@ -293,7 +309,7 @@ static int max8907c_charger_set_property(struct power_supply *psy,
 		else
 			ret = max8907c_disable_charging(charger);
 		break;
-		
+
 	case POWER_SUPPLY_PROP_CHARGE_FULL: /* Set recharging current */
 		if (val->intval < MAX8907C_TOPOFF_5PERCENT ||
 			val->intval > MAX8907C_TOPOFF_20PERCENT) {
@@ -306,10 +322,12 @@ static int max8907c_charger_set_property(struct power_supply *psy,
 				__func__, val->intval);
 
 		ret = max8907c_set_bits(charger->i2c, MAX8907C_REG_CHG_CNTL1,
-			    CHGCNTL1_CHG_TOPFF_MASK, (val->intval << CHGCNTL1_CHG_TOPFF_SHIFT));
+			    CHGCNTL1_CHG_TOPFF_MASK,
+				(val->intval << CHGCNTL1_CHG_TOPFF_SHIFT));
 
 		if (ret) {
-			dev_err(charger->chip->dev, "%s: max8997 update reg error(%d)\n",
+			dev_err(charger->chip->dev,
+			"%s: max8997 update reg error(%d)\n",
 					__func__, ret);
 			return ret;
 		}
@@ -347,51 +365,61 @@ static __devinit int max8907c_charger_probe(struct platform_device *pdev)
 	charger->chip = chip;
 	charger->i2c = chip->i2c_power;
 
-    max8907c_charger_init_register(charger);
+	max8907c_charger_init_register(charger);
 
 	ret = max8907c_reg_read(charger->i2c, MAX8907C_REG_CHG_CNTL2);
-	pr_info("max8907c-charger : MAX8907C_REG_CHG_CNTL2 = 0x%x \n", ret);
+	pr_info("max8907c-charger : MAX8907C_REG_CHG_CNTL2 = 0x%x.\n", ret);
 
 	ret = max8907c_reg_read(charger->i2c, MAX8907C_REG_BBAT_CNFG);
-	pr_info("max8907c-charger : REG_BBAT_CNFG = 0x%x \n", ret);
+	pr_info("max8907c-charger : REG_BBAT_CNFG = 0x%x.\n", ret);
 
 	ret = max8907c_reg_read(charger->i2c, MAX8907C_REG_CHG_IRQ1_MASK);
-	pr_info("max8907c-charger : CHG_IRQ1_MASK = 0x%x \n", ret);
+	pr_info("max8907c-charger : CHG_IRQ1_MASK = 0x%x.\n", ret);
 
 	ret = max8907c_reg_read(charger->i2c, MAX8907C_REG_CHG_IRQ2_MASK);
-	pr_info("max8907c-charger : CHG_IRQ2_MASK = 0x%x \n", ret);
+	pr_info("max8907c-charger : CHG_IRQ2_MASK = 0x%x.\n", ret);
 
 	platform_set_drvdata(pdev, charger);
 
 	if (system_rev < HWREV_FOR_EXTERNEL_CHARGER) {
-		ret = request_threaded_irq(chip->irq_base + MAX8907C_IRQ_VCHG_TOPOFF, NULL,
-						max8907c_charger_isr, IRQF_TRIGGER_RISING ,
-						"max8907c-charger", charger);
+		ret = request_threaded_irq((chip->irq_base +
+				MAX8907C_IRQ_VCHG_TOPOFF),
+					NULL,
+					max8907c_charger_isr,
+					IRQF_TRIGGER_RISING,
+					"max8907c-charger", charger);
 
 		if (unlikely(ret < 0)) {
-			pr_debug("max8907c-Charger: failed to request IRQ	%x\n", ret);
+			pr_debug("max8907c-Charger:"
+				" failed to request IRQ %x\n", ret);
 			goto out1;
 		}
 	}
 
 #if 0 /* FACTORY TEST BINARY */
-	ret = request_threaded_irq(chip->irq_base + MAX8907C_IRQ_VCHG_DC_F, NULL,
-					max8907c_charger_vchg_r_f_isr, IRQF_TRIGGER_FALLING,
-					"max8907c-vchg_f", charger);
+	ret = request_threaded_irq(chip->irq_base + MAX8907C_IRQ_VCHG_DC_F,
+						NULL,
+						max8907c_charger_vchg_r_f_isr,
+						IRQF_TRIGGER_FALLING,
+						"max8907c-vchg_f", charger);
 
-	ret = request_threaded_irq(chip->irq_base + MAX8907C_IRQ_VCHG_DC_R, NULL,
-					max8907c_charger_vchg_r_f_isr, IRQF_TRIGGER_RISING,
-					"max8907c-vchg_r", charger);
+	ret = request_threaded_irq(chip->irq_base + MAX8907C_IRQ_VCHG_DC_R,
+						NULL,
+						max8907c_charger_vchg_r_f_isr,
+						IRQF_TRIGGER_RISING,
+						"max8907c-vchg_r", charger);
 #else
-	ret = request_threaded_irq(chip->irq_base + MAX8907C_IRQ_VCHG_DC_F, NULL,
-					max8907c_charger_removal_isr, IRQF_TRIGGER_FALLING,
+	ret = request_threaded_irq(chip->irq_base + MAX8907C_IRQ_VCHG_DC_F,
+					NULL,
+					max8907c_charger_removal_isr,
+					IRQF_TRIGGER_FALLING,
 					"max8907c-vchg_f", charger);
 
 	if (unlikely(ret < 0)) {
-		pr_debug("max8907c-Charger: failed to request IRQ	%x\n", ret);
+		pr_debug("max8907c-Charger: failed to request IRQ %x\n", ret);
 		goto out2;
 	}
-#endif 
+#endif
 
 	ret = power_supply_register(&pdev->dev, &max8907c_charger_ps);
 	if (unlikely(ret != 0)) {
@@ -416,7 +444,8 @@ static __devexit int max8907c_charger_remove(struct platform_device *pdev)
 	struct max8907c *chip = charger->chip;
 	int ret;
 
-	ret = max8907c_reg_write(charger->i2c, MAX8907C_REG_CHG_IRQ1_MASK, 0xFF);
+	ret = max8907c_reg_write(charger->i2c,
+			MAX8907C_REG_CHG_IRQ1_MASK, 0xFF);
 	if (unlikely(ret != 0)) {
 		pr_err("Failed to set IRQ1_MASK: %d\n", ret);
 		goto out;
@@ -452,3 +481,4 @@ module_exit(max8907c_charger_exit);
 MODULE_DESCRIPTION("Charger driver for MAX8907C");
 MODULE_AUTHOR("Gyungoh Yoo <jack.yoo@maxim-ic.com>");
 MODULE_LICENSE("GPL");
+

@@ -14,13 +14,13 @@ EXTRA_CFLAGS := -I$(PRJROOT)/modules/include
 
 $(MOD_NAME)-y := Si4709_dev.o \
 				Si4709_i2c_drv.o \
-				Si4709_main.o 
+				Si4709_main.o
 
 else
 
 ifndef KDIR
 	KDIR :=$(PRJROOT)/linux-2.6.29
-endif 
+endif
 
 all:
 	@$(MAKE) --no-print-directory -C $(KDIR) \

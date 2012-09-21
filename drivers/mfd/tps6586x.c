@@ -154,12 +154,12 @@ static inline int __tps6586x_write(struct i2c_client *client,
 static inline int __tps6586x_writes(struct i2c_client *client, int reg,
 				  int len, uint8_t *val)
 {
-	int ret;
+	int ret, i;
 
-	ret = i2c_smbus_write_i2c_block_data(client, reg, len, val);
-	if (ret < 0) {
-		dev_err(&client->dev, "failed writings to 0x%02x\n", reg);
-		return ret;
+	for (i = 0; i < len; i++) {
+		ret = __tps6586x_write(client, reg + i, *(val + i));
+		if (ret < 0)
+			return ret;
 	}
 
 	return 0;
@@ -256,25 +256,19 @@ out:
 EXPORT_SYMBOL_GPL(tps6586x_update);
 
 static struct i2c_client *tps6586x_i2c_client = NULL;
-int tps6586x_power_off(void)
+static void tps6586x_power_off(void)
 {
 	struct device *dev = NULL;
-	int ret = -EINVAL;
 
 	if (!tps6586x_i2c_client)
-		return ret;
+		return;
 
 	dev = &tps6586x_i2c_client->dev;
 
-	ret = tps6586x_clr_bits(dev, TPS6586X_SUPPLYENE, EXITSLREQ_BIT);
-	if (ret)
-		return ret;
+	if (tps6586x_clr_bits(dev, TPS6586X_SUPPLYENE, EXITSLREQ_BIT))
+		return;
 
-	ret = tps6586x_set_bits(dev, TPS6586X_SUPPLYENE, SLEEP_MODE_BIT);
-	if (ret)
-		return ret;
-
-	return 0;
+	tps6586x_set_bits(dev, TPS6586X_SUPPLYENE, SLEEP_MODE_BIT);
 }
 
 static int tps6586x_gpio_get(struct gpio_chip *gc, unsigned offset)
@@ -296,8 +290,8 @@ static void tps6586x_gpio_set(struct gpio_chip *chip, unsigned offset,
 {
 	struct tps6586x *tps6586x = container_of(chip, struct tps6586x, gpio);
 
-	__tps6586x_write(tps6586x->client, TPS6586X_GPIOSET2,
-			 value << offset);
+	tps6586x_update(tps6586x->dev, TPS6586X_GPIOSET2,
+			value << offset, 1 << offset);
 }
 
 static int tps6586x_gpio_input(struct gpio_chip *gc, unsigned offset)
@@ -325,12 +319,10 @@ static int tps6586x_gpio_output(struct gpio_chip *gc, unsigned offset,
 	return tps6586x_update(tps6586x->dev, TPS6586X_GPIOSET1, val, mask);
 }
 
-static void tps6586x_gpio_init(struct tps6586x *tps6586x, int gpio_base)
+static int tps6586x_gpio_init(struct tps6586x *tps6586x, int gpio_base)
 {
-	int ret;
-
 	if (!gpio_base)
-		return;
+		return 0;
 
 	tps6586x->gpio.owner		= THIS_MODULE;
 	tps6586x->gpio.label		= tps6586x->client->name;
@@ -344,9 +336,7 @@ static void tps6586x_gpio_init(struct tps6586x *tps6586x, int gpio_base)
 	tps6586x->gpio.set		= tps6586x_gpio_set;
 	tps6586x->gpio.get		= tps6586x_gpio_get;
 
-	ret = gpiochip_add(&tps6586x->gpio);
-	if (ret)
-		dev_warn(tps6586x->dev, "GPIO registration failed: %d\n", ret);
+	return gpiochip_add(&tps6586x->gpio);
 }
 
 static int __remove_subdev(struct device *dev, void *unused)
@@ -360,37 +350,37 @@ static int tps6586x_remove_subdevs(struct tps6586x *tps6586x)
 	return device_for_each_child(tps6586x->dev, NULL, __remove_subdev);
 }
 
-static void tps6586x_irq_lock(unsigned int irq)
+static void tps6586x_irq_lock(struct irq_data *data)
 {
-	struct tps6586x *tps6586x = get_irq_chip_data(irq);
+	struct tps6586x *tps6586x = irq_data_get_irq_chip_data(data);
 
 	mutex_lock(&tps6586x->irq_lock);
 }
 
-static void tps6586x_irq_enable(unsigned int irq)
+static void tps6586x_irq_enable(struct irq_data *irq_data)
 {
-	struct tps6586x *tps6586x = get_irq_chip_data(irq);
-	unsigned int __irq = irq - tps6586x->irq_base;
+	struct tps6586x *tps6586x = irq_data_get_irq_chip_data(irq_data);
+	unsigned int __irq = irq_data->irq - tps6586x->irq_base;
 	const struct tps6586x_irq_data *data = &tps6586x_irqs[__irq];
 
 	tps6586x->mask_reg[data->mask_reg] &= ~data->mask_mask;
 	tps6586x->irq_en |= (1 << __irq);
 }
 
-static void tps6586x_irq_disable(unsigned int irq)
+static void tps6586x_irq_disable(struct irq_data *irq_data)
 {
-	struct tps6586x *tps6586x = get_irq_chip_data(irq);
+	struct tps6586x *tps6586x = irq_data_get_irq_chip_data(irq_data);
 
-	unsigned int __irq = irq - tps6586x->irq_base;
+	unsigned int __irq = irq_data->irq - tps6586x->irq_base;
 	const struct tps6586x_irq_data *data = &tps6586x_irqs[__irq];
 
 	tps6586x->mask_reg[data->mask_reg] |= data->mask_mask;
 	tps6586x->irq_en &= ~(1 << __irq);
 }
 
-static void tps6586x_irq_sync_unlock(unsigned int irq)
+static void tps6586x_irq_sync_unlock(struct irq_data *data)
 {
-	struct tps6586x *tps6586x = get_irq_chip_data(irq);
+	struct tps6586x *tps6586x = irq_data_get_irq_chip_data(data);
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(tps6586x->mask_reg); i++) {
@@ -456,17 +446,17 @@ static int __devinit tps6586x_irq_init(struct tps6586x *tps6586x, int irq,
 	tps6586x->irq_base = irq_base;
 
 	tps6586x->irq_chip.name = "tps6586x";
-	tps6586x->irq_chip.enable = tps6586x_irq_enable;
-	tps6586x->irq_chip.disable = tps6586x_irq_disable;
-	tps6586x->irq_chip.bus_lock = tps6586x_irq_lock;
-	tps6586x->irq_chip.bus_sync_unlock = tps6586x_irq_sync_unlock;
+	tps6586x->irq_chip.irq_enable = tps6586x_irq_enable;
+	tps6586x->irq_chip.irq_disable = tps6586x_irq_disable;
+	tps6586x->irq_chip.irq_bus_lock = tps6586x_irq_lock;
+	tps6586x->irq_chip.irq_bus_sync_unlock = tps6586x_irq_sync_unlock;
 
 	for (i = 0; i < ARRAY_SIZE(tps6586x_irqs); i++) {
 		int __irq = i + tps6586x->irq_base;
-		set_irq_chip_data(__irq, tps6586x);
-		set_irq_chip_and_handler(__irq, &tps6586x->irq_chip,
+		irq_set_chip_data(__irq, tps6586x);
+		irq_set_chip_and_handler(__irq, &tps6586x->irq_chip,
 					 handle_simple_irq);
-		set_irq_nested_thread(__irq, 1);
+		irq_set_nested_thread(__irq, 1);
 #ifdef CONFIG_ARM
 		set_irq_flags(__irq, IRQF_VALID);
 #endif
@@ -494,13 +484,19 @@ static int __devinit tps6586x_add_subdevs(struct tps6586x *tps6586x,
 		subdev = &pdata->subdevs[i];
 
 		pdev = platform_device_alloc(subdev->name, subdev->id);
+		if (!pdev) {
+			ret = -ENOMEM;
+			goto failed;
+		}
 
 		pdev->dev.parent = tps6586x->dev;
 		pdev->dev.platform_data = subdev->platform_data;
 
 		ret = platform_device_add(pdev);
-		if (ret)
+		if (ret) {
+			platform_device_put(pdev);
 			goto failed;
+		}
 	}
 	return 0;
 
@@ -548,19 +544,33 @@ static int __devinit tps6586x_i2c_probe(struct i2c_client *client,
 		}
 	}
 
+	ret = tps6586x_gpio_init(tps6586x, pdata->gpio_base);
+	if (ret) {
+		dev_err(&client->dev, "GPIO registration failed: %d\n", ret);
+		goto err_gpio_init;
+	}
+
 	ret = tps6586x_add_subdevs(tps6586x, pdata);
 	if (ret) {
 		dev_err(&client->dev, "add devices failed: %d\n", ret);
 		goto err_add_devs;
 	}
 
-	tps6586x_gpio_init(tps6586x, pdata->gpio_base);
+	if (pdata->use_power_off && !pm_power_off)
+		pm_power_off = tps6586x_power_off;
 
 	tps6586x_i2c_client = client;
 
 	return 0;
 
 err_add_devs:
+	if (pdata->gpio_base) {
+		ret = gpiochip_remove(&tps6586x->gpio);
+		if (ret)
+			dev_err(&client->dev, "Can't remove gpio chip: %d\n",
+				ret);
+	}
+err_gpio_init:
 	if (client->irq)
 		free_irq(client->irq, tps6586x);
 err_irq_init:
@@ -571,10 +581,21 @@ err_irq_init:
 static int __devexit tps6586x_i2c_remove(struct i2c_client *client)
 {
 	struct tps6586x *tps6586x = i2c_get_clientdata(client);
+	struct tps6586x_platform_data *pdata = client->dev.platform_data;
+	int ret;
 
 	if (client->irq)
 		free_irq(client->irq, tps6586x);
 
+	if (pdata->gpio_base) {
+		ret = gpiochip_remove(&tps6586x->gpio);
+		if (ret)
+			dev_err(&client->dev, "Can't remove gpio chip: %d\n",
+				ret);
+	}
+
+	tps6586x_remove_subdevs(tps6586x);
+	kfree(tps6586x);
 	return 0;
 }
 

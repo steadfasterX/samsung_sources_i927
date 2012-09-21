@@ -6,6 +6,8 @@
  * Author:
  *	Colin Cross <ccross@google.com>
  *
+ * Copyright (C) 2010-2011 NVIDIA Corporation
+ *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -50,6 +52,9 @@ static const int core_speedo_nominal_millivolts[] =
 /* spedo_id  0,    1,    2 */
 	{ 1225, 1225, 1300 };
 
+#define KHZ 1000
+#define MHZ 1000000
+
 static struct dvfs_rail tegra2_dvfs_rail_vdd_cpu = {
 	.reg_id = "vdd_cpu",
 	.max_millivolts = 1125,
@@ -75,16 +80,16 @@ static struct dvfs_rail tegra2_dvfs_rail_vdd_aon = {
 #endif
 };
 
-/* vdd_core and vdd_aon must be 50 mV higher than vdd_cpu */
+/* vdd_core and vdd_aon must be 120 mV higher than vdd_cpu */
 static int tegra2_dvfs_rel_vdd_cpu_vdd_core(struct dvfs_rail *vdd_cpu,
 	struct dvfs_rail *vdd_core)
 {
 	if (vdd_cpu->new_millivolts > vdd_cpu->millivolts &&
-	    vdd_core->new_millivolts < vdd_cpu->new_millivolts + 50)
-		return vdd_cpu->new_millivolts + 50;
+	    vdd_core->new_millivolts < vdd_cpu->new_millivolts + 120)
+		return vdd_cpu->new_millivolts + 120;
 
-	if (vdd_core->new_millivolts < vdd_cpu->millivolts + 50)
-		return vdd_cpu->millivolts + 50;
+	if (vdd_core->new_millivolts < vdd_cpu->millivolts + 120)
+		return vdd_cpu->millivolts + 120;
 
 	return vdd_core->new_millivolts;
 }
@@ -100,13 +105,13 @@ static int tegra2_dvfs_rel_vdd_core_vdd_aon(struct dvfs_rail *vdd_core,
 
 static struct dvfs_relationship tegra2_dvfs_relationships[] = {
 	{
-		/* vdd_core must be 50 mV higher than vdd_cpu */
+		/* vdd_core must be 120 mV higher than vdd_cpu */
 		.from = &tegra2_dvfs_rail_vdd_cpu,
 		.to = &tegra2_dvfs_rail_vdd_core,
 		.solve = tegra2_dvfs_rel_vdd_cpu_vdd_core,
 	},
 	{
-		/* vdd_aon must be 50 mV higher than vdd_cpu */
+		/* vdd_aon must be 120 mV higher than vdd_cpu */
 		.from = &tegra2_dvfs_rail_vdd_cpu,
 		.to = &tegra2_dvfs_rail_vdd_aon,
 		.solve = tegra2_dvfs_rel_vdd_cpu_vdd_core,
@@ -161,26 +166,18 @@ static struct dvfs dvfs_init[] = {
 	CPU_DVFS("cpu", 1, 2, MHZ, 598, 598, 750, 750, 893, 893,  1000),
 	CPU_DVFS("cpu", 1, 3, MHZ, 730, 760, 845, 845, 940, 1000),
 
-	CPU_DVFS("cpu", 2, 0, MHZ,   0,   0,   0,   0, 655, 655,  798,  798,  902,  902,  960,  1000, 1100, 1100, 1200),
-	CPU_DVFS("cpu", 2, 1, MHZ,   0,   0,   0,   0, 655, 760,  798,  798,  950,  950,  1015, 1015, 1100, 1200),
-	CPU_DVFS("cpu", 2, 2, MHZ,   0,   0,   0,   0, 769, 769,  902,  902,  1026, 1026, 1140, 1140, 1200),
-	CPU_DVFS("cpu", 2, 3, MHZ,   0,   0,   0,   0, 940, 1000, 1000, 1000, 1130, 1130, 1200),
+	CPU_DVFS("cpu", 2, 0, MHZ,   0,   0, 503, 503, 655, 760,  798,  798,  950,  970,  1015,  1040,  1100, 1178, 1200),
+	CPU_DVFS("cpu", 2, 1, MHZ,   0,   0, 503, 503, 655, 760,  798,  798,  950,  970,  1015,  1040,  1100, 1200),
+	CPU_DVFS("cpu", 2, 2, MHZ,   0,   0, 680, 680, 769, 845,  902,  902,  1026, 1092, 1140,  1197,  1200),
+	CPU_DVFS("cpu", 2, 3, MHZ,   0,   0, 845, 845, 940, 1000, 1045, 1045, 1130, 1160, 1200),
 
 	/* Core voltages (mV):           950,    1000,   1100,   1200,   1225,   1275,   1300 */
 	CORE_DVFS("emc",     -1, 1, KHZ, 57000,  333000, 380000, 666000, 666000, 666000, 760000),
 
-#if 0
-	/*
-	 * The sdhci core calls the clock ops with a spinlock held, which
-	 * conflicts with the sleeping dvfs api.
-	 * For now, boards must ensure that the core voltage does not drop
-	 * below 1V, or that the sdmmc busses are set to 44 MHz or less.
-	 */
 	CORE_DVFS("sdmmc1",  -1, 1, KHZ, 44000,  52000,  52000,  52000,  52000,  52000,  52000),
 	CORE_DVFS("sdmmc2",  -1, 1, KHZ, 44000,  52000,  52000,  52000,  52000,  52000,  52000),
 	CORE_DVFS("sdmmc3",  -1, 1, KHZ, 44000,  52000,  52000,  52000,  52000,  52000,  52000),
 	CORE_DVFS("sdmmc4",  -1, 1, KHZ, 44000,  52000,  52000,  52000,  52000,  52000,  52000),
-#endif
 
 	CORE_DVFS("ndflash", -1, 1, KHZ, 130000, 150000, 158000, 164000, 164000, 164000, 164000),
 	CORE_DVFS("nor",     -1, 1, KHZ, 0,      92000,  92000,  92000,  92000,  92000,  92000),
@@ -191,8 +188,9 @@ static struct dvfs dvfs_init[] = {
 	/*
 	 * Set VDD core to 0.95v when HSIC port is idle
 	 */
-	CORE_DVFS("usb2min",-1, 1, KHZ,  0,  0,  60000,  60000,  60000,  60000,  60000),
-	CORE_DVFS("usb3",    -1, 1, KHZ, 0,      0,      480000,  480000, 480000, 480000, 480000),
+	CORE_DVFS("usb2min", -1, 1, KHZ, 60000,  60000,  60000,  60000,  60000,  60000,  60000),
+	CORE_DVFS("usb3",    -1, 1, KHZ, 0,      0,      480000, 480000, 480000, 480000, 480000),
+	CORE_DVFS("usb3min", -1, 1, KHZ, 60000,  60000,  60000,  60000,  60000,  60000,  60000),
 	CORE_DVFS("pcie",    -1, 1, KHZ, 0,      0,      0,      250000, 250000, 250000, 250000),
 	CORE_DVFS("dsi",     -1, 1, KHZ, 100000, 100000, 100000, 500000, 500000, 500000, 500000),
 	CORE_DVFS("tvo",     -1, 1, KHZ, 0,      0,      0,      250000, 250000, 250000, 250000),
@@ -294,7 +292,7 @@ module_param_cb(disable_core, &tegra_dvfs_disable_core_ops,
 module_param_cb(disable_cpu, &tegra_dvfs_disable_cpu_ops,
 	&tegra_dvfs_cpu_disabled, 0644);
 
-void __init tegra2_init_dvfs(void)
+void __init tegra_soc_init_dvfs(void)
 {
 	int i;
 	struct clk *c;
@@ -354,15 +352,3 @@ void __init tegra2_init_dvfs(void)
 	if (tegra_dvfs_cpu_disabled)
 		tegra_dvfs_rail_disable(&tegra2_dvfs_rail_vdd_cpu);
 }
-
-#ifdef CONFIG_MACH_N1
-void tegra_dvfs_disable_core_cpu(void)
-{
-	printk("tegra_dvfs: disable core & cpu dvfs\n");
-	tegra_dvfs_core_disabled = false;
-	tegra_dvfs_cpu_disabled = false;
-	tegra_dvfs_rail_disable(&tegra2_dvfs_rail_vdd_core);
-	tegra_dvfs_rail_disable(&tegra2_dvfs_rail_vdd_cpu);
-}
-EXPORT_SYMBOL(tegra_dvfs_disable_core_cpu);
-#endif

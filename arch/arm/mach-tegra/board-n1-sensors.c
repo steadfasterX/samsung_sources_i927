@@ -46,6 +46,7 @@
  */
 
 extern unsigned int system_rev;
+extern struct class *sec_class;
 
 static struct mpu3050_platform_data n1_mpu3050_pdata = {
 	.int_config  = 0x10,
@@ -53,9 +54,9 @@ static struct mpu3050_platform_data n1_mpu3050_pdata = {
 	 * 90 degrees counter-clockwise from natural orientation.
 	 * So X & Y are swapped and Y is negated.
 	 */
-	.orientation = {  0, 1,  0,
-			  1,  0,  0,
-			  0,  0,  -1 },
+	.orientation = {0, 1,  0,
+			1,  0,  0,
+			0,  0,  -1 },
 	.level_shifter = 0,
 	.accel = {
 		.get_slave_descr = NULL,
@@ -67,9 +68,9 @@ static struct mpu3050_platform_data n1_mpu3050_pdata = {
 		 * 180 degrees from natural orientation.
 		 * So X & Y are both negated.
 		 */
-		.orientation = { 0,  1,  0,
-				  1, 0,  0,
-				  0,  0,  -1 },
+		.orientation = {0,  1,  0,
+				1, 0,  0,
+				0,  0,  -1 },
 	},
 	.compass = {
 		.get_slave_descr = NULL,
@@ -81,9 +82,9 @@ static struct mpu3050_platform_data n1_mpu3050_pdata = {
 		 * 90 degrees clockwise from natural orientation.
 		 * So X & Y are swapped and Y & Z are negated.
 		 */
-		.orientation = {  0, -1,  0,
-				  1,  0,  0,
-				  0,  0, 1 },
+		.orientation = {0, -1,  0,
+				1,  0,  0,
+				0,  0, 1 },
 	},
 };
 
@@ -93,9 +94,9 @@ static struct mpu3050_platform_data n1_mpu3050_pdata_rev05 = {
 	 * 90 degrees counter-clockwise from natural orientation.
 	 * So X & Y are swapped and Y is negated.
 	 */
-	.orientation = {  0, -1,  0,
-			  -1,  0,  0,
-			  0,  0,  -1 },
+	.orientation = {0, -1,  0,
+			-1,  0,  0,
+			0,  0,  -1 },
 	.level_shifter = 0,
 	.accel = {
 		.get_slave_descr = NULL,
@@ -107,9 +108,9 @@ static struct mpu3050_platform_data n1_mpu3050_pdata_rev05 = {
 		 * 180 degrees from natural orientation.
 		 * So X & Y are both negated.
 		 */
-		.orientation = { 1,  0,  0,
-				  0, -1,  0,
-				  0,  0,  -1 },
+		.orientation = {1,  0,  0,
+				0, -1,  0,
+				0,  0,  -1 },
 	},
 	.compass = {
 		.get_slave_descr = NULL,
@@ -121,22 +122,18 @@ static struct mpu3050_platform_data n1_mpu3050_pdata_rev05 = {
 		 * 90 degrees clockwise from natural orientation.
 		 * So X & Y are swapped and Y & Z are negated.
 		 */
-		.orientation = {  0, 1,  0,
-				  1,  0,  0,
-				  0,  0, -1 },
+		.orientation = {0, 1,  0,
+				1,  0,  0,
+				0,  0, -1 },
 	},
 };
-
-
-
-extern struct class *sec_class;
 
 static void n1_mpu3050_init(void)
 {
 	tegra_gpio_enable(TEGRA_GPIO_PA0);
 	gpio_request(TEGRA_GPIO_PA0, "mpu3050_int");
 	gpio_direction_input(TEGRA_GPIO_PA0);
-	
+
 	if (system_rev < 0x05)
 		n1_mpu3050_pdata.sec_class = sec_class;
 	else
@@ -151,8 +148,8 @@ static const struct i2c_board_info n1_i2c_mpu_sensor_board_info[] = {
 	},
 	{
 		I2C_BOARD_INFO("kxtf9", 0x0F),
-	},	
-#if 0	
+	},
+#if 0
 	{
 		I2C_BOARD_INFO("kxud9", 0x30>>1),
 	},
@@ -178,7 +175,7 @@ static void n1_ak8975_init(void)
 }
 
 static struct akm8975_platform_data akm8975_pdata = {
-	        .gpio_data_ready_int = GPIO_AK8975_INT,
+	.gpio_data_ready_int = GPIO_AK8975_INT,
 };
 
 static struct i2c_board_info n1_i2c_compass_sensor_board_info[] = {

@@ -1,10 +1,14 @@
-/*
- *
- *  BlueZ - Bluetooth protocol stack for Linux
- *
  *  Copyright (C) 2000-2001  Qualcomm Incorporated
+ *  Copyright (C) 2001-2002  Nokia Corporation
+ *  Copyright (C) 2002-2003  Jean Tourrilhes <jt@hpl.hp.com>
  *  Copyright (C) 2002-2003  Maxim Krasnyansky <maxk@qualcomm.com>
+ *  Copyright (C) 2002-2003  Stephen Crane <steve.crane@rococosoft.com>
  *  Copyright (C) 2002-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2003-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2004-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2005-2009  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2006-2007  Nokia Corporation
+ *  Copyright (C) 2007-2008  Texas Instruments, Inc.
  *
  *
  *  This program is free software; you can redistribute it and/or modify

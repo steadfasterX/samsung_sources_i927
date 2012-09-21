@@ -20,7 +20,12 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
  */
-extern struct bluetooth_plugin_desc __bluetooth_builtin_hciops;
+ 
+// SSBT :: KJH * to use mgmt interface
+extern struct bluetooth_plugin_desc __bluetooth_builtin_mgmtops;
+// SSBT :: NEO * to use adaptername interface
+extern struct bluetooth_plugin_desc __bluetooth_builtin_adaptername;
 static struct bluetooth_plugin_desc *__bluetooth_builtin[] = {
-	&__bluetooth_builtin_hciops,
+	&__bluetooth_builtin_mgmtops,
+	&__bluetooth_builtin_adaptername,
 	NULL };

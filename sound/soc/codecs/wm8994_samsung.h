@@ -13,8 +13,6 @@
 #include <linux/mfd/wm8994/wm8994_pdata.h>
 #include <mach/tegra_das.h>
 
-extern struct snd_soc_codec_device soc_codec_dev_wm8994;
-
 /* Sources for AIF1/2 SYSCLK - use with set_dai_sysclk() */
 #define WM8994_SYSCLK_MCLK1 1
 #define WM8994_SYSCLK_MCLK2 2
@@ -27,8 +25,6 @@ extern struct snd_soc_codec_device soc_codec_dev_wm8994;
 /* Added belows codes by Samsung Electronics.*/
 
 #include "wm8994_def.h"
-
-extern struct snd_soc_dai wm8994_dai;
 
 #define WM8994_SYSCLK_MCLK     1
 #define WM8994_SYSCLK_FLL      2
@@ -75,6 +71,7 @@ Codec Output Path BIT
 #define PLAYBACK_RING_SPK_HP	(0x01 << 8)
 #define PLAYBACK_HP_NO_MIC	(0x01 << 9)
 #define PLAYBACK_LINEOUT	(0x01 << 10)
+#define PLAYBACK_SPK_LINEOUT	(0x01 << 11) /* 0x800 */
 
 #define VOICECALL_RCV		(0x01 << 1)
 #define VOICECALL_SPK		(0x01 << 2)
@@ -139,9 +136,9 @@ Codec Output Path BIT
 enum audio_path	{
 	OFF, RCV, SPK, HP, HP_NO_MIC, BT, SPK_HP,
 	RING_SPK, RING_HP, RING_NO_MIC, RING_SPK_HP,
-	LINEOUT
+	LINEOUT, SPK_LINEOUT
 };
-#if defined(CONFIG_MACH_N1_CHN) 
+#if defined(CONFIG_MACH_N1_CHN)
 enum mic_path		{MAIN, HP_MIC, SUB, BT_REC, VOICE_ALL,VOICE_RX, MIC_OFF};
 #else
 enum mic_path		{MAIN, HP_MIC, SUB, BT_REC, MIC_OFF};
@@ -185,6 +182,7 @@ enum wm8994_dc_servo_slots {
 
 struct wm8994_priv {
 	struct snd_soc_codec *codec;
+	struct delayed_work delayed_work;
 	int master;
 	int sysclk_source;
 	unsigned int mclk_rate;
@@ -206,6 +204,7 @@ struct wm8994_priv {
 	select_route *universal_voicecall_path;
 	select_mic_route *universal_mic_path;
 	select_route *universal_fmradio_path;
+	select_clock_control universal_clock_control;
 	struct wm8994_platform_data *pdata;
 	int gain_code;
 	u16 dc_servo[3];
@@ -213,7 +212,7 @@ struct wm8994_priv {
 	int codecgain_reserve;
 	enum voip_state voip_call_active;
 	int fm_radio_vol;
-#if defined (CONFIG_MACH_BOSE_ATT)    
+#if defined (CONFIG_MACH_BOSE_ATT)
 	unsigned int cur_audience;
         int AUDIENCE_state;
 	int Fac_SUB_MIC_state;
@@ -250,6 +249,8 @@ struct gain_info_t {
 			__func__, __LINE__, ## __VA_ARGS__);
 
 /* Definitions of function prototype. */
+void wm8994_shutdown(struct snd_pcm_substream *substream,
+			    struct snd_soc_dai *codec_dai);
 unsigned int wm8994_read(struct snd_soc_codec *codec, unsigned int reg);
 int wm8994_write(struct snd_soc_codec *codec,
 		unsigned int reg, unsigned int value);
@@ -269,6 +270,7 @@ void wm8994_set_playback_speaker(struct snd_soc_codec *codec);
 void wm8994_set_playback_bluetooth(struct snd_soc_codec *codec);
 void wm8994_set_playback_speaker_headset(struct snd_soc_codec *codec);
 void wm8994_set_playback_extra_dock_speaker(struct snd_soc_codec *codec);
+void wm8994_set_playback_speaker_lineout(struct snd_soc_codec *codec);
 void wm8994_set_voicecall_common_setting(struct snd_soc_codec *codec);
 void wm8994_set_voicecall_receiver(struct snd_soc_codec *codec);
 void wm8994_set_voicecall_headset(struct snd_soc_codec *codec);
@@ -284,7 +286,7 @@ void wm8994_set_voicecall_speaker_audience(struct snd_soc_codec *codec);
 void loopback_mute_timer_start(void);
 #endif
 
-#if defined(CONFIG_MACH_N1_CHN) 
+#if defined(CONFIG_MACH_N1_CHN)
 void wm8994_record_Voice_all(struct snd_soc_codec *codec);
 void wm8994_record_Voice_rx(struct snd_soc_codec *codec);
 #endif

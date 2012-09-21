@@ -145,7 +145,7 @@ struct s5k5bafx_reg_8 {
 
 int s5k5bafx_write_table_8(struct i2c_client *client,
 			      const struct s5k5bafx_reg_8 *table);
-			      
+
 #ifdef __KERNEL__
 
 struct s5k5bafx_platform_data {
@@ -155,5 +155,3 @@ struct s5k5bafx_platform_data {
 #endif /* __KERNEL__ */
 
 #endif  /* __S5K5BAFX_H__ */
-
-

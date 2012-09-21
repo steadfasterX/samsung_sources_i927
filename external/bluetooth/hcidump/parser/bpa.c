@@ -2,7 +2,7 @@
  *
  *  BlueZ - Bluetooth protocol stack for Linux
  *
- *  Copyright (C) 2004-2007  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2004-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -31,13 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <sys/types.h>
-#include <netinet/in.h>
-
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-
-#include "parser.h"
+#include "parser/parser.h"
 
 #define BPA_U8(frm)  (get_u8(frm))
 #define BPA_U16(frm) (btohs(htons(get_u16(frm))))
@@ -58,8 +52,8 @@ void bpa_dump(int level, struct frame *frm)
 	channel = get_u8(frm);
 
 	p_indent(level, frm);
-	printf("BPA: id %d num %d status 0x%02x time %d channel %d\n",
-		id, num, status, time, channel);
+	printf("BPA: id %d num %d len %u status 0x%02x time %d channel %d\n",
+		id, num, len, status, time, channel);
 
 	raw_dump(level, frm);
 }

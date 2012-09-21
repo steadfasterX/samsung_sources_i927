@@ -1,7 +1,7 @@
 /*
  * arch/arm/mach-tegra/board-n1-pinmux.c
  *
- * Copyright (C) 2010 NVIDIA Corporation
+ * Copyright (C) 2010-2011 NVIDIA Corporation
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -16,7 +16,10 @@
 
 #include <linux/kernel.h>
 #include <linux/init.h>
+
 #include <mach/pinmux.h>
+
+
 
 #define DEFAULT_DRIVE(_name)					\
 	{							\
@@ -157,7 +160,7 @@ static __initdata struct tegra_pingroup_config n1_pinmux[] = {
 	{TEGRA_PINGROUP_SPIE,  TEGRA_MUX_GMI,           TEGRA_PUPD_PULL_DOWN,   TEGRA_TRI_NORMAL},
 	{TEGRA_PINGROUP_SPIF,  TEGRA_MUX_RSVD4,         TEGRA_PUPD_PULL_DOWN, TEGRA_TRI_NORMAL},
 	{TEGRA_PINGROUP_SPIG,  TEGRA_MUX_SPI2_ALT,      TEGRA_PUPD_PULL_UP,   TEGRA_TRI_NORMAL},
-	{TEGRA_PINGROUP_SPIH,  TEGRA_MUX_SPI2_ALT,      TEGRA_PUPD_PULL_UP,   TEGRA_TRI_NORMAL},
+	{TEGRA_PINGROUP_SPIH,  TEGRA_MUX_SPI2_ALT,      TEGRA_PUPD_NORMAL,   TEGRA_TRI_NORMAL},
 	{TEGRA_PINGROUP_UAA,   TEGRA_MUX_UARTA,		TEGRA_PUPD_PULL_UP,    TEGRA_TRI_NORMAL},
 	{TEGRA_PINGROUP_UAB,   TEGRA_MUX_UARTA,		TEGRA_PUPD_PULL_UP,    TEGRA_TRI_NORMAL},
 	{TEGRA_PINGROUP_UAC,   TEGRA_MUX_RSVD4,         TEGRA_PUPD_NORMAL,    TEGRA_TRI_NORMAL},
@@ -176,9 +179,13 @@ static __initdata struct tegra_pingroup_config n1_pinmux[] = {
 	{TEGRA_PINGROUP_XM2D,  TEGRA_MUX_NONE,          TEGRA_PUPD_NORMAL,    TEGRA_TRI_NORMAL},
 };
 
-void __init n1_pinmux_init(void)
+
+int __init n1_pinmux_init(void)
 {
 	tegra_pinmux_config_table(n1_pinmux, ARRAY_SIZE(n1_pinmux));
 	tegra_drive_pinmux_config_table(n1_drive_pinmux,
 					ARRAY_SIZE(n1_drive_pinmux));
+
+
+	return 0;
 }

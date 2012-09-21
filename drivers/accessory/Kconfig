@@ -4,7 +4,7 @@
 
 menuconfig ACCESSORY
 	bool "Accessory devices"
-	default y
+	default n
 	---help---
 	Say Y here to get to see options for Samsung Accessories
 	If you say N, all options in this submenu will be skipped and disabled.
@@ -14,6 +14,3 @@ if ACCESSORY
 source "drivers/accessory/mhl/Kconfig"
 
 endif # ACCESSORY
-
-
-

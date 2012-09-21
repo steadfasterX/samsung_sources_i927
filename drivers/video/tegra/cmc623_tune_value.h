@@ -1,8 +1,8 @@
 #include "cmc623_tune_value_LCD.h"
 
-mDNIe_data_type cmc623_Bypass[]= 
+mDNIe_data_type cmc623_Bypass[]=
 {
-	//start 
+	//start
 	{0x0000,0x0000},	//BANK 0
 	{0x0001,0x0020},	//LABC
 	{0x002c,0x0fff},	//DNR bypass {0x003C
@@ -46,9 +46,9 @@ mDNIe_data_type cmc623_Bypass[]=
 	{END_SEQ,0x0000},
 };
 
-mDNIe_data_type cmc623_Bypass_CABC[]= 
+mDNIe_data_type cmc623_Bypass_CABC[]=
 {
-	//start 
+	//start
 	{0x0000,0x0000},	//BANK 0
 	{0x0001,0x0030},	//LABC CABC
 	{0x002c,0x0fff},	//DNR bypass 0x003C
@@ -133,39 +133,39 @@ typedef enum
 u16* cmc623_values[]=
 {
 	(u16*)cmc623_Bypass,
-	
+
 	(u16*)cmc623_Bypass_CABC,
-	
+
 	cmc623_Video_LCD,
-	
+
 	cmc623_Video_CABC_LCD,
-	
+
 	cmc623_Video_Warm_LCD,
-	
+
 	cmc623_Video_Warm_CABC_LCD,
 
 	cmc623_Video_Cold_LCD,
-	
+
 	cmc623_Video_Cold_CABC_LCD,
-	
+
 	cmc623_Camera_LCD,
-	
+
 	cmc623_Camera_CABC_LCD,
-	
+
 	cmc623_UI_LCD,
-	
+
 	cmc623_UI_CABC_LCD,
-	
+
 	cmc623_VT_LCD,
-	
+
 	cmc623_VT_CABC_LCD,
-	
+
 	cmc623_DMB_LCD,
-	
+
 	cmc623_DMB_CABC_LCD,
-	
+
 	cmc623_GALLERY_LCD,
-	
+
 	cmc623_GALLERY_CABC_LCD,
 
 	cmc623_USERSELECT_DYNAMIC,
@@ -173,10 +173,10 @@ u16* cmc623_values[]=
 	cmc623_USERSELECT_STANDARD,
 
 	cmc623_USERSELECT_MOVIE,
-	
+
 };
 
-u16 OVE_values[] = 
+u16 OVE_values[] =
 {
 	0x0000,
 	0x0000,
@@ -198,20 +198,20 @@ u16 OVE_values[] =
 u16* cmc623_black_values[]=
 {
 	cmc623_Black_Minus_4_LCD,	cmc623_Black_Minus_4_CABC_LCD,
-	
+
 	cmc623_Black_Minus_3_LCD,	cmc623_Black_Minus_3_CABC_LCD,
-	
+
 	cmc623_Black_Minus_2_LCD,	cmc623_Black_Minus_2_CABC_LCD,
-	
+
 	cmc623_Black_Minus_1_LCD,	cmc623_Black_Minus_1_CABC_LCD,
-	
+
 	cmc623_Black_0_LCD,		cmc623_Black_0_CABC_LCD,
-	
+
 	cmc623_Black_Plus_1_LCD,	cmc623_Black_Plus_1_CABC_LCD,
-	
+
 	cmc623_Black_Plus_2_LCD,	cmc623_Black_Plus_2_CABC_LCD,
-	
+
 	cmc623_Black_Plus_3_LCD,	cmc623_Black_Plus_3_CABC_LCD,
-	
+
 	cmc623_Black_Plus_4_LCD,	cmc623_Black_Plus_4_CABC_LCD,
 };

@@ -44,10 +44,10 @@ static DEVICE_ATTR(pmic_adc, S_IRUGO | S_IWUSR | S_IWOTH | S_IXOTH, pmic_adc_tes
  * max8907c_adc_read_aux2 - Return ADC value for aux2
  *
  * Will return the ADC value of AUX2 port of max8907c.
- * ADC function converts 0.0V ~ 2.5V to 12bit digital value, 
+ * ADC function converts 0.0V ~ 2.5V to 12bit digital value,
  * which ranges from 0 ~ 4095(0xfff).
  *
- *  (return value) = (ADC read) * 2500 / 0xfff   
+ *  (return value) = (ADC read) * 2500 / 0xfff
  *
  * range 0 ~ 2500 mV
  */
@@ -56,36 +56,38 @@ int max8907c_adc_read_aux1(int *aux1value)
 	u32 tmp;
 	int msb, lsb;
 	int ret;
-	
+
 	if (WARN(aux1value == NULL, "%s() aux1value is null\n", __func__))
 		return -ENXIO;
 
 	*aux1value = 0;
 
 	mutex_lock(&adc_en_lock);
-	
+
+#ifndef CONFIG_MACH_N1
 	/* Enable ADCREF by setting the INT_REF_EN bit in the RESET_CNFG register */
 	ret = max8907c_set_bits(max8907c_i2c_power_client, MAX8907C_REG_RESET_CNFG, 0x01, 0x01);
 	if (ret < 0) {
 		pr_err("%s() failed writing on register %x returned %d\n", __func__, MAX8907C_REG_RESET_CNFG, ret);
 		goto error;
 	}
-	
-	/* Enable internal voltage reference. 
+#endif
+
+	/* Enable internal voltage reference.
 	 * Write 0x12 to MAX8907_TSC_CNFG1 to turn on internal reference. */
 	ret = max8907c_reg_write(max8907c_i2c_adc_client, MAX8907_TSC_CNFG1, 0x12);
 	if (ret < 0) {
 		pr_err("%s() failed writing on register %x returned %d\n", __func__, MAX8907_TSC_CNFG1, ret);
 		goto error;
 	}
-	
+
 	/* Send MAX8907_ADC_CMD_AUX2M_OFF command to powerup and the ADC and perform a conversion. */
 	ret = max8907c_send_cmd(max8907c_i2c_adc_client, MAX8907_ADC_CMD_AUX1M_OFF);
 	if (ret < 0) {
 		pr_err("%s() failed send command %x returned %d\n", __func__, MAX8907_ADC_CMD_AUX1M_OFF, ret);
 		goto error;
 	}
-	
+
 	/* Turn off the internal reference. Write 0x11 to register MAX8907_TSC_CNFG1 */
 	ret = max8907c_reg_write(max8907c_i2c_adc_client, MAX8907_TSC_CNFG1, 0x11);
 	if (ret < 0) {
@@ -98,18 +100,20 @@ int max8907c_adc_read_aux1(int *aux1value)
 	msb = max8907c_reg_read(max8907c_i2c_adc_client, MAX8907_ADC_RES_AUX1_MSB);
 	lsb = max8907c_reg_read(max8907c_i2c_adc_client, MAX8907_ADC_RES_AUX1_LSB);
 
+#ifndef CONFIG_MACH_N1
 	/* Disable ADCREF by setting the INT_REF_EN bit 0. in the RESET_CNFG register */
 	ret =max8907c_set_bits(max8907c_i2c_power_client, MAX8907C_REG_RESET_CNFG, 0x01, 0x00);
 	if (ret < 0) {
 		pr_err("%s() failed writing on register %x returned %d\n", __func__, MAX8907C_REG_RESET_CNFG, ret);
 		goto error;
 	}
+#endif
 
 	mutex_unlock(&adc_en_lock);
-	
+
 	/* Convert the result value to mV. */
 	*aux1value = ((msb << 4)|(lsb >> 4));
-		
+
 	return 0;
 
 error:
@@ -124,10 +128,10 @@ error:
  * max8907c_adc_read_aux2 - Return ADC value for aux2
  *
  * Will return the ADC value of AUX2 port of max8907c.
- * ADC function converts 0.0V ~ 2.5V to 12bit digital value, 
+ * ADC function converts 0.0V ~ 2.5V to 12bit digital value,
  * which ranges from 0 ~ 4095(0xfff).
  *
- *  (return value) = (ADC read) * 2500 / 0xfff   
+ *  (return value) = (ADC read) * 2500 / 0xfff
  *
  * range 0 ~ 2500 mV
  */
@@ -136,36 +140,38 @@ int max8907c_adc_read_aux2(int *mili_volt)
 	u32 tmp;
 	int msb, lsb;
 	int ret;
-	
+
 	if (WARN(mili_volt == NULL, "%s() mili_volt is null\n", __func__))
 		return -ENXIO;
 
 	*mili_volt = 0;
 
 	mutex_lock(&adc_en_lock);
-	
+
+#ifndef CONFIG_MACH_N1
 	/* Enable ADCREF by setting the INT_REF_EN bit in the RESET_CNFG register */
 	ret = max8907c_set_bits(max8907c_i2c_power_client, MAX8907C_REG_RESET_CNFG, 0x01, 0x01);
 	if (ret < 0) {
 		pr_err("%s() failed writing on register %x returned %d\n", __func__, MAX8907C_REG_RESET_CNFG, ret);
 		goto error;
 	}
-	
-	/* Enable internal voltage reference. 
+#endif
+
+	/* Enable internal voltage reference.
 	 * Write 0x12 to MAX8907_TSC_CNFG1 to turn on internal reference. */
 	ret = max8907c_reg_write(max8907c_i2c_adc_client, MAX8907_TSC_CNFG1, 0x12);
 	if (ret < 0) {
 		pr_err("%s() failed writing on register %x returned %d\n", __func__, MAX8907_TSC_CNFG1, ret);
 		goto error;
 	}
-	
+
 	/* Send MAX8907_ADC_CMD_AUX2M_OFF command to powerup and the ADC and perform a conversion. */
 	ret = max8907c_send_cmd(max8907c_i2c_adc_client, MAX8907_ADC_CMD_AUX2M_OFF);
 	if (ret < 0) {
 		pr_err("%s() failed send command %x returned %d\n", __func__, MAX8907_ADC_CMD_AUX2M_OFF, ret);
 		goto error;
 	}
-	
+
 	/* Turn off the internal reference. Write 0x11 to register MAX8907_TSC_CNFG1 */
 	ret = max8907c_reg_write(max8907c_i2c_adc_client, MAX8907_TSC_CNFG1, 0x11);
 	if (ret < 0) {
@@ -178,15 +184,17 @@ int max8907c_adc_read_aux2(int *mili_volt)
 	msb = max8907c_reg_read(max8907c_i2c_adc_client, MAX8907_ADC_RES_AUX2_MSB);
 	lsb = max8907c_reg_read(max8907c_i2c_adc_client, MAX8907_ADC_RES_AUX2_LSB);
 
+#ifndef CONFIG_MACH_N1
 	/* Disable ADCREF by setting the INT_REF_EN bit 0. in the RESET_CNFG register */
 	ret =max8907c_set_bits(max8907c_i2c_power_client, MAX8907C_REG_RESET_CNFG, 0x01, 0x00);
 	if (ret < 0) {
 		pr_err("%s() failed writing on register %x returned %d\n", __func__, MAX8907C_REG_RESET_CNFG, ret);
 		goto error;
 	}
+#endif
 
 	mutex_unlock(&adc_en_lock);
-	
+
 	/* Convert the result value to mV. */
 	tmp = ((msb << 4)|(lsb >> 4)) * 2500;
 	*mili_volt = tmp / 0xfff;
@@ -219,7 +227,7 @@ static int __devinit max8907c_adc_probe(struct platform_device *pdev)
 	max8907c_i2c_power_client = info->i2c_power;
 
     mutex_init(&adc_en_lock);
-			
+
 	/* default readings. */
 	max8907c_reg_read(max8907c_i2c_adc_client, MAX8907_ADC_RES_CNFG1);
 	max8907c_reg_read(max8907c_i2c_adc_client, MAX8907_ADC_AVG_CNFG1);
@@ -240,7 +248,7 @@ static int __devinit max8907c_adc_probe(struct platform_device *pdev)
 	max8907c_set_bits(max8907c_i2c_adc_client, MAX8907_ADC_ACQ_CNFG1, 0x20, 0x20);
 	max8907c_set_bits(max8907c_i2c_adc_client, MAX8907_ADC_SCHED, 0x03, 0x01);
 #endif
-	
+
 
 //#if defined(CONFIG_MACH_N1)
 # if 0
@@ -284,4 +292,3 @@ module_exit(max8907c_adc_exit);
 
 MODULE_DESCRIPTION("Maxim MAX8907C ADC driver");
 MODULE_LICENSE("GPL");
-

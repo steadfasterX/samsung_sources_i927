@@ -2,7 +2,7 @@
  *
  *  BlueZ - Bluetooth protocol stack for Linux
  *
- *  Copyright (C) 2004-2007  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2004-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -31,10 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <sys/types.h>
-#include <netinet/in.h>
-
-#include "parser.h"
+#include "parser/parser.h"
 
 static char *si2str(uint8_t si)
 {
@@ -61,6 +58,10 @@ static char *si2str(uint8_t si)
 		return "Abort";
 	case 0x0b:
 		return "Security";
+	case 0x0c:
+		return "All Capabilities";
+	case 0x0d:
+		return "Delay Report";
 	default:
 		return "Unknown";
 	}
@@ -166,6 +167,8 @@ static char *cat2str(uint8_t cat)
 		return "Multiplexing";
 	case 7:
 		return "Media Codec";
+	case 8:
+		return "Delay Reporting";
 	default:
 		return "Reserved";
 	}
@@ -420,6 +423,25 @@ static inline void security(int level, uint8_t hdr, struct frame *frm)
 	}
 }
 
+static inline void delay_report(int level, uint8_t hdr, struct frame *frm)
+{
+	uint8_t seid;
+	uint16_t delay;
+
+	switch (hdr & 0x03) {
+	case 0x00:
+		p_indent(level, frm);
+		seid = get_u8(frm);
+		delay = get_u16(frm);
+		printf("ACP SEID %d delay %u.%ums\n", seid >> 2,
+						delay / 10, delay % 10);
+		break;
+	case 0x03:
+		errorcode(level, frm);
+		break;
+	}
+}
+
 void avdtp_dump(int level, struct frame *frm)
 {
 	uint8_t hdr, sid, nsp, type;
@@ -434,14 +456,16 @@ void avdtp_dump(int level, struct frame *frm)
 		nsp = (hdr & 0x0c) == 0x04 ? get_u8(frm) : 0;
 		sid = hdr & 0x08 ? 0x00 : get_u8(frm);
 
-		printf("AVDTP(s): %s %s: transaction %d\n",
-			hdr & 0x08 ? pt2str(hdr) : si2str(sid), mt2str(hdr), hdr >> 4);
+		printf("AVDTP(s): %s %s: transaction %d nsp 0x%02x\n",
+			hdr & 0x08 ? pt2str(hdr) : si2str(sid),
+			mt2str(hdr), hdr >> 4, nsp);
 
 		switch (sid & 0x7f) {
 		case 0x01:
 			discover(level + 1, hdr, frm);
 			break;
 		case 0x02:
+		case 0x0c:
 			get_capabilities(level + 1, hdr, frm);
 			break;
 		case 0x03:
@@ -470,6 +494,9 @@ void avdtp_dump(int level, struct frame *frm)
 			break;
 		case 0x0b:
 			security(level + 1, hdr, frm);
+			break;
+		case 0x0d:
+			delay_report(level + 1, hdr, frm);
 			break;
 		}
 

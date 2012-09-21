@@ -24,7 +24,7 @@
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 
-
+#include "../../../arch/arm/mach-tegra/cpu-tegra.h"
 
 #define CMC623_PWM_MAX_INTENSITY		255
 #define CMC623_PWM_DEFAULT_INTENSITY	103
@@ -83,312 +83,312 @@ static DEFINE_MUTEX(cmc623_pwm_mutex);
 
 #if defined (CONFIG_MACH_BOSE_ATT)
 const unsigned short s6e63m0_22gamma_300cd[] = {
-	//gamma set                                   
-	0x0FA,	
+	//gamma set
+	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x170,	0x16E,	0x14E,	0x1BC,
 	0x1C0,	0x1AF,	0x1B3,	0x1B8,	0x1A5,	0x1C5,	0x1C7,	0x1BB,
-	0x100,	0x1B9,	0x100,	0x1B8,	0x100,	0x1FC,                                                          
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	0x100,	0x1B9,	0x100,	0x1B8,	0x100,	0x1FC,
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_290cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x171,	0x170,	0x150,	0x1BD,
 	0x1C1,	0x1B0,	0x1B2,	0x1B8,	0x1A4,	0x1C6,	0x1C7,	0x1BB,
 	0x100,	0x1B6,	0x100,	0x1B6,	0x100,	0x1FA,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_280cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x16E,	0x16C,	0x14D,	0x1BE,
 	0x1C3,	0x1B1,	0x1B3,	0x1B8,	0x1A5,	0x1C6,	0x1C8,	0x1BB,
 	0x100,	0x1B4,	0x100,	0x1B3,	0x100,	0x1F7,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_270cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x171,	0x16C,	0x150,	0x1BD,
 	0x1C3,	0x1B0,	0x1B4,	0x1B8,	0x1A6,	0x1C6,	0x1C9,	0x1BB,
 	0x100,	0x1B2,	0x100,	0x1B1,	0x100,	0x1F4,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_260cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
-	0x102,	0x118,	0x108,	0x124,	0x174,	0x16E,	
+	0x102,	0x118,	0x108,	0x124,	0x174,	0x16E,
 	0x154,	0x1BD,	0x1C2,	0x1B0,	0x1B5,	0x1BA,
 	0x1A7,	0x1C5,	0x1C9,	0x1BA,	0x100,	0x1B0,
-	0x100,	0x1AE,	0x100,	0x1F1,                                       
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	0x100,	0x1AE,	0x100,	0x1F1,
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_250cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x174,	0x16D,
 	0x154,	0x1BF,	0x1C3,	0x1B2,	0x1B4,	0x1BA,
 	0x1A7,	0x1C6,	0x1CA,	0x1BA,	0x100,	0x1AD,
 	0x100,	0x1AB,	0x100,	0x1ED,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_240cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x176,	0x16F,
 	0x156,	0x1C0,	0x1C3,	0x1B2,	0x1B5,	0x1BA,
 	0x1A8,	0x1C6,	0x1CB,	0x1BB,	0x100,	0x1AA,
 	0x100,	0x1A8,	0x100,	0x1E9,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_230cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x175,	0x16F,
 	0x156,	0x1BF,	0x1C3,	0x1B2,	0x1B6,	0x1BB,
 	0x1A8,	0x1C7,	0x1CB,	0x1BC,	0x100,	0x1A8,
 	0x100,	0x1A6,	0x100,	0x1E6,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_220cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x178,	0x16F,
 	0x158,	0x1BF,	0x1C4,	0x1B3,	0x1B5,	0x1BB,
 	0x1A9,	0x1C8,	0x1CC,	0x1BC,	0x100,	0x1A6,
 	0x100,	0x1A3,	0x100,	0x1E2,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_210cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x179,	0x16D,
 	0x157,	0x1C0,	0x1C4,	0x1B4,	0x1B7,	0x1BD,
 	0x1AA,	0x1C8,	0x1CC,	0x1BD,	0x100,	0x1A2,
 	0x100,	0x1A0,	0x100,	0x1DD,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_200cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x179,	0x16D,
 	0x158,	0x1C1,	0x1C4,	0x1B4,	0x1B6,	0x1BD,
 	0x1AA,	0x1CA,	0x1CD,	0x1BE,	0x100,	0x19F,
 	0x100,	0x19D,	0x100,	0x1D9,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_190cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x17A,	0x16D,
 	0x159,	0x1C1,	0x1C5,	0x1B4,	0x1B8,	0x1BD,
 	0x1AC,	0x1C9,	0x1CE,	0x1BE,	0x100,	0x19D,
 	0x100,	0x19A,	0x100,	0x1D5,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_180cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x17B,	0x16D,
 	0x15B,	0x1C0,	0x1C5,	0x1B3,	0x1BA,	0x1BE,
 	0x1AD,	0x1CA,	0x1CE,	0x1BF,	0x100,	0x199,
 	0x100,	0x197,	0x100,	0x1D0,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_170cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x17C,	0x16D,
 	0x15C,	0x1C0,	0x1C6,	0x1B4,	0x1BB,	0x1BE,
 	0x1AD,	0x1CA,	0x1CF,	0x1C0,	0x100,	0x196,
 	0x100,	0x194,	0x100,	0x1CC,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_160cd[] = {
-	//gamma set                                   
-	0x0FA,	
+	//gamma set
+	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x17F,	0x16E,
 	0x15F,	0x1C0,	0x1C6,	0x1B5,	0x1BA,	0x1BF,
 	0x1AD,	0x1CB,	0x1CF,	0x1C0,	0x100,	0x194,
 	0x100,	0x191,	0x100,	0x1C8,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_150cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x180,	0x16E,
 	0x15F,	0x1C1,	0x1C6,	0x1B6,	0x1BC,	0x1C0,
 	0x1AE,	0x1CC,	0x1D0,	0x1C2,	0x100,	0x18F,
 	0x100,	0x18D,	0x100,	0x1C2,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_140cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x180,	0x16C,
 	0x15F,	0x1C1,	0x1C6,	0x1B7,	0x1BC,	0x1C1,
 	0x1AE,	0x1CD,	0x1D0,	0x1C2,	0x100,	0x18C,
 	0x100,	0x18A,	0x100,	0x1BE,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_130cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x18C,	0x16C,
 	0x160,	0x1C3,	0x1C7,	0x1B9,	0x1BC,	0x1C1,
 	0x1AF,	0x1CE,	0x1D2,	0x1C3,	0x100,	0x188,
 	0x100,	0x186,	0x100,	0x1B8,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_120cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x182,	0x16B,
 	0x15E,	0x1C4,	0x1C8,	0x1B9,	0x1BD,	0x1C2,
 	0x1B1,	0x1CE,	0x1D2,	0x1C4,	0x100,	0x185,
 	0x100,	0x182,	0x100,	0x1B3,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
+	ENDDEF, 0x0000
+};
+
 const unsigned short s6e63m0_22gamma_110cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x186,	0x16A,
 	0x160,	0x1C5,	0x1C7,	0x1BA,	0x1BD,	0x1C3,
 	0x1B2,	0x1D0,	0x1D4,	0x1C5,	0x100,	0x180,
 	0x100,	0x17E,	0x100,	0x1AD,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
-                                                
+	ENDDEF, 0x0000
+};
+
+
 const unsigned short s6e63m0_22gamma_100cd[] = {
-	//gamma set                                   
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x186,	0x169,	0x160,	0x1C6,
 	0x1C8,	0x1BA,	0x1BF,	0x1C4,	0x1B4,	0x1D0,	0x1D4,	0x1C6,
 	0x100,	0x17C,	0x100,	0x17A,	0x100,	0x1A7,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
-const unsigned short s6e63m0_22gamma_90cd[] = { 
-	//gamma set                                   
+	ENDDEF, 0x0000
+};
+
+const unsigned short s6e63m0_22gamma_90cd[] = {
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x189,	0x169,	0x164,	0x1C7,
 	0x1C8,	0x1BB,	0x1C0,	0x1C5,	0x1B4,	0x1D2,	0x1D5,	0x1C9,
 	0x100,	0x177,	0x100,	0x176,	0x100,	0x1A0,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
-const unsigned short s6e63m0_22gamma_80cd[] = { 
-	//gamma set                                   
+	ENDDEF, 0x0000
+};
+
+const unsigned short s6e63m0_22gamma_80cd[] = {
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x189,	0x168,
 	0x165,	0x1C9,	0x1C9,	0x1BC,	0x1C1,	0x1C5,
 	0x1B6,	0x1D2,	0x1D5,	0x1C9,	0x100,	0x173,
 	0x100,	0x172,	0x100,	0x19A,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
-const unsigned short s6e63m0_22gamma_70cd[] = { 
-	//gamma set                                   
+	ENDDEF, 0x0000
+};
+
+const unsigned short s6e63m0_22gamma_70cd[] = {
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x18E,	0x162,	0x16B,	0x1C7,
 	0x1C9,	0x1BB,	0x1C3,	0x1C7,	0x1B7,	0x1D3,	0x1D7,	0x1CA,
 	0x100,	0x16E,	0x100,	0x16C,	0x100,	0x194,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
-const unsigned short s6e63m0_22gamma_60cd[] = { 
-	//gamma set                                   
+	ENDDEF, 0x0000
+};
+
+const unsigned short s6e63m0_22gamma_60cd[] = {
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x191,	0x15E,
 	0x16E,	0x1C9,	0x1C9,	0x1BD,	0x1C4,	0x1C9,
 	0x1B8,	0x1D3,	0x1D7,	0x1CA,	0x100,	0x169,
 	0x100,	0x167,	0x100,	0x18D,
-	ENDDEF, 0x0000                                
-};                                              
-                                                
-const unsigned short s6e63m0_22gamma_50cd[] = { 
-	//gamma set                                   
+	ENDDEF, 0x0000
+};
+
+const unsigned short s6e63m0_22gamma_50cd[] = {
+	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x196,	0x158,
 	0x172,	0x1CB,	0x1CA,	0x1BF,	0x1C6,	0x1C9,
 	0x1BA,	0x1D6,	0x1D9,	0x1CD,	0x100,	0x161,
 	0x100,	0x161,	0x100,	0x183,
-	ENDDEF, 0x0000                                
-}; 
+	ENDDEF, 0x0000
+};
 
-const unsigned short s6e63m0_22gamma_40cd[] = { 
+const unsigned short s6e63m0_22gamma_40cd[] = {
 	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x197,	0x158,	0x171,	0x1CC,
 	0x1CB,	0x1C0,	0x1C5,	0x1C9,	0x1BA,	0x1D9,	0x1DC,	0x1D1,
 	0x100,	0x15B,	0x100,	0x15A,	0x100,	0x17A,
-	ENDDEF, 0x0000                               
-}; 
+	ENDDEF, 0x0000
+};
 
-const unsigned short s6e63m0_22gamma_30cd[] = { 
+const unsigned short s6e63m0_22gamma_30cd[] = {
 	//gamma set
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x1A1,	0x151,	0x17B,	0x1CE,
 	0x1CB,	0x1C2,	0x1C7,	0x1CB,	0x1BC,	0x1DA,	0x1DD,	0x1D3,
 	0x100,	0x153,	0x100,	0x152,	0x100,	0x16F,
-	ENDDEF, 0x0000                              
-}; 
+	ENDDEF, 0x0000
+};
 
 
-const unsigned short *p22Gamma_set[] = {        
-                                                
-	s6e63m0_22gamma_30cd,//0                               
-	s6e63m0_22gamma_40cd,                         
-	s6e63m0_22gamma_70cd,                         
-	s6e63m0_22gamma_90cd,                         
-	s6e63m0_22gamma_100cd,                     
-	s6e63m0_22gamma_110cd,  //5                      
-	s6e63m0_22gamma_120cd,                        
-	s6e63m0_22gamma_130cd,                        
-	s6e63m0_22gamma_140cd,	                      
-	s6e63m0_22gamma_150cd,                    
-	s6e63m0_22gamma_160cd,   //10                     
-	s6e63m0_22gamma_170cd,                        
-	s6e63m0_22gamma_180cd,                        
-	s6e63m0_22gamma_190cd,	                      
-	s6e63m0_22gamma_200cd,                    
-	s6e63m0_22gamma_210cd,  //15                      
-	s6e63m0_22gamma_220cd,                        
-	s6e63m0_22gamma_230cd,                        
-	s6e63m0_22gamma_240cd,                        
-	s6e63m0_22gamma_250cd,                   
-	s6e63m0_22gamma_260cd,  //20                       
-	s6e63m0_22gamma_270cd,                        
-	s6e63m0_22gamma_280cd,                        
-	s6e63m0_22gamma_290cd,                        
-	s6e63m0_22gamma_300cd,//24                    
-};                                             
+const unsigned short *p22Gamma_set[] = {
+
+	s6e63m0_22gamma_30cd,//0
+	s6e63m0_22gamma_40cd,
+	s6e63m0_22gamma_70cd,
+	s6e63m0_22gamma_90cd,
+	s6e63m0_22gamma_100cd,
+	s6e63m0_22gamma_110cd,  //5
+	s6e63m0_22gamma_120cd,
+	s6e63m0_22gamma_130cd,
+	s6e63m0_22gamma_140cd,
+	s6e63m0_22gamma_150cd,
+	s6e63m0_22gamma_160cd,   //10
+	s6e63m0_22gamma_170cd,
+	s6e63m0_22gamma_180cd,
+	s6e63m0_22gamma_190cd,
+	s6e63m0_22gamma_200cd,
+	s6e63m0_22gamma_210cd,  //15
+	s6e63m0_22gamma_220cd,
+	s6e63m0_22gamma_230cd,
+	s6e63m0_22gamma_240cd,
+	s6e63m0_22gamma_250cd,
+	s6e63m0_22gamma_260cd,  //20
+	s6e63m0_22gamma_270cd,
+	s6e63m0_22gamma_280cd,
+	s6e63m0_22gamma_290cd,
+	s6e63m0_22gamma_300cd,//24
+};
 
 const unsigned short s6e63m0_19gamma_30cd[] = {
-	0x0FA, 
-	0x102, 	0x118, 	0x108, 	0x124, 	0x19D, 	0x175, 	0x17C, 	0x1D0, 
-	0x1D0, 	0x1C6, 	0x1CD, 	0x1D1, 	0x1C3, 	0x1DE, 	0x1E1, 	0x1D8, 
-	0x100, 	0x153, 	0x100, 	0x152, 	0x100, 	0x16F, 
+	0x0FA,
+	0x102, 	0x118, 	0x108, 	0x124, 	0x19D, 	0x175, 	0x17C, 	0x1D0,
+	0x1D0, 	0x1C6, 	0x1CD, 	0x1D1, 	0x1C3, 	0x1DE, 	0x1E1, 	0x1D8,
+	0x100, 	0x153, 	0x100, 	0x152, 	0x100, 	0x16F,
 	ENDDEF,	0x00
 };
 
@@ -396,9 +396,9 @@ const unsigned short s6e63m0_19gamma_40cd[] = {
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x193,	0x177,	0x172,	0x1CF,
 	0x1D0,	0x1C5,	0x1CB,	0x1CF,	0x1C1,	0x1DD,	0x1E0,	0x1D6,
-	0x100,	0x15B,	0x100,	0x15A,	0x100,	0x17A,	
+	0x100,	0x15B,	0x100,	0x15A,	0x100,	0x17A,
 	ENDDEF,	0x00
-};	  
+};
 
 const unsigned short s6e63m0_19gamma_70cd[] = {
 	0x0FA,
@@ -414,7 +414,7 @@ const unsigned short s6e63m0_19gamma_90cd[] = {
 	0x1CE,	0x1C0,	0x1C6,	0x1CA,	0x1BB,	0x1D6,	0x1DA,	0x1CE,
 	0x100,	0x178,	0x100,	0x176,	0x100,	0x1A1,
 	ENDDEF,	0x00
-};			
+};
 
 const unsigned short s6e63m0_19gamma_100cd[] = {
 	0x0FA,
@@ -422,7 +422,7 @@ const unsigned short s6e63m0_19gamma_100cd[] = {
 	0x1CD,	0x1BE,	0x1C6,	0x1C9,	0x1BB,	0x1D5,	0x1DA,	0x1CD,
 	0x100,	0x17C,	0x100,	0x17A,	0x100,	0x1A7,
 	ENDDEF,	0x00
-};	   
+};
 
 const unsigned short s6e63m0_19gamma_110cd[] = {
 	0x0FA,
@@ -430,7 +430,7 @@ const unsigned short s6e63m0_19gamma_110cd[] = {
 	0x1CD,	0x1BF,	0x1C4,	0x1C8,	0x1B9,	0x1D5,	0x1D9,	0x1CC,
 	0x100,	0x180,	0x100,	0x17E,	0x100,	0x1AD,
 	ENDDEF,	0x00
-};		 
+};
 
 const unsigned short s6e63m0_19gamma_120cd[] = {
 	0x0FA,
@@ -438,7 +438,7 @@ const unsigned short s6e63m0_19gamma_120cd[] = {
 	0x1CC,	0x1BE,	0x1C3,	0x1C8,	0x1B8,	0x1D4,	0x1D7,	0x1CB,
 	0x100,	0x185,	0x100,	0x183,	0x100,	0x1B3,
 	ENDDEF,	0x00
-};		  
+};
 
 const unsigned short s6e63m0_19gamma_130cd[] = {
 	0x0FA,
@@ -446,7 +446,7 @@ const unsigned short s6e63m0_19gamma_130cd[] = {
 	0x1CC,	0x1BD,	0x1C2,	0x1C7,	0x1B6,	0x1D4,	0x1D7,	0x1CB,
 	0x100,	0x188,	0x100,	0x186,	0x100,	0x1B8,
 	ENDDEF,	0x00
-};		  
+};
 
 const unsigned short s6e63m0_19gamma_140cd[] = {
 	0x0FA,
@@ -454,7 +454,7 @@ const unsigned short s6e63m0_19gamma_140cd[] = {
 	0x1CC,	0x1BC,	0x1C2,	0x1C6,	0x1B6,	0x1D3,	0x1D6,	0x1C9,
 	0x100,	0x18C,	0x100,	0x18A,	0x100,	0x1BE,
 	ENDDEF,	0x00
-};		  
+};
 
 const unsigned short s6e63m0_19gamma_150cd[] = {
 	0x0FA,
@@ -497,7 +497,7 @@ const unsigned short s6e63m0_19gamma_190cd[] = {
 };
 
 const unsigned short s6e63m0_19gamma_200cd[] = {
-	
+
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x17B,	0x17E,	0x161,	0x1C5,
 	0x1C9,	0x1B9,	0x1BF,	0x1C3,	0x1B2,	0x1CF,	0x1D3,	0x1C5,
@@ -519,7 +519,7 @@ const unsigned short s6e63m0_19gamma_220cd[] = {
 	0x1C8,	0x1B9,	0x1BC,	0x1C1,	0x1B0,	0x1CE,	0x1D2,	0x1C3,
 	0x100,	0x1A5,	0x100,	0x1A3,	0x100,	0x1E2,
 	ENDDEF,	0x00
-};		  
+};
 
 const unsigned short s6e63m0_19gamma_230cd[] = {
 	0x0FA,
@@ -527,7 +527,7 @@ const unsigned short s6e63m0_19gamma_230cd[] = {
 	0x1C8,	0x1B8,	0x1BB,	0x1C1,	0x1AF,	0x1CE,	0x1D1,	0x1C3,
 	0x100,	0x1A8,	0x100,	0x1A6,	0x100,	0x1E6,
 	ENDDEF,	0x00
-};		  
+};
 
 const unsigned short s6e63m0_19gamma_240cd[] = {
 	0x0FA,
@@ -535,7 +535,7 @@ const unsigned short s6e63m0_19gamma_240cd[] = {
 	0x1C7,	0x1B6,	0x1BC,	0x1C1,	0x1AF,	0x1CE,	0x1D0,	0x1C3,
 	0x100,	0x1AB,	0x100,	0x1A9,	0x100,	0x1EA,
 	ENDDEF,	0x00
-};				  
+};
 
 const unsigned short s6e63m0_19gamma_250cd[] = {
 	0x0FA,
@@ -543,7 +543,7 @@ const unsigned short s6e63m0_19gamma_250cd[] = {
 	0x1C8,	0x1B6,	0x1BC,	0x1C0,	0x1AF,	0x1CC,	0x1CF,	0x1C2,
 	0x100,	0x1AE,	0x100,	0x1AC,	0x100,	0x1EE,
 	ENDDEF,	0x00
-};				
+};
 
 const unsigned short s6e63m0_19gamma_260cd[] = {
 	0x0FA,
@@ -551,15 +551,15 @@ const unsigned short s6e63m0_19gamma_260cd[] = {
 	0x1C7,	0x1B6,	0x1BA,	0x1BF,	0x1AE,	0x1CC,	0x1D0,	0x1C2,
 	0x100,	0x1B1,	0x100,	0x1AE,	0x100,	0x1F2,
 	ENDDEF,	0x00
-};	
+};
 
 const unsigned short s6e63m0_19gamma_270cd[] = {
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x17C,	0x17E,	0x161,	0x1C1,
 	0x1C6,	0x1B5,	0x1BA,	0x1BF,	0x1AD,	0x1CC,	0x1CF,	0x1C2,
-	0x100,	0x1B3,	0x100,	0x1B1,	0x100,	0x1F5,	
+	0x100,	0x1B3,	0x100,	0x1B1,	0x100,	0x1F5,
 	ENDDEF,	0x00
-};	
+};
 
 const unsigned short s6e63m0_19gamma_280cd[] = {
 	0x0FA,
@@ -573,13 +573,13 @@ const unsigned short s6e63m0_19gamma_290cd[] = {
 	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x178,	0x17A,	0x15B,	0x1C2,
 	0x1C7,	0x1B6,	0x1BA,	0x1BE,	0x1AC,	0x1CB,	0x1CE,	0x1C2,
-	0x100,	0x1B8,	0x100,	0x1B6,	0x100,	0x1FB,	
+	0x100,	0x1B8,	0x100,	0x1B6,	0x100,	0x1FB,
 	ENDDEF,	0x00
 
 };
 
 const unsigned short s6e63m0_19gamma_300cd[] = {
-	0x0FA, 
+	0x0FA,
 	0x102,	0x118,	0x108,	0x124,	0x179,	0x17A,	0x15B,	0x1C1,
 	0x1C5,	0x1B5,	0x1B8,	0x1BD,	0x1AB,	0x1CB,	0x1CE,	0x1C1,
 	0x100,	0x1B8,	0x100,	0x1B7,	0x100,	0x1FC,
@@ -587,51 +587,51 @@ const unsigned short s6e63m0_19gamma_300cd[] = {
 };
 
 
-const unsigned short *p19Gamma_set[] = {        
-                                                
-	s6e63m0_19gamma_30cd,//0                               
-	s6e63m0_19gamma_40cd,                         
-	s6e63m0_19gamma_70cd,                         
-	s6e63m0_19gamma_90cd,                         
-	s6e63m0_19gamma_100cd,                     
-	s6e63m0_19gamma_110cd,  //5                      
-	s6e63m0_19gamma_120cd,                        
-	s6e63m0_19gamma_130cd,                        
+const unsigned short *p19Gamma_set[] = {
+
+	s6e63m0_19gamma_30cd,//0
+	s6e63m0_19gamma_40cd,
+	s6e63m0_19gamma_70cd,
+	s6e63m0_19gamma_90cd,
+	s6e63m0_19gamma_100cd,
+	s6e63m0_19gamma_110cd,  //5
+	s6e63m0_19gamma_120cd,
+	s6e63m0_19gamma_130cd,
 	s6e63m0_19gamma_140cd,
-	s6e63m0_19gamma_150cd,                    
-	s6e63m0_19gamma_160cd,   //10                     
-	s6e63m0_19gamma_170cd,                        
-	s6e63m0_19gamma_180cd,                        
-	s6e63m0_19gamma_190cd,	                      
-	s6e63m0_19gamma_200cd,                    
-	s6e63m0_19gamma_210cd,  //15                      
-	s6e63m0_19gamma_220cd,                        
-	s6e63m0_19gamma_230cd,                        
-	s6e63m0_19gamma_240cd,                        
-	s6e63m0_19gamma_250cd,                   
-	s6e63m0_19gamma_260cd,  //20                       
-	s6e63m0_19gamma_270cd,                        
-	s6e63m0_19gamma_280cd,                        
-	s6e63m0_19gamma_290cd,                        
-	s6e63m0_19gamma_300cd,//24                    
-}; 
+	s6e63m0_19gamma_150cd,
+	s6e63m0_19gamma_160cd,   //10
+	s6e63m0_19gamma_170cd,
+	s6e63m0_19gamma_180cd,
+	s6e63m0_19gamma_190cd,
+	s6e63m0_19gamma_200cd,
+	s6e63m0_19gamma_210cd,  //15
+	s6e63m0_19gamma_220cd,
+	s6e63m0_19gamma_230cd,
+	s6e63m0_19gamma_240cd,
+	s6e63m0_19gamma_250cd,
+	s6e63m0_19gamma_260cd,  //20
+	s6e63m0_19gamma_270cd,
+	s6e63m0_19gamma_280cd,
+	s6e63m0_19gamma_290cd,
+	s6e63m0_19gamma_300cd,//24
+};
 
 
-const unsigned short gamma_update[] = { 
+const unsigned short gamma_update[] = {
 	//gamma update
-	0x0FA,	
+	0x0FA,
 	0x103,
 
 //	SLEEPMSEC, 10,
 
 	//Display on
 	0x029,
-	ENDDEF, 0x0000                              
-}; 
+	ENDDEF, 0x0000
+};
 
 
 static const unsigned short SEQ_ACL_ON[] = {
-	0x0C1, 
+	0x0C1,
 	0x14D,	0x196,	0x11D,	0x100,	0x100,	0x101,	0x1DF,	0x100,	0x100,
 	0x103,	0x11F,	0x100,	0x100,	0x100,	0x100,	0x100,	0x101,	0x108,
 	0x10E,	0x115,	0x11B,	0x122,	0x129,	0x12F,	0x136,	0x13C,	0x143,
@@ -645,7 +645,7 @@ static const unsigned short SEQ_ACL_OFF[] = {
 };
 
 static const unsigned short SEQ_ACL_40P[] = {
-	0x0C1, 
+	0x0C1,
 	0x14D,	0x196,	0x11D,	0x100,	0x100,	0x101,	0x1DF,	0x100,	0x100,
 	0x103,	0x11F,	0x100,	0x100,	0x100,	0x100,	0x100,	0x101,	0x106,
 	0x10C,	0x111,	0x116,	0x11C,	0x121,	0x126,	0x12B,	0x131,	0x136,
@@ -654,7 +654,7 @@ static const unsigned short SEQ_ACL_40P[] = {
 };
 
 static const unsigned short SEQ_ACL_43P[] = {
-	0x0C1, 
+	0x0C1,
 	0x14D,	0x196,	0x11D,	0x100,	0x100,	0x101,	0x1DF,	0x100,	0x100,
 	0x103,	0x11F,	0x100,	0x100,	0x100,	0x100,	0x100,	0x101,	0x107,
 	0x10C,	0x112,	0x118,	0x11E,	0x123,	0x129,	0x12F,	0x134,	0x13A,
@@ -663,16 +663,16 @@ static const unsigned short SEQ_ACL_43P[] = {
 };
 
 static const unsigned short SEQ_ACL_45P[] = {
-	0x0C1, 
+	0x0C1,
 	0x14D,	0x196,	0x11D,	0x100,	0x100,	0x101,	0x1DF,	0x100,	0x100,
 	0x103,	0x11F,	0x100,	0x100,	0x100,	0x100,	0x100,	0x101,	0x107,
 	0x10D,	0x113,	0x119,	0x11F,	0x125,	0x12B,	0x131,	0x137,	0x13D,
-	0x0C0, 	0x101,	
+	0x0C0, 	0x101,
 	ENDDEF, 0x00
 };
 
 static const unsigned short SEQ_ACL_47P[] = {
-	0x0C1, 
+	0x0C1,
 	0x14D,	0x196,	0x11D,	0x100,	0x100,	0x101,	0x1DF,	0x100,	0x100,
 	0x103,	0x11F,	0x100,	0x100,	0x100,	0x100,	0x100,	0x101,	0x107,
 	0x10E,	0x114,	0x11B,	0x121,	0x127,	0x12E,	0x134,	0x13B,	0x141,
@@ -681,7 +681,7 @@ static const unsigned short SEQ_ACL_47P[] = {
 };
 
 static const unsigned short SEQ_ACL_48P[] = {
-	0x0C1, 
+	0x0C1,
 	0x14D,	0x196,	0x11D,	0x100,	0x100,	0x101,	0x1DF,	0x100,	0x100,
 	0x103,	0x11F,	0x100,	0x100,	0x100,	0x100,	0x100,	0x101,	0x108,
 	0x10E,	0x115,	0x11B,	0x122,	0x129,	0x12F,	0x136,	0x13C,	0x143,
@@ -691,7 +691,7 @@ static const unsigned short SEQ_ACL_48P[] = {
 };
 
 static const unsigned short SEQ_ACL_50P[] = {
-	0x0C1, 
+	0x0C1,
 	0x14D,	0x196,	0x11D,	0x100,	0x100,	0x101,	0x1DF,	0x100,	0x100,
 	0x103,	0x11F,	0x100,	0x100,	0x100,	0x100,	0x100,	0x101,	0x108,
 	0x10F,	0x116,	0x11D,	0x124,	0x12A,	0x131,	0x138,	0x13F,	0x146,
@@ -711,35 +711,35 @@ static const unsigned short *ACL_cutoff_set[] = {
 
 
 static const unsigned short SEQ_SM2_ELVSS_49[] = {
-	0x0B2, 
+	0x0B2,
 	0x110,	0x110,	0x110,	0x110,
-	0x0B1,	
+	0x0B1,
 	0x10B,
 	ENDDEF, 0x00
 };
 
 static const unsigned short SEQ_SM2_ELVSS_45[] = {
-	0x0B2, 
+	0x0B2,
 	0x114,	0x114,	0x114,	0x114,
-	0x0B1,	
+	0x0B1,
 	0x10B,
 	ENDDEF, 0x00
 
 };
 
 static const unsigned short SEQ_SM2_ELVSS_42[] = {
-	0x0B2, 
+	0x0B2,
 	0x117,	0x117,	0x117,	0x117,
-	0x0B1,	
+	0x0B1,
 	0x10B,
 	ENDDEF, 0x00
 
 };
 
 static const unsigned short SEQ_SM2_ELVSS_36[] = {
-	0x0B2, 
+	0x0B2,
 	0x11D,	0x11D,	0x11D,	0x11D,
-	0x0B1,	
+	0x0B1,
 	0x10B,
 	ENDDEF, 0x00
 
@@ -762,7 +762,7 @@ static int s6e63m0_panel_send_sequence(const unsigned short *wbuf)
 
 //	mutex_lock(&spi_use);
 //	printk("s6e63m0_panel_send_sequence... \n");
-	
+
 	while ((wbuf[i] & DEFMASK) != ENDDEF) {
 		if ((wbuf[i] & DEFMASK) != SLEEPMSEC){
 			n1_spi_write((wbuf[i] & 0x100)>>8, wbuf[i] & 0xFF);
@@ -791,7 +791,7 @@ static int get_gamma_value_from_bl(int bl)
 	}
 
 //	printk("get_gamma_value_from_bl gamma_value = %d  !!!\n", gamma_value);
-	
+
 	return gamma_value;
 #else
 	int backlightlevel;
@@ -885,28 +885,28 @@ static int get_gamma_value_from_bl(int bl)
 }
 
 static int s6e63m0_set_elvss(int level)
-{	
+{
 	int ret = 0;
 //	printk("[AMOLED] s6e63m0_set_elvss..%d ~.\n",level);
-	
-	switch (level) 
-	{	
-		case 0 ... 4: /* 30cd ~ 100cd */		
-			ret = s6e63m0_panel_send_sequence(SEQ_SM2_ELVSS_set[0]);		
-			break;	
-		case 5 ... 10: /* 110cd ~ 160cd */		
-			ret = s6e63m0_panel_send_sequence(SEQ_SM2_ELVSS_set[1]);		
+
+	switch (level)
+	{
+		case 0 ... 4: /* 30cd ~ 100cd */
+			ret = s6e63m0_panel_send_sequence(SEQ_SM2_ELVSS_set[0]);
 			break;
-		case 11 ... 14: /* 170cd ~ 200cd */		
-			ret = s6e63m0_panel_send_sequence(SEQ_SM2_ELVSS_set[2]);		
+		case 5 ... 10: /* 110cd ~ 160cd */
+			ret = s6e63m0_panel_send_sequence(SEQ_SM2_ELVSS_set[1]);
 			break;
-		case 15 ... 24: /* 210cd ~ 300cd */		
-			ret = s6e63m0_panel_send_sequence(SEQ_SM2_ELVSS_set[3]);		
-			break;	
-		default:		
+		case 11 ... 14: /* 170cd ~ 200cd */
+			ret = s6e63m0_panel_send_sequence(SEQ_SM2_ELVSS_set[2]);
 			break;
-	}	
-	
+		case 15 ... 24: /* 210cd ~ 300cd */
+			ret = s6e63m0_panel_send_sequence(SEQ_SM2_ELVSS_set[3]);
+			break;
+		default:
+			break;
+	}
+
 	if (ret) {
 		return -EIO;
 	}
@@ -1017,7 +1017,7 @@ device_attribute *attr, const char *buf, size_t size)
 {
 	int value;
 	int rc;
-	
+
 	printk("[AMOLED] acl_set_store.. %s\n", buf);
 
 	rc = strict_strtoul(buf, (unsigned int) 0, (unsigned long *)&value);
@@ -1025,14 +1025,14 @@ device_attribute *attr, const char *buf, size_t size)
 		{
 		printk("[AMOLED] return %d \n", rc);
 		return rc;
-		
+
 		}
 
 	s_acl_enable = value;
-	
+
 	s6e63m0_set_acl(s_acl_enable);
 
-	return 0;
+	return size;
 
 }
 
@@ -1099,7 +1099,7 @@ static void cmc623_pwm_apply_brightness(struct platform_device *pdev, int level)
 
 	if (muxtex_temp!=2)
 		return ;
-	
+
 	s6e63m0_set_backlight(s_gamma_mode, s_backlight_level);
 
 //	dev_dbg(&pdev->dev, "%s : apply_level=%d\n", __func__, level);
@@ -1150,7 +1150,7 @@ static void cmc623_pwm_send_intensity(struct backlight_device *bd)
 	struct platform_device *pdev = NULL;
 
 	pdev = dev_get_drvdata(&bd->dev);
-	if (pdev == NULL) 
+	if (pdev == NULL)
 		{
 		printk(KERN_ERR "%s:failed to get platform device.\n", __func__);
 		return;
@@ -1193,7 +1193,7 @@ static int cmc623_pwm_suspend(struct platform_device *swi_dev, pm_message_t stat
 
 	cmc623_pwm_suspended = 1;
 	cmc623_pwm_send_intensity(bd);
-	
+
 	return 0;
 }
 
@@ -1239,9 +1239,13 @@ static void cmc623_pwm_early_resume(struct early_suspend *h)
 
 static int cmc623_pwm_set_intensity(struct backlight_device *bd)
 {
+	tegra_cpu_lock_speed(1000000, 0);
+
 	pr_info("BD->PROPS.BRIGHTNESS = %d\n", bd->props.brightness);
 
 	cmc623_pwm_send_intensity(bd);
+
+	tegra_cpu_unlock_speed();
 
 	return 0;
 }
@@ -1285,6 +1289,7 @@ static int cmc623_pwm_probe(struct platform_device *pdev)
 
 	pr_info("cmc623_pwm Probe START!!!\n");
 
+	props.type = BACKLIGHT_RAW;
 	bd = backlight_device_register("pwm-backlight", &pdev->dev, pdev, &cmc623_pwm_ops, &props);
 
 	if (IS_ERR(bd))
@@ -1308,7 +1313,7 @@ static int cmc623_pwm_probe(struct platform_device *pdev)
 	ret = device_create_file(&(pdev->dev), &dev_attr_acl_set);
 	if (ret < 0)
 		dev_err(&(pdev->dev), "failed to add sysfs entries\n");
-	
+
 	ret = device_create_file(&(pdev->dev), &dev_attr_gamma_mode);
 	if (ret < 0)
 		dev_err(&(pdev->dev), "failed to add sysfs entries\n");

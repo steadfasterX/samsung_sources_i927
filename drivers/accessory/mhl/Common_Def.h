@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -49,7 +49,7 @@ typedef bool Bool;
 #define RCP_ENABLE 	1
 #define MSC_TESTER	0
 
-#define IS_CBUS 1  
+#define IS_CBUS 1
 #define MHD_MAX_CHANNELS  1   // Number of MDHI channels
 
 // Generic Constants
@@ -143,11 +143,11 @@ extern byte ReadByteTPI (byte Offset);
 */
 
 // VIDEO TYPES
-#define		MHL_VT_GRAPHICS					0x00		
-#define		MHL_VT_PHOTO					0x02		
-#define		MHL_VT_CINEMA					0x04		
-#define		MHL_VT_GAMES					0x08		
-#define		MHL_SUPP_VT						0x80		
+#define		MHL_VT_GRAPHICS					0x00
+#define		MHL_VT_PHOTO					0x02
+#define		MHL_VT_CINEMA					0x04
+#define		MHL_VT_GAMES					0x08
+#define		MHL_SUPP_VT						0x80
 
 //Logical Dev Map
 #define	MHL_DEV_LD_DISPLAY					(0x01 << 0)

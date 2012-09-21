@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -65,4 +65,3 @@ void SiIRegioCbusWrite ( word regAddr, byte channel, byte value )
 
     I2C_WriteByte(SA_TX_CBUS_Primary + l_cbusPortOffsets[channel], regAddr, value);
 }
-

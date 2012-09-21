@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -43,7 +43,7 @@
 void I2C_WriteByte(byte deviceID, byte offset, byte value);
 byte I2C_ReadByte(byte deviceID, byte offset);
 
-byte ReadByteTPI (byte Offset); 
+byte ReadByteTPI (byte Offset);
 void WriteByteTPI (byte Offset, byte Data);
 void WriteIndexedRegister (byte PageNum, byte Offset, byte Data);
 void ReadModifyWriteIndexedRegister (byte PageNum, byte Offset, byte Mask, byte Data);
@@ -53,7 +53,3 @@ void WriteByteCBUS(byte Offset, byte Data);
 void ReadModifyWriteCBUS(byte Offset, byte Mask, byte Value) ;
 byte ReadIndexedRegister (byte PageNum, byte Offset) ;
 byte ReadByteCBUS (byte Offset) ;
-
-
-
-

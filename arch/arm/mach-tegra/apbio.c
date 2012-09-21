@@ -41,6 +41,14 @@ static void apb_dma_complete(struct tegra_dma_req *req)
 	complete(&tegra_apb_wait);
 }
 
+static void cancel_dma(struct tegra_dma_channel *dma_chan,
+		struct tegra_dma_req *req)
+{
+		tegra_dma_cancel(dma_chan);
+		if (req->status == -TEGRA_DMA_REQ_ERROR_ABORTED)
+			req->complete(req);
+}
+
 static inline u32 apb_readl(unsigned long offset)
 {
 	struct tegra_dma_req req;
@@ -60,6 +68,8 @@ static inline u32 apb_readl(unsigned long offset)
 	req.source_wrap = 4;
 	req.req_sel = 0;
 	req.size = 4;
+	dma_sync_single_for_device(NULL, tegra_apb_bb_phys,
+			sizeof(u32), DMA_FROM_DEVICE);
 
 	INIT_COMPLETION(tegra_apb_wait);
 
@@ -69,13 +79,16 @@ static inline u32 apb_readl(unsigned long offset)
 		msecs_to_jiffies(400));
 
 	if (WARN(ret == 0, "apb read dma timed out")) {
-		tegra_dma_dequeue_req(tegra_apb_dma, &req);
+		cancel_dma(tegra_apb_dma, &req);
 		*(u32 *)tegra_apb_bb = 0;
 	}
 
+	dma_sync_single_for_cpu(NULL, tegra_apb_bb_phys,
+			sizeof(u32), DMA_FROM_DEVICE);
 	mutex_unlock(&tegra_apb_dma_lock);
 	return *((u32 *)tegra_apb_bb);
 }
+
 
 static inline void apb_writel(u32 value, unsigned long offset)
 {
@@ -88,6 +101,8 @@ static inline void apb_writel(u32 value, unsigned long offset)
 	}
 
 	mutex_lock(&tegra_apb_dma_lock);
+	dma_sync_single_for_cpu(NULL, tegra_apb_bb_phys,
+			sizeof(u32), DMA_TO_DEVICE);
 	*((u32 *)tegra_apb_bb) = value;
 	req.complete = apb_dma_complete;
 	req.to_memory = 0;
@@ -102,13 +117,15 @@ static inline void apb_writel(u32 value, unsigned long offset)
 
 	INIT_COMPLETION(tegra_apb_wait);
 
+	dma_sync_single_for_device(NULL, tegra_apb_bb_phys,
+			sizeof(u32), DMA_TO_DEVICE);
 	tegra_dma_enqueue_req(tegra_apb_dma, &req);
 
 	ret = wait_for_completion_timeout(&tegra_apb_wait,
 		msecs_to_jiffies(400));
 
 	if (WARN(ret == 0, "apb write dma timed out"))
-		tegra_dma_dequeue_req(tegra_apb_dma, &req);
+		cancel_dma(tegra_apb_dma, &req);
 
 	mutex_unlock(&tegra_apb_dma_lock);
 }
@@ -134,14 +151,14 @@ void tegra_apb_writel(u32 value, unsigned long offset)
 	apb_writel(value, offset);
 }
 
-void tegra_init_apb_dma(void)
+static int tegra_init_apb_dma(void)
 {
 #ifdef CONFIG_TEGRA_SYSTEM_DMA
 	tegra_apb_dma = tegra_dma_allocate_channel(TEGRA_DMA_MODE_ONESHOT |
-		TEGRA_DMA_SHARED);
+		TEGRA_DMA_SHARED, "apbio");
 	if (!tegra_apb_dma) {
 		pr_err("%s: can not allocate dma channel\n", __func__);
-		return;
+		return -ENODEV;
 	}
 
 	tegra_apb_bb = dma_alloc_coherent(NULL, sizeof(u32),
@@ -150,7 +167,9 @@ void tegra_init_apb_dma(void)
 		pr_err("%s: can not allocate bounce buffer\n", __func__);
 		tegra_dma_free_channel(tegra_apb_dma);
 		tegra_apb_dma = NULL;
-		return;
+		return -ENOMEM;
 	}
 #endif
+	return 0;
 }
+arch_initcall(tegra_init_apb_dma);

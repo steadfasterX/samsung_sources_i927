@@ -83,9 +83,9 @@ struct netlink_sock {
 	struct module		*module;
 };
 
-struct listeners_rcu_head {
-	struct rcu_head rcu_head;
-	void *ptr;
+struct listeners {
+	struct rcu_head		rcu;
+	unsigned long		masks[0];
 };
 
 #define NETLINK_KERNEL_SOCKET	0x1
@@ -119,7 +119,7 @@ struct nl_pid_hash {
 struct netlink_table {
 	struct nl_pid_hash hash;
 	struct hlist_head mc_list;
-	unsigned long *listeners;
+	struct listeners __rcu *listeners;
 	unsigned int nl_nonroot;
 	unsigned int groups;
 	struct mutex *cb_mutex;
@@ -338,7 +338,7 @@ netlink_update_listeners(struct sock *sk)
 			if (i < NLGRPLONGS(nlk_sk(sk)->ngroups))
 				mask |= nlk_sk(sk)->groups[i];
 		}
-		tbl->listeners[i] = mask;
+		tbl->listeners->masks[i] = mask;
 	}
 	/* this function is only called with the netlink table "grabbed", which
 	 * makes sure updates are visible before bind or setsockopt return. */
@@ -936,7 +936,7 @@ EXPORT_SYMBOL(netlink_unicast);
 int netlink_has_listeners(struct sock *sk, unsigned int group)
 {
 	int res = 0;
-	unsigned long *listeners;
+	struct listeners *listeners;
 
 	BUG_ON(!netlink_is_kernel(sk));
 
@@ -944,7 +944,7 @@ int netlink_has_listeners(struct sock *sk, unsigned int group)
 	listeners = rcu_dereference(nl_table[sk->sk_protocol].listeners);
 
 	if (group - 1 < nl_table[sk->sk_protocol].groups)
-		res = test_bit(group - 1, listeners);
+		res = test_bit(group - 1, listeners->masks);
 
 	rcu_read_unlock();
 
@@ -1362,16 +1362,7 @@ static int netlink_sendmsg(struct kiocb *kiocb, struct socket *sock,
 
 	NETLINK_CB(skb).pid	= nlk->pid;
 	NETLINK_CB(skb).dst_group = dst_group;
-	NETLINK_CB(skb).loginuid = audit_get_loginuid(current);
-	NETLINK_CB(skb).sessionid = audit_get_sessionid(current);
-	security_task_getsecid(current, &(NETLINK_CB(skb).sid));
 	memcpy(NETLINK_CREDS(skb), &siocb->scm->creds, sizeof(struct ucred));
-
-	/* What can I do? Netlink is asynchronous, so that
-	   we will have to save current capabilities to
-	   check them, when this message will be delivered
-	   to corresponding kernel module.   --ANK (980802)
-	 */
 
 	err = -EFAULT;
 	if (memcpy_fromiovec(skb_put(skb, len), msg->msg_iov, len)) {
@@ -1407,7 +1398,7 @@ static int netlink_recvmsg(struct kiocb *kiocb, struct socket *sock,
 	int noblock = flags&MSG_DONTWAIT;
 	size_t copied;
 	struct sk_buff *skb, *data_skb;
-	int err;
+	int err, ret;
 
 	if (flags&MSG_OOB)
 		return -EOPNOTSUPP;
@@ -1470,8 +1461,13 @@ static int netlink_recvmsg(struct kiocb *kiocb, struct socket *sock,
 
 	skb_free_datagram(sk, skb);
 
-	if (nlk->cb && atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf / 2)
-		netlink_dump(sk);
+	if (nlk->cb && atomic_read(&sk->sk_rmem_alloc) <= sk->sk_rcvbuf / 2) {
+		ret = netlink_dump(sk);
+		if (ret) {
+			sk->sk_err = ret;
+			sk->sk_error_report(sk);
+		}
+	}
 
 	scm_recv(sock, msg, siocb->scm, flags);
 out:
@@ -1498,7 +1494,7 @@ netlink_kernel_create(struct net *net, int unit, unsigned int groups,
 	struct socket *sock;
 	struct sock *sk;
 	struct netlink_sock *nlk;
-	unsigned long *listeners = NULL;
+	struct listeners *listeners = NULL;
 
 	BUG_ON(!nl_table);
 
@@ -1523,8 +1519,7 @@ netlink_kernel_create(struct net *net, int unit, unsigned int groups,
 	if (groups < 32)
 		groups = 32;
 
-	listeners = kzalloc(NLGRPSZ(groups) + sizeof(struct listeners_rcu_head),
-			    GFP_KERNEL);
+	listeners = kzalloc(sizeof(*listeners) + NLGRPSZ(groups), GFP_KERNEL);
 	if (!listeners)
 		goto out_sock_release;
 
@@ -1541,7 +1536,7 @@ netlink_kernel_create(struct net *net, int unit, unsigned int groups,
 	netlink_table_grab();
 	if (!nl_table[unit].registered) {
 		nl_table[unit].groups = groups;
-		nl_table[unit].listeners = listeners;
+		rcu_assign_pointer(nl_table[unit].listeners, listeners);
 		nl_table[unit].cb_mutex = cb_mutex;
 		nl_table[unit].module = module;
 		nl_table[unit].registered = 1;
@@ -1571,44 +1566,23 @@ netlink_kernel_release(struct sock *sk)
 }
 EXPORT_SYMBOL(netlink_kernel_release);
 
-
-static void netlink_free_old_listeners(struct rcu_head *rcu_head)
-{
-	struct listeners_rcu_head *lrh;
-
-	lrh = container_of(rcu_head, struct listeners_rcu_head, rcu_head);
-	kfree(lrh->ptr);
-}
-
 int __netlink_change_ngroups(struct sock *sk, unsigned int groups)
 {
-	unsigned long *listeners, *old = NULL;
-	struct listeners_rcu_head *old_rcu_head;
+	struct listeners *new, *old;
 	struct netlink_table *tbl = &nl_table[sk->sk_protocol];
 
 	if (groups < 32)
 		groups = 32;
 
 	if (NLGRPSZ(tbl->groups) < NLGRPSZ(groups)) {
-		listeners = kzalloc(NLGRPSZ(groups) +
-				    sizeof(struct listeners_rcu_head),
-				    GFP_ATOMIC);
-		if (!listeners)
+		new = kzalloc(sizeof(*new) + NLGRPSZ(groups), GFP_ATOMIC);
+		if (!new)
 			return -ENOMEM;
-		old = tbl->listeners;
-		memcpy(listeners, old, NLGRPSZ(tbl->groups));
-		rcu_assign_pointer(tbl->listeners, listeners);
-		/*
-		 * Free the old memory after an RCU grace period so we
-		 * don't leak it. We use call_rcu() here in order to be
-		 * able to call this function from atomic contexts. The
-		 * allocation of this memory will have reserved enough
-		 * space for struct listeners_rcu_head at the end.
-		 */
-		old_rcu_head = (void *)(tbl->listeners +
-					NLGRPLONGS(tbl->groups));
-		old_rcu_head->ptr = old;
-		call_rcu(&old_rcu_head->rcu_head, netlink_free_old_listeners);
+		old = rcu_dereference_raw(tbl->listeners);
+		memcpy(new->masks, old->masks, NLGRPSZ(tbl->groups));
+		rcu_assign_pointer(tbl->listeners, new);
+
+		kfree_rcu(old, rcu);
 	}
 	tbl->groups = groups;
 
@@ -1685,13 +1659,10 @@ static int netlink_dump(struct sock *sk)
 {
 	struct netlink_sock *nlk = nlk_sk(sk);
 	struct netlink_callback *cb;
-	struct sk_buff *skb;
+	struct sk_buff *skb = NULL;
 	struct nlmsghdr *nlh;
 	int len, err = -ENOBUFS;
-
-	skb = sock_rmalloc(sk, NLMSG_GOODSIZE, 0, GFP_KERNEL);
-	if (!skb)
-		goto errout;
+	int alloc_size;
 
 	mutex_lock(nlk->cb_mutex);
 
@@ -1700,6 +1671,12 @@ static int netlink_dump(struct sock *sk)
 		err = -EINVAL;
 		goto errout_skb;
 	}
+
+	alloc_size = max_t(int, cb->min_dump_alloc, NLMSG_GOODSIZE);
+
+	skb = sock_rmalloc(sk, alloc_size, 0, GFP_KERNEL);
+	if (!skb)
+		goto errout_skb;
 
 	len = cb->dump(skb, cb);
 
@@ -1718,6 +1695,8 @@ static int netlink_dump(struct sock *sk)
 	nlh = nlmsg_put_answer(skb, cb, NLMSG_DONE, sizeof(len), NLM_F_MULTI);
 	if (!nlh)
 		goto errout_skb;
+
+	nl_dump_check_consistent(cb, nlh);
 
 	memcpy(nlmsg_data(nlh), &len, sizeof(len));
 
@@ -1739,7 +1718,6 @@ static int netlink_dump(struct sock *sk)
 errout_skb:
 	mutex_unlock(nlk->cb_mutex);
 	kfree_skb(skb);
-errout:
 	return err;
 }
 
@@ -1747,11 +1725,13 @@ int netlink_dump_start(struct sock *ssk, struct sk_buff *skb,
 		       const struct nlmsghdr *nlh,
 		       int (*dump)(struct sk_buff *skb,
 				   struct netlink_callback *),
-		       int (*done)(struct netlink_callback *))
+		       int (*done)(struct netlink_callback *),
+		       u16 min_dump_alloc)
 {
 	struct netlink_callback *cb;
 	struct sock *sk;
 	struct netlink_sock *nlk;
+	int ret;
 
 	cb = kzalloc(sizeof(*cb), GFP_KERNEL);
 	if (cb == NULL)
@@ -1760,6 +1740,7 @@ int netlink_dump_start(struct sock *ssk, struct sk_buff *skb,
 	cb->dump = dump;
 	cb->done = done;
 	cb->nlh = nlh;
+	cb->min_dump_alloc = min_dump_alloc;
 	atomic_inc(&skb->users);
 	cb->skb = skb;
 
@@ -1780,8 +1761,12 @@ int netlink_dump_start(struct sock *ssk, struct sk_buff *skb,
 	nlk->cb = cb;
 	mutex_unlock(nlk->cb_mutex);
 
-	netlink_dump(sk);
+	ret = netlink_dump(sk);
+
 	sock_put(sk);
+
+	if (ret)
+		return ret;
 
 	/* We successfully started a dump, by returning -EINTR we
 	 * signal not to send ACK even if it was requested.
@@ -1996,13 +1981,6 @@ static void netlink_seq_stop(struct seq_file *seq, void *v)
 }
 
 
-//NVidia CTS Fail Patch 
-#define TEGRA2_GB_CTS235_TRY_TO_CRASH_VOLD_FORCED_PASS
-#ifdef TEGRA2_GB_CTS235_TRY_TO_CRASH_VOLD_FORCED_PASS
-   static int fake_pid = 0;
-#endif
-//NVidia CTS Fail patch 
-
 static int netlink_seq_show(struct seq_file *seq, void *v)
 {
 	if (v == SEQ_START_TOKEN)
@@ -2013,31 +1991,10 @@ static int netlink_seq_show(struct seq_file *seq, void *v)
 		struct sock *s = v;
 		struct netlink_sock *nlk = nlk_sk(s);
 
-//NVidia  CTS Fail Patch 
-        #ifdef TEGRA2_GB_CTS235_TRY_TO_CRASH_VOLD_FORCED_PASS
-				int temp_pid;
-		/* c.f. check addr.nl_pid setting of hdmi_uevent_init()
-		 * in android/vendor/nvidia/tegra/hal/libgralloc/nvgruevent.c */		
-		 if ((nlk->pid > fake_pid) && (nlk->pid != 0x20000))
-		 			fake_pid = nlk->pid;
-		 if (nlk->pid == 0x20000)
-		 			temp_pid = fake_pid;
-		 else
-		 			temp_pid = nlk->pid;
-		#endif
-//NVidia CTS Fail Patch 
-       
-
-		seq_printf(seq, "%p %-3d %-6d %08x %-8d %-8d %p %-8d %-8d %-8lu\n",
+		seq_printf(seq, "%pK %-3d %-6d %08x %-8d %-8d %pK %-8d %-8d %-8lu\n",
 			   s,
 			   s->sk_protocol,
-//NVdia CTS Fail  Patch
-#ifdef TEGRA2_GB_CTS235_TRY_TO_CRASH_VOLD_FORCED_PASS			   
-               temp_pid,
-#else
 			   nlk->pid,
-#endif
-//NVidia CTS Fail Patch
 			   nlk->groups ? (u32)nlk->groups[0] : 0,
 			   sk_rmem_alloc_get(s),
 			   sk_wmem_alloc_get(s),
@@ -2132,18 +2089,17 @@ static void __net_exit netlink_net_exit(struct net *net)
 
 static void __init netlink_add_usersock_entry(void)
 {
-	unsigned long *listeners;
+	struct listeners *listeners;
 	int groups = 32;
 
-	listeners = kzalloc(NLGRPSZ(groups) + sizeof(struct listeners_rcu_head),
-			    GFP_KERNEL);
+	listeners = kzalloc(sizeof(*listeners) + NLGRPSZ(groups), GFP_KERNEL);
 	if (!listeners)
-		panic("netlink_add_usersock_entry: Cannot allocate listneres\n");
+		panic("netlink_add_usersock_entry: Cannot allocate listeners\n");
 
 	netlink_table_grab();
 
 	nl_table[NETLINK_USERSOCK].groups = groups;
-	nl_table[NETLINK_USERSOCK].listeners = listeners;
+	rcu_assign_pointer(nl_table[NETLINK_USERSOCK].listeners, listeners);
 	nl_table[NETLINK_USERSOCK].module = THIS_MODULE;
 	nl_table[NETLINK_USERSOCK].registered = 1;
 

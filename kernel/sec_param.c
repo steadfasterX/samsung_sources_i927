@@ -84,7 +84,7 @@ bool sec_open_param(void)
 		return true;
 
 	param_data = kmalloc(sizeof(sec_param_data), GFP_KERNEL);
-	
+
 	ret = misc_sec_operation(param_data, offset, sizeof(sec_param_data), MISC_RD);
 
 	if (!ret) {
@@ -119,7 +119,7 @@ bool sec_get_param(sec_param_index index, void *value)
 	ret = sec_open_param();
 	if (!ret)
 		return ret;
-	
+
 	switch (index) {
 	case param_index_oemlock:
 		memcpy(value, &(param_data->oemlock), sizeof(unsigned int));
@@ -162,13 +162,13 @@ bool sec_set_param(sec_param_index index, void *value)
 {
 	int ret = true;
 	int offset = SEC_MISC_FILE_OFFSET;
-	printk(KERN_NOTICE "(sec_set_param) The debug value is 0x%x !!\n", value);	
+	printk(KERN_NOTICE "(sec_set_param) The debug value is 0x%x !!\n", value);
 	ret = sec_open_param();
 	if (!ret) {
-		printk(KERN_NOTICE "(sec_open_param) return error !!\n");	
+		printk(KERN_NOTICE "(sec_open_param) return error !!\n");
 		return ret;
 	}
-	
+
 	switch (index) {
 	case param_index_oemlock:
 		memcpy(&(param_data->oemlock), value, sizeof(unsigned int));
@@ -206,5 +206,3 @@ bool sec_set_param(sec_param_index index, void *value)
 	return misc_sec_operation(param_data, offset, sizeof(sec_param_data), MISC_WR);
 }
 EXPORT_SYMBOL(sec_set_param);
-
-

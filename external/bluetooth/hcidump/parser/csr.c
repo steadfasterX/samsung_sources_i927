@@ -2,7 +2,7 @@
  *
  *  BlueZ - Bluetooth protocol stack for Linux
  *
- *  Copyright (C) 2004-2007  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2004-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -31,10 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <sys/types.h>
-#include <netinet/in.h>
-
-#include "parser.h"
+#include "parser/parser.h"
 
 #define CSR_U8(frm)  (get_u8(frm))
 #define CSR_U16(frm) (btohs(htons(get_u16(frm))))
@@ -146,7 +143,7 @@ static inline void features_dump(int level, char *str, struct frame *frm)
 static inline void commands_dump(int level, char *str, struct frame *frm)
 {
 	unsigned char commands[64];
-	int i;
+	unsigned int i;
 
 	memcpy(commands, frm->ptr, frm->len);
 

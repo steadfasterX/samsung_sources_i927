@@ -91,7 +91,7 @@ static int get_fmt_header(struct str_ring_buf *rbuf, char *start_byte, struct fm
 {
 	if (!get_remained_size(rbuf))
 		return -ENODATA;
-	
+
 	if (get_remained_size(rbuf) < sizeof(*hd) + sizeof(start_byte)) {
 		pr_debug("ring buffer data length less than header size\n");
 		return -ENOSPC;
@@ -101,7 +101,7 @@ static int get_fmt_header(struct str_ring_buf *rbuf, char *start_byte, struct fm
 		pr_err("read header error from ringbuffer\n");
 		return -EIO;
 	}
-	
+
 	if (memcpy_from_ringbuf(rbuf, (char *)hd, sizeof(*hd)) != sizeof(*hd)) {
 		pr_err("read header error from ringbuffer\n");
 		return -EIO;
@@ -156,7 +156,7 @@ static void process_ipc(struct str_smdipc *smdipc)
 	struct fmt_hdr hd;
 	struct sk_buff *skb;
 	struct str_ring_buf *rbuf = &smdipc->read_buf;
-	
+
 	while (!get_fmt_header(rbuf, &start_byte, &hd)) {
 		/* check hdlc start byte */
 		if (start_byte != HDLC_START) {
@@ -616,7 +616,7 @@ static ssize_t smdipc_read(struct file *file, char *buf, size_t count,
 
 	dev_kfree_skb_any(skb);
 
-	return pktsize;	
+	return pktsize;
 }
 
 static unsigned int smdipc_poll(struct file *file,
@@ -759,7 +759,7 @@ void *init_smdipc(void)
 	wake_lock_init(&smdipc->rxguide_lock, WAKE_LOCK_SUSPEND, "rxipc");
 
 	skb_queue_head_init(&smdipc->rxq);
-	
+
 	pr_info("%s: End\n", __func__);
 	return smdipc;
 

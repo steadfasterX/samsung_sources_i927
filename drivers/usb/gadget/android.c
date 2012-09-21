@@ -4,9 +4,6 @@
  * Copyright (C) 2008 Google, Inc.
  * Author: Mike Lockwood <lockwood@android.com>
  *
- * Copyright (C) 2010 Samsung Electronics,
- * Author : Woojin Kim <woojin80.kim@samsung.com>
- *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -30,15 +27,12 @@
 #include <linux/utsname.h>
 #include <linux/platform_device.h>
 
-#include <linux/usb/android_composite.h>
 #include <linux/usb/ch9.h>
 #include <linux/usb/composite.h>
 #include <linux/usb/gadget.h>
+#include <linux/usb/android_composite.h>
 
 #include "gadget_chips.h"
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-#include <linux/usb/f_accessory.h>
-#endif
 
 /*
  * Kbuild is not very cooperative with respect to linking separately
@@ -52,15 +46,25 @@
 #include "epautoconf.c"
 #include "composite.c"
 
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* woojin80.kim : Added functions and modifed composite framework for samsung composite.
- *                Developers can make custom composite easily using this custom samsung framework.
- */
-MODULE_AUTHOR("Woojin Kim");
-#else
-MODULE_AUTHOR("Mike Lockwood");
+#include "f_mass_storage.c"
+#include "u_serial.c"
+#ifdef CONFIG_USB_DUN_SUPPORT
+#include "serial_acm.c"
 #endif
+#include "f_acm.c"
+#include "f_adb.c"
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_MTP
+#include "f_mtp_samsung.c"
+#else
+#include "f_mtp.c"
+#endif
+#include "f_accessory.c"
+#define USB_ETH_RNDIS y
+#include "f_rndis.c"
+#include "rndis.c"
+#include "u_ether.c"
+
+MODULE_AUTHOR("Mike Lockwood");
 MODULE_DESCRIPTION("Android Composite USB Driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
@@ -68,76 +72,73 @@ MODULE_VERSION("1.0");
 static const char longname[] = "Gadget Android";
 
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	/* Refered from S1, P1 */
-	#define USBSTATUS_UMS				0x0
-	#define USBSTATUS_SAMSUNG_KIES 		0x1
-	#define USBSTATUS_MTPONLY			0x2
-	#define USBSTATUS_ASKON				0x4
-	#define USBSTATUS_VTP				0x8
-	#define USBSTATUS_ADB				0x10
-	#define USBSTATUS_DM				0x20
-	#define USBSTATUS_ACM				0x40
-	#define USBSTATUS_SAMSUNG_KIES_REAL	0x80
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-        #define USBSTATUS_ACCESSORY			0x100		
-#endif
+static int composite_string_index;
 #endif
 
-/* Default vendor and product IDs, overridden by platform data */
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-#  define VENDOR_ID		0x04e8	/* SAMSUNG */
-/* woojin80.kim : default product id refered as <plat/devs.h> */
+/* Default vendor and product IDs, overridden by userspace */
+#define VENDOR_ID		0x18D1
+#define PRODUCT_ID		0x0001
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_ESCAPE
-	#define SAMSUNG_DEBUG_PRODUCT_ID	0x685e	/* ums(0) + acm(1,2) + adb(3) (with MS Composite) */
-#else
-	#define SAMSUNG_DEBUG_PRODUCT_ID	0x681C	/* Shrewbury ACM+UMS+ADB*/
-#endif
-	#  define PRODUCT_ID		SAMSUNG_DEBUG_PRODUCT_ID
+struct android_usb_function {
+	char *name;
+	void *config;
 
-#else /* Original VID & PID */
-#  define VENDOR_ID		0x18D1
-#  define PRODUCT_ID		0x0001
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
+	struct device *dev;
+	char *dev_name;
+	struct device_attribute **attributes;
 
-struct android_dev {
-	struct usb_composite_dev *cdev;
-	struct usb_configuration *config;
-	int num_products;
-	struct android_usb_product *products;
-	int num_functions;
-	char **functions;
+	/* for android_dev.enabled_functions */
+	struct list_head enabled_list;
 
-	int product_id;
-	int version;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	int current_usb_mode;   /* woojin80.kim : save usb mode except tethering and askon mode. */
-	int requested_usb_mode; /*                requested usb mode from app included tethering and askon */
-	int debugging_usb_mode; /*		  debugging usb mode */
-#endif
+	/* Optional: initialization during gadget bind */
+	int (*init)(struct android_usb_function *, struct usb_composite_dev *);
+	/* Optional: cleanup during gadget unbind */
+	void (*cleanup)(struct android_usb_function *);
+
+	int (*bind_config)(struct android_usb_function *, struct usb_configuration *);
+
+	/* Optional: called when the configuration is removed */
+	void (*unbind_config)(struct android_usb_function *, struct usb_configuration *);
+	/* Optional: handle ctrl requests before the device is configured */
+	int (*ctrlrequest)(struct android_usb_function *,
+					struct usb_composite_dev *,
+					const struct usb_ctrlrequest *);
 };
 
+struct android_dev {
+	struct android_usb_function **functions;
+	struct list_head enabled_functions;
+	struct usb_composite_dev *cdev;
+	struct device *dev;
+
+	bool enabled;
+	struct mutex mutex;
+	bool connected;
+	bool sw_connected;
+	struct work_struct work;
+};
+
+static struct class *android_class;
 static struct android_dev *_android_dev;
-
+static int android_bind_config(struct usb_configuration *c);
+static void android_unbind_config(struct usb_configuration *c);
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+static struct android_usb_platform_data *android_usb_pdata;
+#endif
 /* string IDs are assigned dynamically */
-
 #define STRING_MANUFACTURER_IDX		0
 #define STRING_PRODUCT_IDX		1
 #define STRING_SERIAL_IDX		2
 
+static char manufacturer_string[256];
+static char product_string[256];
+static char serial_string[256];
+
 /* String Table */
 static struct usb_string strings_dev[] = {
-	/* These dummy values should be overridden by platform data */
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* woojin80.kim : Samsung string default product id refered as <plat/devs.h> */
-	[STRING_MANUFACTURER_IDX].s = "SAMSUNG",
-	[STRING_PRODUCT_IDX].s = "SAMSUNG_Android",
-	[STRING_SERIAL_IDX].s = "0123456789ABCDEF",
-#else /* Original */
-	[STRING_MANUFACTURER_IDX].s = "Android",
-	[STRING_PRODUCT_IDX].s = "Android",
-	[STRING_SERIAL_IDX].s = "0123456789ABCDEF",
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
+	[STRING_MANUFACTURER_IDX].s = manufacturer_string,
+	[STRING_PRODUCT_IDX].s = product_string,
+	[STRING_SERIAL_IDX].s = serial_string,
 	{  }			/* end of list */
 };
 
@@ -162,193 +163,1065 @@ static struct usb_device_descriptor device_desc = {
 	.bNumConfigurations   = 1,
 };
 
-static struct list_head _functions = LIST_HEAD_INIT(_functions);
-static int _registered_function_count = 0;
+static struct usb_configuration android_config_driver = {
+	.label		= "android",
+	.unbind		= android_unbind_config,
+	.bConfigurationValue = 1,
+};
+
+static void android_work(struct work_struct *data)
+{
+	struct android_dev *dev = container_of(data, struct android_dev, work);
+	struct usb_composite_dev *cdev = dev->cdev;
+	char *disconnected[2] = { "USB_STATE=DISCONNECTED", NULL };
+	char *connected[2]    = { "USB_STATE=CONNECTED", NULL };
+	char *configured[2]   = { "USB_STATE=CONFIGURED", NULL };
+	char **uevent_envp = NULL;
+	unsigned long flags;
+
+	printk(KERN_DEBUG "usb: %s config=%p,connected=%d,sw_connected=%d\n",
+			__func__, cdev->config, dev->connected,
+			dev->sw_connected);
+	spin_lock_irqsave(&cdev->lock, flags);
+        if (cdev->config)
+		uevent_envp = configured;
+	else if (dev->connected != dev->sw_connected)
+		uevent_envp = dev->connected ? connected : disconnected;
+	dev->sw_connected = dev->connected;
+	spin_unlock_irqrestore(&cdev->lock, flags);
+
+	if (uevent_envp) {
+		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, uevent_envp);
+		pr_info("%s: sent uevent %s\n", __func__, uevent_envp[0]);
+	} else {
+		pr_info("%s: did not send uevent (%d %d %p)\n", __func__,
+			 dev->connected, dev->sw_connected, cdev->config);
+	}
+}
+
+
+/*-------------------------------------------------------------------------*/
+/* Supported functions initialization */
+
+static int adb_function_init(struct android_usb_function *f, struct usb_composite_dev *cdev)
+{
+	return adb_setup();
+}
+
+static void adb_function_cleanup(struct android_usb_function *f)
+{
+	adb_cleanup();
+}
+
+static int adb_function_bind_config(struct android_usb_function *f, struct usb_configuration *c)
+{
+	return adb_bind_config(c);
+}
+
+static struct android_usb_function adb_function = {
+	.name		= "adb",
+	.init		= adb_function_init,
+	.cleanup	= adb_function_cleanup,
+	.bind_config	= adb_function_bind_config,
+};
+
+
+#define MAX_ACM_INSTANCES 4
+struct acm_function_config {
+	int instances;
+};
+
+static int acm_function_init(struct android_usb_function *f, struct usb_composite_dev *cdev)
+{
+	int ret;
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	struct acm_function_config *config;
+#endif
+	f->config = kzalloc(sizeof(struct acm_function_config), GFP_KERNEL);
+	if (!f->config)
+		return -ENOMEM;
+
+	ret = gserial_setup(cdev->gadget, MAX_ACM_INSTANCES);
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	/* default setting */
+	config = f->config;
+	config->instances = 1;
+#endif
+	return ret;
+}
+
+static void acm_function_cleanup(struct android_usb_function *f)
+{
+	gserial_cleanup();
+	kfree(f->config);
+	f->config = NULL;
+}
+
+static int acm_function_bind_config(struct android_usb_function *f, struct usb_configuration *c)
+{
+	int i;
+	int ret = 0;
+	struct acm_function_config *config = f->config;
+
+	for (i = 0; i < config->instances; i++) {
+		ret = acm_bind_config(c, i);
+		if (ret) {
+			pr_err("Could not bind acm%u config\n", i);
+			break;
+		}
+	}
+
+	return ret;
+}
+
+static ssize_t acm_instances_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct acm_function_config *config = f->config;
+	return sprintf(buf, "%d\n", config->instances);
+}
+
+static ssize_t acm_instances_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct acm_function_config *config = f->config;
+	int value;
+
+	sscanf(buf, "%d", &value);
+	if (value > MAX_ACM_INSTANCES)
+		value = MAX_ACM_INSTANCES;
+	config->instances = value;
+	return size;
+}
+
+static DEVICE_ATTR(instances, S_IRUGO | S_IWUSR, acm_instances_show, acm_instances_store);
+static struct device_attribute *acm_function_attributes[] = { &dev_attr_instances, NULL };
+
+static struct android_usb_function acm_function = {
+	.name		= "acm",
+	.init		= acm_function_init,
+	.cleanup	= acm_function_cleanup,
+	.bind_config	= acm_function_bind_config,
+	.attributes	= acm_function_attributes,
+};
+
+
+static int mtp_function_init(struct android_usb_function *f, struct usb_composite_dev *cdev)
+{
+	return mtp_setup();
+}
+
+static void mtp_function_cleanup(struct android_usb_function *f)
+{
+	mtp_cleanup();
+}
+
+static int mtp_function_bind_config(struct android_usb_function *f, struct usb_configuration *c)
+{
+	return mtp_bind_config(c, false);
+}
+
+static int ptp_function_init(struct android_usb_function *f, struct usb_composite_dev *cdev)
+{
+	/* nothing to do - initialization is handled by mtp_function_init */
+	return 0;
+}
+
+static void ptp_function_cleanup(struct android_usb_function *f)
+{
+	/* nothing to do - cleanup is handled by mtp_function_cleanup */
+}
+
+static int ptp_function_bind_config(struct android_usb_function *f, struct usb_configuration *c)
+{
+	return mtp_bind_config(c, true);
+}
+
+static int mtp_function_ctrlrequest(struct android_usb_function *f,
+						struct usb_composite_dev *cdev,
+						const struct usb_ctrlrequest *c)
+{
+	return mtp_ctrlrequest(cdev, c);
+}
+
+static struct android_usb_function mtp_function = {
+	.name		= "mtp",
+	.init		= mtp_function_init,
+	.cleanup	= mtp_function_cleanup,
+	.bind_config	= mtp_function_bind_config,
+	.ctrlrequest	= mtp_function_ctrlrequest,
+};
+
+/* PTP function is same as MTP with slightly different interface descriptor */
+static struct android_usb_function ptp_function = {
+	.name		= "ptp",
+	.init		= ptp_function_init,
+	.cleanup	= ptp_function_cleanup,
+	.bind_config	= ptp_function_bind_config,
+};
+
+
+struct rndis_function_config {
+	u8      ethaddr[ETH_ALEN];
+	u32     vendorID;
+	char	manufacturer[256];
+	bool	wceis;
+};
+
+static int rndis_function_init(struct android_usb_function *f, struct usb_composite_dev *cdev)
+{
+	f->config = kzalloc(sizeof(struct rndis_function_config), GFP_KERNEL);
+	if (!f->config)
+		return -ENOMEM;
+	return 0;
+}
+
+static void rndis_function_cleanup(struct android_usb_function *f)
+{
+	kfree(f->config);
+	f->config = NULL;
+}
+
+static int rndis_function_bind_config(struct android_usb_function *f,
+					struct usb_configuration *c)
+{
+	int ret;
+	struct rndis_function_config *rndis = f->config;
+
+	if (!rndis) {
+		pr_err("%s: rndis_pdata\n", __func__);
+		return -1;
+	}
+	ret = gether_setup_name(c->cdev->gadget, rndis->ethaddr, "rndis");
+	if (ret) {
+		pr_err("%s: gether_setup failed\n", __func__);
+		return ret;
+	}
+
+	if (rndis->wceis) {
+		/* "Wireless" RNDIS; auto-detected by Windows */
+		rndis_iad_descriptor.bFunctionClass =
+						USB_CLASS_WIRELESS_CONTROLLER;
+		rndis_iad_descriptor.bFunctionSubClass = 0x01;
+		rndis_iad_descriptor.bFunctionProtocol = 0x03;
+		rndis_control_intf.bInterfaceClass =
+						USB_CLASS_WIRELESS_CONTROLLER;
+		rndis_control_intf.bInterfaceSubClass =	 0x01;
+		rndis_control_intf.bInterfaceProtocol =	 0x03;
+	}
+
+	return rndis_bind_config(c, rndis->ethaddr, rndis->vendorID,
+				    rndis->manufacturer);
+}
+
+static void rndis_function_unbind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	gether_cleanup();
+}
+
+static ssize_t rndis_manufacturer_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct rndis_function_config *config = f->config;
+	return sprintf(buf, "%s\n", config->manufacturer);
+}
+
+static ssize_t rndis_manufacturer_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct rndis_function_config *config = f->config;
+
+	if (size >= sizeof(config->manufacturer))
+		return -EINVAL;
+	if (sscanf(buf, "%s", config->manufacturer) == 1)
+		return size;
+	return -1;
+}
+
+static DEVICE_ATTR(manufacturer, S_IRUGO | S_IWUSR, rndis_manufacturer_show,
+						    rndis_manufacturer_store);
+
+static ssize_t rndis_wceis_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct rndis_function_config *config = f->config;
+	return sprintf(buf, "%d\n", config->wceis);
+}
+
+static ssize_t rndis_wceis_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct rndis_function_config *config = f->config;
+	int value;
+
+	if (sscanf(buf, "%d", &value) == 1) {
+		config->wceis = value;
+		return size;
+	}
+	return -EINVAL;
+}
+
+static DEVICE_ATTR(wceis, S_IRUGO | S_IWUSR, rndis_wceis_show,
+					     rndis_wceis_store);
+
+static ssize_t rndis_ethaddr_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct rndis_function_config *rndis = f->config;
+	return sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x\n",
+		rndis->ethaddr[0], rndis->ethaddr[1], rndis->ethaddr[2],
+		rndis->ethaddr[3], rndis->ethaddr[4], rndis->ethaddr[5]);
+}
+
+static ssize_t rndis_ethaddr_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct rndis_function_config *rndis = f->config;
 
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-static void samsung_enable_function(int mode);
+	int i;
+	char *src;
+	for (i = 0; i < ETH_ALEN; i++)
+		rndis->ethaddr[i] = 0;
+	/* create a fake MAC address from our serial number.
+	 * first byte is 0x02 to signify locally administered.
+	 */
+	rndis->ethaddr[0] = 0x02;
+	src = serial_string;
+	for (i = 0; (i < 256) && *src; i++) {
+		/* XOR the USB serial across the remaining bytes */
+		rndis->ethaddr[i % (ETH_ALEN - 1) + 1] ^= *src++;
+	}
+	return size;
+#else
+	if (sscanf(buf, "%02x:%02x:%02x:%02x:%02x:%02x\n",
+		    (int *)&rndis->ethaddr[0], (int *)&rndis->ethaddr[1],
+		    (int *)&rndis->ethaddr[2], (int *)&rndis->ethaddr[3],
+		    (int *)&rndis->ethaddr[4],
+		    (int *)&rndis->ethaddr[5]) == 6) {
+		return size;
+
+	}
+	return -EINVAL;
+#endif
+}
+
+static DEVICE_ATTR(ethaddr, S_IRUGO | S_IWUSR, rndis_ethaddr_show,
+					       rndis_ethaddr_store);
+
+static ssize_t rndis_vendorID_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct rndis_function_config *config = f->config;
+	return sprintf(buf, "%04x\n", config->vendorID);
+}
+
+static ssize_t rndis_vendorID_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct rndis_function_config *config = f->config;
+	int value;
+
+	if (sscanf(buf, "%04x", &value) == 1) {
+		config->vendorID = value;
+		return size;
+	}
+	return -EINVAL;
+}
+
+static DEVICE_ATTR(vendorID, S_IRUGO | S_IWUSR, rndis_vendorID_show,
+						rndis_vendorID_store);
+
+static struct device_attribute *rndis_function_attributes[] = {
+	&dev_attr_manufacturer,
+	&dev_attr_wceis,
+	&dev_attr_ethaddr,
+	&dev_attr_vendorID,
+	NULL
+};
+
+static struct android_usb_function rndis_function = {
+	.name		= "rndis",
+	.init		= rndis_function_init,
+	.cleanup	= rndis_function_cleanup,
+	.bind_config	= rndis_function_bind_config,
+	.unbind_config	= rndis_function_unbind_config,
+	.attributes	= rndis_function_attributes,
+};
+
+
+struct mass_storage_function_config {
+	struct fsg_config fsg;
+	struct fsg_common *common;
+};
+
+static int mass_storage_function_init(struct android_usb_function *f,
+					struct usb_composite_dev *cdev)
+{
+	struct mass_storage_function_config *config;
+	struct fsg_common *common;
+	int err;
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	int i;
+#endif
+	config = kzalloc(sizeof(struct mass_storage_function_config),
+								GFP_KERNEL);
+	if (!config)
+		return -ENOMEM;
+
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	if (config) {
+		/* All of Nvidia device have SD card slot so we make 2 luns */
+		config->fsg.nluns = 2;
+		printk(KERN_DEBUG "usb: %s, nluns=%d\n", __func__,
+				config->fsg.nluns);
+
+		for (i = 0; i < config->fsg.nluns; i++) {
+			config->fsg.luns[i].removable = 1;
+			config->fsg.luns[i].nofua = 1;
+		}
+
+		common = fsg_common_init(NULL, cdev, &config->fsg);
+		if (IS_ERR(common)) {
+			kfree(config);
+			return PTR_ERR(common);
+		}
+
+		for (i = 0; i < config->fsg.nluns; i++) {
+			char luns[5];
+			err = snprintf(luns, 5, "lun%d", i);
+			if (err == 0) {
+				printk(KERN_ERR "usb: %s snprintf error\n",
+						__func__);
+				kfree(config);
+				return err;
+			}
+			err = sysfs_create_link(&f->dev->kobj,
+					&common->luns[i].dev.kobj,
+					luns);
+			if (err) {
+				kfree(config);
+				return err;
+			}
+		}
+	} else {
+#endif
+		/* original mainline code */
+		printk(KERN_DEBUG "usb: %s pdata is not available. nluns=1\n",
+				__func__);
+		config->fsg.nluns = 1;
+		config->fsg.luns[0].removable = 1;
+
+		common = fsg_common_init(NULL, cdev, &config->fsg);
+		if (IS_ERR(common)) {
+			kfree(config);
+			return PTR_ERR(common);
+		}
+
+		err = sysfs_create_link(&f->dev->kobj,
+				&common->luns[0].dev.kobj,
+				"lun");
+		if (err) {
+			kfree(config);
+			return err;
+		}
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	}
+#endif
+	config->common = common;
+	f->config = config;
+	return 0;
+}
+
+static void mass_storage_function_cleanup(struct android_usb_function *f)
+{
+	kfree(f->config);
+	f->config = NULL;
+}
+
+static int mass_storage_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct mass_storage_function_config *config = f->config;
+	return fsg_bind_config(c->cdev, c, config->common);
+}
+
+static ssize_t mass_storage_inquiry_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+	return sprintf(buf, "%s\n", config->common->inquiry_string);
+}
+
+static ssize_t mass_storage_inquiry_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+	if (size >= sizeof(config->common->inquiry_string))
+		return -EINVAL;
+	if (sscanf(buf, "%s", config->common->inquiry_string) != 1)
+		return -EINVAL;
+	return size;
+}
+
+static DEVICE_ATTR(inquiry_string, S_IRUGO | S_IWUSR,
+					mass_storage_inquiry_show,
+					mass_storage_inquiry_store);
+
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+static ssize_t mass_storage_vendor_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+	return sprintf(buf, "%s\n", config->common->vendor_string);
+}
+
+static ssize_t mass_storage_vendor_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+
+	if (size >= sizeof(config->common->vendor_string))
+		return -EINVAL;
+	if (sscanf(buf, "%s", config->common->vendor_string) != 1)
+		return -EINVAL;
+
+	printk(KERN_DEBUG "%s: vendor %s", __func__,
+				config->common->vendor_string);
+	return size;
+}
+
+static DEVICE_ATTR(vendor_string, S_IRUGO | S_IWUSR,
+					mass_storage_vendor_show,
+					mass_storage_vendor_store);
+
+static ssize_t mass_storage_product_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+	return sprintf(buf, "%s\n", config->common->product_string);
+}
+
+static ssize_t mass_storage_product_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+
+	if (size >= sizeof(config->common->product_string))
+		return -EINVAL;
+	if (sscanf(buf, "%s", config->common->product_string) != 1)
+		return -EINVAL;
+
+	printk(KERN_DEBUG "%s: product %s", __func__,
+				config->common->product_string);
+	return size;
+}
+
+static DEVICE_ATTR(product_string, S_IRUGO | S_IWUSR,
+					mass_storage_product_show,
+					mass_storage_product_store);
 #endif
 
-static struct android_usb_function *get_function(const char *name)
+static struct device_attribute *mass_storage_function_attributes[] = {
+	&dev_attr_inquiry_string,
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	&dev_attr_vendor_string,
+	&dev_attr_product_string,
+#endif
+	NULL
+};
+
+static struct android_usb_function mass_storage_function = {
+	.name		= "mass_storage",
+	.init		= mass_storage_function_init,
+	.cleanup	= mass_storage_function_cleanup,
+	.bind_config	= mass_storage_function_bind_config,
+	.attributes	= mass_storage_function_attributes,
+};
+
+
+static int accessory_function_init(struct android_usb_function *f,
+					struct usb_composite_dev *cdev)
 {
-	struct android_usb_function	*f;
-	CSY_DBG2("\n");
-	list_for_each_entry(f, &_functions, list) {
-		if (!strcmp(name, f->name))
-			return f;
+	return acc_setup();
+}
+
+static void accessory_function_cleanup(struct android_usb_function *f)
+{
+	acc_cleanup();
+}
+
+static int accessory_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	return acc_bind_config(c);
+}
+
+static int accessory_function_ctrlrequest(struct android_usb_function *f,
+						struct usb_composite_dev *cdev,
+						const struct usb_ctrlrequest *c)
+{
+	return acc_ctrlrequest(cdev, c);
+}
+
+static struct android_usb_function accessory_function = {
+	.name		= "accessory",
+	.init		= accessory_function_init,
+	.cleanup	= accessory_function_cleanup,
+	.bind_config	= accessory_function_bind_config,
+	.ctrlrequest	= accessory_function_ctrlrequest,
+};
+
+
+static struct android_usb_function *supported_functions[] = {
+	&adb_function,
+	&acm_function,
+	&mtp_function,
+	&ptp_function,
+	&rndis_function,
+	&mass_storage_function,
+	&accessory_function,
+	NULL
+};
+
+
+static int android_init_functions(struct android_usb_function **functions,
+				  struct usb_composite_dev *cdev)
+{
+	struct android_dev *dev = _android_dev;
+	struct android_usb_function *f;
+	struct device_attribute **attrs;
+	struct device_attribute *attr;
+	int err = 0;
+	int index = 0;
+
+	for (; (f = *functions++); index++) {
+		f->dev_name = kasprintf(GFP_KERNEL, "f_%s", f->name);
+		f->dev = device_create(android_class, dev->dev,
+				MKDEV(0, index), f, f->dev_name);
+		if (IS_ERR(f->dev)) {
+			pr_err("%s: Failed to create dev %s", __func__,
+							f->dev_name);
+			err = PTR_ERR(f->dev);
+			goto err_create;
+		}
+
+		if (f->init) {
+			err = f->init(f, cdev);
+			if (err) {
+				pr_err("%s: Failed to init %s", __func__,
+								f->name);
+				goto err_out;
+			}
+		}
+
+		attrs = f->attributes;
+		if (attrs) {
+			while ((attr = *attrs++) && !err)
+				err = device_create_file(f->dev, attr);
+		}
+		if (err) {
+			pr_err("%s: Failed to create function %s attributes",
+					__func__, f->name);
+			goto err_out;
+		}
+	}
+	return 0;
+
+err_out:
+	device_destroy(android_class, f->dev->devt);
+err_create:
+	kfree(f->dev_name);
+	return err;
+}
+
+static void android_cleanup_functions(struct android_usb_function **functions)
+{
+	struct android_usb_function *f;
+
+	while (*functions) {
+		f = *functions++;
+
+		if (f->dev) {
+			device_destroy(android_class, f->dev->devt);
+			kfree(f->dev_name);
+		}
+
+		if (f->cleanup)
+			f->cleanup(f);
+	}
+}
+
+static int
+android_bind_enabled_functions(struct android_dev *dev,
+			       struct usb_configuration *c)
+{
+	struct android_usb_function *f;
+	int ret;
+
+	list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
+		printk(KERN_DEBUG "usb: %s f:%s\n", __func__, f->name);
+		ret = f->bind_config(f, c);
+		if (ret) {
+			pr_err("%s: %s failed", __func__, f->name);
+			return ret;
+		}
 	}
 	return 0;
 }
 
-static void bind_functions(struct android_dev *dev)
+static void
+android_unbind_enabled_functions(struct android_dev *dev,
+			       struct usb_configuration *c)
 {
-	struct android_usb_function	*f;
-	char **functions = dev->functions;
-	int i;
+	struct android_usb_function *f;
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE /* soonyong.cho : Just review bind functions */
-	list_for_each_entry(f, &_functions, list) {
-		CSY_DBG("functions->name=%s\n", f->name);
-	}
-
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
-	for (i = 0; i < dev->num_functions; i++) {
-		char *name = *functions++;
-		CSY_DBG2("func->name=%s\n",name);
-		f = get_function(name);
-		if (f) {
-			CSY_DBG2("get_function->name=%s\n", f->name);
-			f->bind_config(dev->config);
-		}
-		else
-			printk(KERN_ERR "function %s not found in bind_functions\n", name);
+	list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
+		if (f->unbind_config)
+			f->unbind_config(f, c);
 	}
 }
 
+static int android_enable_function(struct android_dev *dev, char *name)
+{
+	struct android_usb_function **functions = dev->functions;
+	struct android_usb_function *f;
+	printk(KERN_DEBUG "usb: %s name=%s\n", __func__, name);
+	while ((f = *functions++)) {
+		if (!strcmp(name, f->name)) {
+			list_add_tail(&f->enabled_list, &dev->enabled_functions);
+			return 0;
+		}
+	}
+	return -EINVAL;
+}
 
+/*-------------------------------------------------------------------------*/
+/* /sys/class/android_usb/android%d/ interface */
+
+static ssize_t
+functions_show(struct device *pdev, struct device_attribute *attr, char *buf)
+{
+	struct android_dev *dev = dev_get_drvdata(pdev);
+	struct android_usb_function *f;
+	char *buff = buf;
+
+	mutex_lock(&dev->mutex);
+
+	list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
+		printk(KERN_DEBUG "usb: %s enabled_func=%s\n",
+				__func__, f->name);
+		buff += sprintf(buff, "%s,", f->name);
+	}
+
+	mutex_unlock(&dev->mutex);
+
+	if (buff != buf)
+		*(buff-1) = '\n';
+	return buff - buf;
+}
+
+static ssize_t
+functions_store(struct device *pdev, struct device_attribute *attr,
+			       const char *buff, size_t size)
+{
+	struct android_dev *dev = dev_get_drvdata(pdev);
+	char *name;
+	char buf[256], *b;
+	int err;
+
+	mutex_lock(&dev->mutex);
+
+	if (dev->enabled) {
+		mutex_unlock(&dev->mutex);
+		return -EBUSY;
+	}
+
+	INIT_LIST_HEAD(&dev->enabled_functions);
+
+	printk(KERN_DEBUG "usb: %s buff=%s\n", __func__, buff);
+	strncpy(buf, buff, sizeof(buf));
+	b = strim(buf);
+
+	while (b) {
+		name = strsep(&b, ",");
+		if (name) {
+			err = android_enable_function(dev, name);
+			if (err)
+				pr_err("android_usb: Cannot enable '%s'", name);
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+			/* Enable ACM function, if MTP is enabled. */
+			if (!strcmp(name, "mtp")) {
+				err = android_enable_function(dev, "acm");
+				if (err)
+					pr_err(
+					"android_usb: Cannot enable '%s'",
+					name);
+			}
+#endif
+		}
+	}
+
+	mutex_unlock(&dev->mutex);
+
+	return size;
+}
+
+static ssize_t enable_show(struct device *pdev, struct device_attribute *attr,
+			   char *buf)
+{
+	struct android_dev *dev = dev_get_drvdata(pdev);
+	printk(KERN_DEBUG "usb: %s dev->enabled=%d\n", __func__,  dev->enabled);
+	return sprintf(buf, "%d\n", dev->enabled);
+}
+
+static int clk_lock_status;
+static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
+			    const char *buff, size_t size)
+{
+	struct android_dev *dev = dev_get_drvdata(pdev);
+	struct usb_composite_dev *cdev = dev->cdev;
+	int enabled = 0;
+
+	mutex_lock(&dev->mutex);
+
+	sscanf(buff, "%d", &enabled);
+	printk(KERN_DEBUG "usb: %s enabled=%d, !dev->enabled=%d\n",
+			__func__, enabled, !dev->enabled);
+	if (enabled && !dev->enabled) {
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+		struct android_usb_function *f;
+		cdev->next_string_id = composite_string_index;
+#else
+		cdev->next_string_id = 0;
+#endif
+		/* update values in composite driver's copy of device descriptor */
+		cdev->desc.idVendor = device_desc.idVendor;
+		cdev->desc.idProduct = device_desc.idProduct;
+		cdev->desc.bcdDevice = device_desc.bcdDevice;
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+		list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
+			printk(KERN_DEBUG "usb: %s f:%s\n", __func__, f->name);
+			if (!strcmp(f->name, "acm")) {
+				printk(KERN_DEBUG "usb: acm is enabled. (bcdDevice=0x400)\n");
+				/* Samsung KIES needs fixed bcdDevice number */
+				cdev->desc.bcdDevice = cpu_to_le16(0x0400);
+			}
+			if (!strcmp(f->name, "rndis")) {
+				/* cpu clock and sclk set max clock */
+				if (!clk_lock_status) {
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
+					tegra_cpu_lock_speed(1000000, 0);
+#endif /* CONFIG_TEGRA_CPU_FREQ_LOCK */
+					fsl_udc_lock_sclk(240000000);
+					clk_lock_status = true;
+				}
+			}
+		}
+		strncpy(manufacturer_string, "SAMSUNG",
+				sizeof(manufacturer_string) - 1);
+		strncpy(product_string, "SAMSUNG_Android",
+				sizeof(product_string) - 1);
+#endif
+		cdev->desc.bDeviceClass = device_desc.bDeviceClass;
+		cdev->desc.bDeviceSubClass = device_desc.bDeviceSubClass;
+		cdev->desc.bDeviceProtocol = device_desc.bDeviceProtocol;
+		printk(KERN_DEBUG "usb: %s vendor=%x,product=%x,bcdDevice=%x",
+				__func__, cdev->desc.idVendor,
+				cdev->desc.idProduct, cdev->desc.bcdDevice);
+		printk(KERN_DEBUG ",Class=%x,SubClass=%x,Protocol=%x\n",
+				cdev->desc.bDeviceClass,
+				cdev->desc.bDeviceSubClass,
+				cdev->desc.bDeviceProtocol);
+		printk(KERN_DEBUG "usb: %s next cmd : usb_add_config\n",
+				__func__);
+		usb_add_config(cdev, &android_config_driver,
+					android_bind_config);
+		usb_gadget_connect(cdev->gadget);
+		dev->enabled = true;
+	} else if (!enabled && dev->enabled) {
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+		/* avoid sending a disconnect switch event
+		 * until after we disconnect.
+		 */
+		cdev->mute_switch = true;
+#endif
+		usb_gadget_disconnect(cdev->gadget);
+		/* Cancel pending control requests */
+		usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
+		usb_remove_config(cdev, &android_config_driver);
+		dev->enabled = false;
+		/* cpu clock and sclk restore original clock */
+		if (clk_lock_status) {
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
+			tegra_cpu_unlock_speed();
+#endif /* CONFIG_TEGRA_CPU_FREQ_LOCK */
+			fsl_udc_unlock_sclk();
+			clk_lock_status = false;
+		}
+	} else if (!enabled) {
+		usb_gadget_disconnect(cdev->gadget);
+		dev->enabled = false;
+		/* cpu clock and sclk restore original clock */
+		if (clk_lock_status) {
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
+			tegra_cpu_unlock_speed();
+#endif /* CONFIG_TEGRA_CPU_FREQ_LOCK */
+			fsl_udc_unlock_sclk();
+			clk_lock_status = false;
+		}
+	} else {
+		pr_err("android_usb: already %s\n",
+				dev->enabled ? "enabled" : "disabled");
+	}
+
+	mutex_unlock(&dev->mutex);
+	return size;
+}
+
+static ssize_t state_show(struct device *pdev, struct device_attribute *attr,
+			   char *buf)
+{
+	struct android_dev *dev = dev_get_drvdata(pdev);
+	struct usb_composite_dev *cdev = dev->cdev;
+	char *state = "DISCONNECTED";
+	unsigned long flags;
+
+	if (!cdev)
+		goto out;
+
+	spin_lock_irqsave(&cdev->lock, flags);
+        if (cdev->config)
+		state = "CONFIGURED";
+	else if (dev->connected)
+		state = "CONNECTED";
+	spin_unlock_irqrestore(&cdev->lock, flags);
+out:
+	printk(KERN_DEBUG "usb: %s buf=%s\n", __func__, state);
+	return sprintf(buf, "%s\n", state);
+}
+
+#define DESCRIPTOR_ATTR(field, format_string)				\
+static ssize_t								\
+field ## _show(struct device *dev, struct device_attribute *attr,	\
+		char *buf)						\
+{									\
+	return sprintf(buf, format_string, device_desc.field);		\
+}									\
+static ssize_t								\
+field ## _store(struct device *dev, struct device_attribute *attr,	\
+		const char *buf, size_t size)				\
+{									\
+	int value;							\
+	if (sscanf(buf, format_string, &value) == 1) {			\
+		device_desc.field = value;				\
+		return size;						\
+	}								\
+	return -1;							\
+}									\
+static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, field ## _show, field ## _store);
+
+#define DESCRIPTOR_STRING_ATTR(field, buffer)				\
+static ssize_t								\
+field ## _show(struct device *dev, struct device_attribute *attr,	\
+		char *buf)						\
+{									\
+	return sprintf(buf, "%s", buffer);				\
+}									\
+static ssize_t								\
+field ## _store(struct device *dev, struct device_attribute *attr,	\
+	const char *buf, size_t size)	\
+{									\
+	if (size >= sizeof(buffer)) return -EINVAL;			\
+	if (sscanf(buf, "%s", buffer) == 1) {	\
+		return size;						\
+	}								\
+	return -1;							\
+}									\
+static DEVICE_ATTR(field, S_IRUGO | S_IWUSR, field ## _show, field ## _store);
+
+
+DESCRIPTOR_ATTR(idVendor, "%04x\n")
+DESCRIPTOR_ATTR(idProduct, "%04x\n")
+DESCRIPTOR_ATTR(bcdDevice, "%04x\n")
+DESCRIPTOR_ATTR(bDeviceClass, "%d\n")
+DESCRIPTOR_ATTR(bDeviceSubClass, "%d\n")
+DESCRIPTOR_ATTR(bDeviceProtocol, "%d\n")
+DESCRIPTOR_STRING_ATTR(iManufacturer, manufacturer_string)
+DESCRIPTOR_STRING_ATTR(iProduct, product_string)
+DESCRIPTOR_STRING_ATTR(iSerial, serial_string)
+
+static DEVICE_ATTR(functions, S_IRUGO | S_IWUSR, functions_show, functions_store);
+static DEVICE_ATTR(enable, S_IRUGO | S_IWUSR, enable_show, enable_store);
+static DEVICE_ATTR(state, S_IRUGO, state_show, NULL);
+
+static struct device_attribute *android_usb_attributes[] = {
+	&dev_attr_idVendor,
+	&dev_attr_idProduct,
+	&dev_attr_bcdDevice,
+	&dev_attr_bDeviceClass,
+	&dev_attr_bDeviceSubClass,
+	&dev_attr_bDeviceProtocol,
+	&dev_attr_iManufacturer,
+	&dev_attr_iProduct,
+	&dev_attr_iSerial,
+	&dev_attr_functions,
+	&dev_attr_enable,
+	&dev_attr_state,
+	NULL
+};
+
+/*-------------------------------------------------------------------------*/
+/* Composite driver */
 
 static int android_bind_config(struct usb_configuration *c)
 {
 	struct android_dev *dev = _android_dev;
+	int ret = 0;
 
-	CSY_DBG2("_registered_function_count=%d, dev->num_functions=%d\n", _registered_function_count, dev->num_functions);
-	printk(KERN_DEBUG "android_bind_config\n");
-	dev->config = c;
-
-	/* bind our functions if they have all registered */
-	if (_registered_function_count == dev->num_functions)
-		bind_functions(dev);
+	ret = android_bind_enabled_functions(dev, c);
+	if (ret)
+		return ret;
 
 	return 0;
 }
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* woojin80.kim : It is default config string. It'll be changed to real config string when last function driver is registered. */
-#  define       ANDROID_DEFAULT_CONFIG_STRING "Samsung Android Shared Config"	/* android default config string */
-#else /* original */
-#  define	ANDROID_DEBUG_CONFIG_STRING "UMS + ADB (Debugging mode)"
-#  define	ANDROID_NO_DEBUG_CONFIG_STRING "UMS Only (Not debugging mode)"
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
-
-static int android_setup_config(struct usb_configuration *c,
-		const struct usb_ctrlrequest *ctrl);
-
-static struct usb_configuration android_config_driver = {
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* woojin80.kim : usb default config string */
-	.label		= ANDROID_DEFAULT_CONFIG_STRING,
-#else /* original */
-	.label		= ANDROID_NO_DEBUG_CONFIG_STRING,
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
-	.bind		= android_bind_config,
-	.setup		= android_setup_config,
-	.bConfigurationValue = 1,
-	.bmAttributes	= USB_CONFIG_ATT_ONE | USB_CONFIG_ATT_SELFPOWER,
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* woojin80.kim : This value of max power is referred from S1 */
-	.bMaxPower	= 0x30, /* 96ma */
-#else /* original */
-	.bMaxPower	= 0xFA, /* 500ma */
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
-
-};
-
-static int android_setup_config(struct usb_configuration *c,
-		const struct usb_ctrlrequest *ctrl)
+static void android_unbind_config(struct usb_configuration *c)
 {
-	int i;
-	int ret = -EOPNOTSUPP;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* woojin80.kim : Do not call same function config when function has many interface.
- *                If another function driver has different config function, It needs calling.
- */
-	char temp_name[128]={0,};
-#endif
-	CSY_DBG("\n");
-	for (i = 0; i < android_config_driver.next_interface_id; i++) {
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE /* woojin80.kim : find same interface for to skip calling*/
-		if( android_config_driver.interface[i] == 0 )
-			continue;
-		
-		if (!android_config_driver.interface[i]->disabled && android_config_driver.interface[i]->setup) {
-			if (!strcmp(temp_name, android_config_driver.interface[i]->name)) {
-				CSY_DBG("[%d]skip name=%s\n",i, temp_name);
-				continue;
-			}
-			else
-				strcpy(temp_name,android_config_driver.interface[i]->name);
-			CSY_DBG("[%d]name=%s enabled. and it has setup function. \n", i, android_config_driver.interface[i]->name);
-#else
-		if (android_config_driver.interface[i]->setup) {
-#endif
-			ret = android_config_driver.interface[i]->setup(
-				android_config_driver.interface[i], ctrl);
-			if (ret >= 0)
-				return ret;
-		}
-	}
-	return ret;
-}
+	struct android_dev *dev = _android_dev;
 
-static int product_has_function(struct android_usb_product *p,
-		struct usb_function *f)
-{
-	char **functions = p->functions;
-	int count = p->num_functions;
-	const char *name = f->name;
-	int i;
-
-	CSY_DBG2("find name=%s\n",name);
-	for (i = 0; i < count; i++) {
-		/* For functions with multiple instances, usb_function.name
-		 * will have an index appended to the core name (ex: acm0),
-		 * while android_usb_product.functions[i] will only have the
-		 * core name (ex: acm). So, only compare up to the length of
-		 * android_usb_product.functions[i].
-		 */
-		CSY_DBG2("product func[%d]=%s\n",i, *functions);
-		if (!strcmp(name, *functions++))
-			return 1;
-	}
-	return 0;
-}
-
-static int product_matches_functions(struct android_usb_product *p)
-{
-	struct usb_function		*f;
-	CSY_DBG2("\n");
-	list_for_each_entry(f, &android_config_driver.functions, list) {
-		if (product_has_function(p, f) == !!f->disabled)
-			return 0;
-	}
-	return 1;
-}
-
-static int get_product_id(struct android_dev *dev)
-{
-	struct android_usb_product *p = dev->products;
-	int count = dev->num_products;
-	int i;
-
-	if (p) {
-		for (i = 0; i < count; i++, p++) {
-			if (product_matches_functions(p))
-				return p->product_id;
-		}
-	}
-	CSY_DBG("num_products=%d, pid=0x%x\n",count, dev->product_id);
-	/* use default product ID */
-	return dev->product_id;
+	android_unbind_enabled_functions(dev, c);
 }
 
 static int android_bind(struct usb_composite_dev *cdev)
 {
 	struct android_dev *dev = _android_dev;
 	struct usb_gadget	*gadget = cdev->gadget;
-	int			gcnum, id, product_id, ret;
-	
-	CSY_DBG2("++\n");
-	printk(KERN_INFO "android_bind\n");
+	int			gcnum, id, ret;
+
+	printk(KERN_DEBUG "usb: %s disconnect\n", __func__);
+	usb_gadget_disconnect(gadget);
+
+	ret = android_init_functions(dev->functions, cdev);
+	if (ret)
+		return ret;
 
 	/* Allocate string descriptor numbers ... note that string
 	 * contents can be overridden by the composite_dev glue.
@@ -365,30 +1238,25 @@ static int android_bind(struct usb_composite_dev *cdev)
 	strings_dev[STRING_PRODUCT_IDX].id = id;
 	device_desc.iProduct = id;
 
+	/* Default strings - should be updated by userspace */
+	strncpy(manufacturer_string, "Android", sizeof(manufacturer_string) - 1);
+	strncpy(product_string, "Android", sizeof(product_string) - 1);
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	sprintf(serial_string,
+			"%08X%08X", system_serial_high, system_serial_low);
+#else
+	strncpy(serial_string, "0123456789ABCDEF", sizeof(serial_string) - 1);
+#endif
+
 	id = usb_string_id(cdev);
 	if (id < 0)
 		return id;
 	strings_dev[STRING_SERIAL_IDX].id = id;
 	device_desc.iSerialNumber = id;
-	
-	//if (gadget->ops->wakeup)
-		//android_config_driver.bmAttributes |= USB_CONFIG_ATT_WAKEUP;
-
-	/* register our configuration */
-	ret = usb_add_config(cdev, &android_config_driver);
-	if (ret) {
-		printk(KERN_ERR "usb_add_config failed\n");
-		return ret;
-	}
 
 	gcnum = usb_gadget_controller_number(gadget);
 	if (gcnum >= 0)
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* Samsung KIES needs fixed bcdDevice number */
-		device_desc.bcdDevice = cpu_to_le16(0x0400);
-#else
 		device_desc.bcdDevice = cpu_to_le16(0x0200 + gcnum);
-#endif		
 	else {
 		/* gadget zero is so simple (for now, no altsettings) that
 		 * it SHOULD NOT have problems with bulk-capable hardware.
@@ -401,15 +1269,20 @@ static int android_bind(struct usb_composite_dev *cdev)
 			longname, gadget->name);
 		device_desc.bcdDevice = __constant_cpu_to_le16(0x9999);
 	}
-
-	usb_gadget_set_selfpowered(gadget);
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	composite_string_index = 4;
+#endif
 	dev->cdev = cdev;
-	product_id = get_product_id(dev);
-	device_desc.idProduct = __constant_cpu_to_le16(product_id);
-	cdev->desc.idProduct = device_desc.idProduct;
 
-	CSY_DBG_ESS("bind pid=0x%x,vid=0x%x,bcdDevice=0x%x,serial=%s\n", 
-	cdev->desc.idProduct, device_desc.idVendor, device_desc.bcdDevice, strings_dev[STRING_SERIAL_IDX].s);
+	return 0;
+}
+
+static int android_usb_unbind(struct usb_composite_dev *cdev)
+{
+	struct android_dev *dev = _android_dev;
+	printk(KERN_DEBUG "usb: %s\n", __func__);
+	cancel_work_sync(&dev->work);
+	android_cleanup_functions(dev->functions);
 	return 0;
 }
 
@@ -417,640 +1290,187 @@ static struct usb_composite_driver android_usb_driver = {
 	.name		= "android_usb",
 	.dev		= &device_desc,
 	.strings	= dev_strings,
-	.bind		= android_bind,
-	.enable_function = android_enable_function,
+	.unbind		= android_usb_unbind,
+	.max_speed	= USB_SPEED_HIGH,
 };
 
-
-void android_register_function(struct android_usb_function *f)
+static int
+android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 {
-	struct android_dev *dev = _android_dev;
+	struct android_dev		*dev = _android_dev;
+	struct usb_composite_dev	*cdev = get_gadget_data(gadget);
+	struct usb_request		*req = cdev->req;
+	struct android_usb_function	*f;
+	int value = -EOPNOTSUPP;
+	unsigned long flags;
 
-	printk(KERN_INFO "android_register_function %s\n", f->name);
-	list_add_tail(&f->list, &_functions);
-	_registered_function_count++;
+	req->zero = 0;
+	req->complete = composite_setup_complete;
+	req->length = 0;
+	gadget->ep0->driver_data = cdev;
 
-	/* bind our functions if they have all registered
-	 * and the main driver has bound.
-	 */
-	CSY_DBG("name=%s, registered_function_count=%d, dev->num_functions=%d\n",f->name, _registered_function_count, dev->num_functions);
-	if (dev && dev->config && _registered_function_count == dev->num_functions) {
-		bind_functions(dev);
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* woojin80.kim : Change usb mode and enable usb ip when device register last function driver */
-		samsung_enable_function(USBSTATUS_SAMSUNG_KIES);
-#endif
-	}
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	else if (_registered_function_count==1)	{
-		samsung_enable_function(USBSTATUS_UMS);
-	}
-#endif
-
-}
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/*
- * Description  : Set enable functions
- * Parameters   : char** functions (product function list), int num_f (number of product functions)
- * Return value : Count of enable functions
- *
- * Written by SoonYong,Cho  (Fri 5, Nov 2010)
- */
-static int set_enable_functions(char **functions, int num_f)
-{
-	int i;
-	struct usb_function		*func;
-	int find = false;
-	int count = 0;
-	char **head_functions = functions;
-
-	list_for_each_entry(func, &android_config_driver.functions, list) {
-
-		CSY_DBG2("func->name=%s\n", func->name);
-		functions = head_functions;
-		for(i = 0; i < num_f; i++) {
-			/* enable */
-			if (!strcmp(func->name, *functions++)) {
-				usb_function_set_enabled(func, 1);
-				find = true;
-				++count;
-				CSY_DBG_ESS("enable %s\n", func->name);
+	list_for_each_entry(f, &dev->enabled_functions, enabled_list) {
+		if (f->ctrlrequest) {
+			value = f->ctrlrequest(f, cdev, c);
+			if (value >= 0)
 				break;
-			}
 		}
-		/* disable */
-		if(find == false) {
-			usb_function_set_enabled(func, 0);
-			CSY_DBG_ESS("disable %s\n", func->name);
-		}
-		else /* finded */
-			find = false;
 	}
-	return count;
-}
 
-/*
- * Description  : Set product using function as set_enable_function
- * Parameters   : struct android_dev *dev (Refer dev->products), __u16 mode (usb mode)
- * Return Value : -1 (fail to find product), positive value (number of functions)
- *
- * Written by SoonYong,Cho  (Fri 5, Nov 2010)
- */
-static int set_product(struct android_dev *dev, __u16 mode)
-{
-	struct android_usb_product *p = dev->products;
-	int count = dev->num_products;
-	int i, ret;
+	/* Special case the accessory function.
+	 * It needs to handle control requests before it is enabled.
+	 */
+	if (value < 0)
+		value = acc_ctrlrequest(cdev, c);
 
-	dev->requested_usb_mode = mode; /* Save usb mode always even though it will be failed */
+	if (value < 0)
+		value = composite_setup(gadget, c);
 
-	if (p) {
-		for (i = 0; i < count; i++, p++) {
-			if(p->mode == mode) {
-				/* It is for setting dynamic interface in composite.c */
-				dev->cdev->product_num		= p->num_functions;
-				dev->cdev->products		= p;
-
-				dev->cdev->desc.bDeviceClass	 = p->bDeviceClass;
-				dev->cdev->desc.bDeviceSubClass	 = p->bDeviceSubClass;
-				dev->cdev->desc.bDeviceProtocol	 = p->bDeviceProtocol;
-				android_config_driver.label	 = p->s;
-#ifdef CONFIG_USB_ANDROID_ACCESSORY				
-                if ( mode == USBSTATUS_ACCESSORY )
-                    {
-                        printk("Set_Product : Google accessory mode : change Product_id \r\n");
-                        dev->cdev->desc.idVendor = __constant_cpu_to_le16(USB_ACCESSORY_VENDOR_ID);                                        
-                    }
-                else
-                    {                          
-                        dev->cdev->desc.idVendor = device_desc.idVendor;                                        
-                    }
+	spin_lock_irqsave(&cdev->lock, flags);
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	if (cdev->mute_switch == true)
+		cdev->mute_switch = false;
 #endif
-
-				ret = set_enable_functions(p->functions, p->num_functions);
-				CSY_DBG_ESS("Change Device Descriptor : DeviceClass(0x%x),SubClass(0x%x),Protocol(0x%x)\n",
-					p->bDeviceClass, p->bDeviceSubClass, p->bDeviceProtocol);
-				CSY_DBG_ESS("Change Label : [%d]%s\n", i, p->s);
-				if(ret == 0)
-					CSY_DBG("Can't find functions(mode=0x%x)\n", mode);
-				else
-					CSY_DBG("set function num=%d\n", ret);
-				return ret;
-			}
-		}
+	if (!dev->connected) {
+		dev->connected = 1;
+		schedule_work(&dev->work);
 	}
-	else
-		CSY_DBG_ESS("dev->products is not available\n");
+	else if (c->bRequest == USB_REQ_SET_CONFIGURATION && cdev->config) {
+		schedule_work(&dev->work);
+	}
+	spin_unlock_irqrestore(&cdev->lock, flags);
 
-	CSY_DBG_ESS("mode=0x%x is not available\n",mode);
-	return -1;
+	return value;
 }
 
-/*
- * Description  : Enable functions for samsung composite driver
- * Parameters   : struct usb_function *f (It depends on function's sysfs), int enable (1:enable, 0:disable)
- * Return value : void
- *
- * Written by SoonYong,Cho  (Fri 5, Nov 2010)
- */
-void android_enable_function(struct usb_function *f, int enable)
+static void android_disconnect(struct usb_gadget *gadget)
 {
 	struct android_dev *dev = _android_dev;
-	int product_id = 0;
-	int ret = -1;
-	CSY_DBG_ESS("++ f->name=%s enable=%d\n", f->name, enable);
+	struct usb_composite_dev *cdev = get_gadget_data(gadget);
+	unsigned long flags;
 
-	if(enable) {
-		if (!strcmp(f->name, "acm")) {
-			ret = set_product(dev, USBSTATUS_SAMSUNG_KIES);
-			if (ret != -1)
-				dev->current_usb_mode = USBSTATUS_SAMSUNG_KIES;
-		}
-		if (!strcmp(f->name, "adb")) {
-			ret = set_product(dev, USBSTATUS_ADB);
-			if (ret != -1)
-				dev->debugging_usb_mode = 1; /* save debugging status */
-		}
-		if (!strcmp(f->name, "mtp")) {
-			ret = set_product(dev, USBSTATUS_MTPONLY);
-			if (ret != -1)
-				dev->current_usb_mode = USBSTATUS_MTPONLY;
-		}
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-		if (!strcmp(f->name, "accessory")) {
-			ret = set_product(dev, USBSTATUS_ACCESSORY);
-		}
-#endif		
-#ifdef CONFIG_USB_ANDROID_RNDIS
-		if (!strcmp(f->name, "rndis")) {
-			ret = set_product(dev, USBSTATUS_VTP);
-		}
-#endif
-		if (!strcmp(f->name, "usb_mass_storage")) {
-			ret = set_product(dev, USBSTATUS_UMS);
-			if (ret != -1)
-				dev->current_usb_mode = USBSTATUS_UMS;
-		}
+	composite_disconnect(gadget);
 
+	spin_lock_irqsave(&cdev->lock, flags);
+	dev->connected = 0;
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	/* avoid sending a disconnect switch event
+	 * until after we disconnect.
+	 */
+	if (cdev->mute_switch) {
+		printk(KERN_DEBUG "usb: %s mute_switch\n", __func__);
+	} else {
+		printk(KERN_DEBUG "usb: %s schedule_work\n", __func__);
+	schedule_work(&dev->work);
 	}
-	else { /* for disable : Return old mode. If Non-GED model changes policy, below code has to be modified. */
-		if (!strcmp(f->name, "rndis") && dev->debugging_usb_mode)
-			ret = set_product(dev, USBSTATUS_ADB);
-#ifdef CONFIG_USB_ANDROID_ACCESSORY		
-		else if(!strcmp(f->name, "accessory") && dev->debugging_usb_mode) {
-			ret = set_product(dev, USBSTATUS_ADB);
-		}
-#endif
-		else
-			ret = set_product(dev, dev->current_usb_mode);
-
-		if(!strcmp(f->name, "adb")) 
-			dev->debugging_usb_mode = 0;
-	} /* if(enable) */
-
-	if(ret == -1) {
-		CSY_DBG_ESS("Can't find product. It is not changed !\n");
-		return ;
-	}
-
-
-	product_id = get_product_id(dev);
-	device_desc.idProduct = __constant_cpu_to_le16(product_id);
-
-	if (dev->cdev)
-		dev->cdev->desc.idProduct = device_desc.idProduct;
-
-	/* force reenumeration */
-	CSY_DBG_ESS("dev->cdev=0x%p, dev->cdev->gadget=0x%p, dev->cdev->gadget->speed=0x%x, mode=%d\n",
-		dev->cdev, dev->cdev->gadget, dev->cdev->gadget->speed, dev->current_usb_mode);
-	usb_composite_force_reset(dev->cdev);
-
-	CSY_DBG_ESS("finished setting pid=0x%x\n",product_id);
-}
-
-#else /* original code */
-void android_enable_function(struct usb_function *f, int enable)
-{
-	struct android_dev *dev = _android_dev;
-	int disable = !enable;
-	int product_id;
-
-	if (!!f->disabled != disable) {
-		usb_function_set_enabled(f, !disable);
-		if (!strcmp(f->name, "adb"))
-		{
-			if (enable)
-				android_config_driver.label = ANDROID_DEBUG_CONFIG_STRING;
-			else
-				android_config_driver.label = ANDROID_NO_DEBUG_CONFIG_STRING;
-		}
-#ifdef CONFIG_USB_ANDROID_RNDIS
-		if (!strcmp(f->name, "rndis")) {
-			struct usb_function		*func;
-
-			/* We need to specify the COMM class in the device descriptor
-			 * if we are using RNDIS.
-			 */
-			if (enable)
-#ifdef CONFIG_USB_ANDROID_RNDIS_WCEIS
-				dev->cdev->desc.bDeviceClass = USB_CLASS_WIRELESS_CONTROLLER;
 #else
-				dev->cdev->desc.bDeviceClass = USB_CLASS_COMM;
+	schedule_work(&dev->work);
 #endif
-			else
-				dev->cdev->desc.bDeviceClass = USB_CLASS_PER_INTERFACE;
-
-			/* Windows does not support other interfaces when RNDIS is enabled,
-			 * so we disable UMS and MTP when RNDIS is on.
-			 */
-			list_for_each_entry(func, &android_config_driver.functions, list) {
-				if (!strcmp(func->name, "usb_mass_storage")
-					|| !strcmp(func->name, "mtp")) {
-					usb_function_set_enabled(func, !enable);
-				}
-			}
-		}
-#endif
-
-		product_id = get_product_id(dev);
-		device_desc.idProduct = __constant_cpu_to_le16(product_id);
-		if (dev->cdev)
-			dev->cdev->desc.idProduct = device_desc.idProduct;
-	//	usb_composite_force_reset(dev->cdev);
-	/* force reenumeration */
-		if (dev->cdev && dev->cdev->gadget &&
-				dev->cdev->gadget->speed != USB_SPEED_UNKNOWN) {
-			usb_gadget_disconnect(dev->cdev->gadget);
-			msleep(10);
-			usb_gadget_connect(dev->cdev->gadget);
-		}
-	}
+	spin_unlock_irqrestore(&cdev->lock, flags);
 }
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
 
-
-/*
- * Description  : Enable functions for samsung composite driver using mode
- * Parameters   : int mode (Static mode number such as KIES, UMS, MTP, etc...)
- * Return value : void
- *
- * Written by SoonYong,Cho  (Fri 5, Nov 2010)
- */
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-static void samsung_enable_function(int mode)
+static int android_create_device(struct android_dev *dev)
 {
-	struct android_dev *dev = _android_dev;
-	int product_id = 0;
-	int ret = -1;
-	CSY_DBG_ESS("enable mode=0x%x\n", mode);
+	struct device_attribute **attrs = android_usb_attributes;
+	struct device_attribute *attr;
+	int err;
 
+	dev->dev = device_create(android_class, NULL,
+					MKDEV(0, 0), NULL, "android0");
+	if (IS_ERR(dev->dev))
+		return PTR_ERR(dev->dev);
 
-	switch(mode) {
-		case USBSTATUS_UMS:
-			CSY_DBG_ESS("mode = USBSTATUS_UMS (0x%x)\n", mode);
-			ret = set_product(dev, USBSTATUS_UMS);
-			break;
-		case USBSTATUS_SAMSUNG_KIES:
-			CSY_DBG_ESS("mode = USBSTATUS_SAMSUNG_KIES (0x%x)\n", mode);
-			ret = set_product(dev, USBSTATUS_SAMSUNG_KIES);
-			break;
-		case USBSTATUS_MTPONLY:
-			CSY_DBG_ESS("mode = USBSTATUS_MTPONLY (0x%x)\n", mode);
-			ret = set_product(dev, USBSTATUS_MTPONLY);
-			break;
-		case USBSTATUS_ADB:
-			CSY_DBG_ESS("mode = USBSTATUS_ADB (0x%x)\n", mode);
-			ret = set_product(dev, USBSTATUS_ADB);
-			break;
-#ifdef CONFIG_USB_ANDROID_RNDIS
-		case USBSTATUS_VTP: /* do not save usb mode */
-			CSY_DBG_ESS("mode = USBSTATUS_VTP (0x%x)\n", mode);
-			ret = set_product(dev, USBSTATUS_VTP);
-			break;
-#endif
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-		case USBSTATUS_ACCESSORY: /* do not save usb mode */
-			CSY_DBG_ESS("mode = USBSTATUS_ACCESSORY (0x%x)\n", mode);
-			ret = set_product(dev, USBSTATUS_ACCESSORY);
-			break;
-#endif			
-		case USBSTATUS_ASKON: /* do not save usb mode */
-			CSY_DBG_ESS("mode = USBSTATUS_ASKON (0x%x) Don't change usb mode\n", mode);
-			return;
+	dev_set_drvdata(dev->dev, dev);
+
+	while ((attr = *attrs++)) {
+		err = device_create_file(dev->dev, attr);
+		if (err) {
+			device_destroy(android_class, dev->dev->devt);
+			return err;
+		}
 	}
-
-	if(ret == -1) {
-		CSY_DBG_ESS("Can't find product. It is not changed !\n");
-		return ;
-	}
-	else if((mode != USBSTATUS_ADB) && (mode != USBSTATUS_VTP) && (mode != USBSTATUS_ASKON)) {
-		CSY_DBG_ESS("Save usb mode except tethering and askon (mode=%d)\n", mode);
-		dev->current_usb_mode = mode;
-	}
-
-	product_id = get_product_id(dev);
-	device_desc.idProduct = __constant_cpu_to_le16(product_id);
-
-	if (dev->cdev)
-		dev->cdev->desc.idProduct = device_desc.idProduct;
-
-	/* force reenumeration */
-	CSY_DBG_ESS("dev->cdev=0x%p, dev->cdev->gadget=0x%p, dev->cdev->gadget->speed=0x%x, mode=%d\n",
-		dev->cdev, dev->cdev->gadget, dev->cdev->gadget->speed, dev->current_usb_mode);
-	usb_composite_force_reset(dev->cdev);
-
-	CSY_DBG_ESS("finished setting pid=0x%x\n",product_id);
+	return 0;
 }
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
 
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* wookwang.lee : sysfs for to show status of MTP switch
- *                Path (/sys/devices/platform/android_usb/disable_vbus)
- */
-static ssize_t mtp_switch_show_vbus(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct android_dev *a_dev = _android_dev;
-	int value = -1;
-
-	if(a_dev->cdev) {
-		if (a_dev->cdev->connected == 1 )
-			value = 1;
-		else
-			value = 0;
-	}
-	else {
-		CSY_DBG("Fail to n1_switch_show_vbus. dev->cdev is not valid\n");
-	}
-	return sprintf(buf, "%d\n", value);
-}
-
-/* wookwang.lee : sysfs for to show status of MTP switch
- *                Path (/sys/devices/platform/android_usb/disable_vbus)
- */
-static ssize_t mtp_switch_store_vbus(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-	int disable;
-	struct android_dev *a_dev = _android_dev;
-
-	if (!strncmp(buf, "0", 1))
-		disable = 0;
-	else if (!strncmp(buf, "1", 1))
-		disable = 1;
-	else {
-		CSY_DBG("%s: Wrong command\n", __func__);
-		return size;
-	}
-	CSY_DBG("%s: disable=%d\n", __func__, disable);
-
-	if(disable)
-	{
-		usb_gadget_disconnect(a_dev->cdev->gadget);
-		a_dev->cdev->connected = 0;
-	}
-
-	return size;
-}
-
-/* wookwang.lee : attribute of sysfs for tethering switch */
-static DEVICE_ATTR(disable_vbus, S_IRUGO |S_IWUGO | S_IRUSR | S_IWUSR,
-		   mtp_switch_show_vbus, mtp_switch_store_vbus);
-
-/* woojin80.kim : sysfs for to show status of tethering switch
- *                Path (/sys/devices/platform/android_usb/tethering)
- */
-static ssize_t tethering_switch_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct android_dev *a_dev = _android_dev;
-	int value = -1;
-
-	if(a_dev->cdev) {
-		if (a_dev->requested_usb_mode == USBSTATUS_VTP )
-			value = 1;
-		else
-			value = 0;
-	}
-	else {
-		CSY_DBG("Fail to show tethering switch. dev->cdev is not valid\n");
-	}
-	return sprintf(buf, "%d\n", value);
-}
-
-/* woojin80.kim : sysfs for to change status of tethering switch
- *                Path (/sys/devices/platform/android_usb/tethering)
- */
-static ssize_t tethering_switch_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-	int value;
-	struct android_dev *a_dev = _android_dev;
-	sscanf(buf, "%d", &value);
-
-	if (value) {
-		CSY_DBG_ESS("Enable tethering\n");
-		samsung_enable_function(USBSTATUS_VTP);
-	}
-	else {
-		CSY_DBG_ESS("Disable tethering\n");
-		if(a_dev->debugging_usb_mode)
-			samsung_enable_function(USBSTATUS_ADB);
-		else
-			samsung_enable_function(a_dev->current_usb_mode);
-	}
-
-	return size;
-}
-
-/* attribute of sysfs for tethering switch */
-static DEVICE_ATTR(tethering, 0664,
-		   tethering_switch_show, tethering_switch_store);
-
-/* woojin80.kim : sysfs for to show status of usb config
- *                Path (/sys/devices/platform/android_usb/UsbMenuSel)
- */
-static ssize_t UsbMenuSel_switch_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct android_dev *a_dev = _android_dev;
-	int value = -1;
-
-	if(a_dev->cdev) {
-		CSY_DBG("product num = %d\n", a_dev->cdev->product_num);
-		switch(a_dev->requested_usb_mode) {
-			case USBSTATUS_UMS:
-				return sprintf(buf, "[UsbMenuSel] UMS\n");
-			case USBSTATUS_SAMSUNG_KIES:
-				return sprintf(buf, "[UsbMenuSel] ACM_MTP\n");
-			case USBSTATUS_MTPONLY:
-				return sprintf(buf, "[UsbMenuSel] MTP\n");
-			case USBSTATUS_ASKON:
-				return sprintf(buf, "[UsbMenuSel] ASK\n");
-#ifdef CONFIG_USB_ANDROID_RNDIS
-			case USBSTATUS_VTP:
-				return sprintf(buf, "[UsbMenuSel] TETHERING\n");
-#endif
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-			case USBSTATUS_ACCESSORY:
-				return sprintf(buf, "[UsbMenuSel] ACCESSORY\n");
-#endif				
-			case USBSTATUS_ADB:
-				return sprintf(buf, "[UsbMenuSel] ACM_ADB_UMS\n");
-		}
-	}
-	else {
-		CSY_DBG("Fail to show usb menu switch. dev->cdev is not valid\n");
-	}
-
-	return sprintf(buf, "%d\n", value);
-}
-
-/* woojin80.kim : sysfs for to change status of usb config
- *                Path (/sys/devices/platform/android_usb/UsbMenuSel)
- */
-static ssize_t UsbMenuSel_switch_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-	int value;
-	sscanf(buf, "%d", &value);
-
-	switch(value) {
-		case 0:
-			CSY_DBG_ESS("Enable KIES(%d)\n", value);
-			samsung_enable_function(USBSTATUS_SAMSUNG_KIES);
-			break;
-		case 1:
-			CSY_DBG_ESS("Enable MTP(%d)\n", value);
-			samsung_enable_function(USBSTATUS_MTPONLY);
-			break;
-		case 2:
-			CSY_DBG_ESS("Enable UMS(%d)\n", value);
-			samsung_enable_function(USBSTATUS_UMS);
-			break;
-		case 3:
-			CSY_DBG_ESS("Enable ASKON(%d)\n", value);
-			samsung_enable_function(USBSTATUS_ASKON);
-			break;
-#ifdef CONFIG_USB_ANDROID_ACCESSORY			
-		case 4:
-			CSY_DBG_ESS("Enable Accessory(%d)\n", value);
-			samsung_enable_function(USBSTATUS_ACCESSORY);
-			break;
-#endif			
-		default:
-			CSY_DBG("Fail : value(%d) is not invaild.\n", value);
-	}
-	return size;
-}
-
-/* attribute of sysfs for usb menu switch */
-static DEVICE_ATTR(UsbMenuSel, 0664,
-		   UsbMenuSel_switch_show, UsbMenuSel_switch_store);
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
-
-
 static int android_probe(struct platform_device *pdev)
 {
-	struct android_usb_platform_data *pdata = pdev->dev.platform_data;
-	struct android_dev *dev = _android_dev;
+	android_usb_pdata = pdev->dev.platform_data;
 
-	printk(KERN_INFO "android_probe pdata: %p\n", pdata);
+	printk(KERN_INFO "usb: %s pdata: %p\n", __func__, android_usb_pdata);
 
-	CSY_DBG2("\n");
-	if (pdata) {
-		dev->products = pdata->products;
-		dev->num_products = pdata->num_products;
-		dev->functions = pdata->functions;
-		dev->num_functions = pdata->num_functions;
-		if (pdata->vendor_id)
-			device_desc.idVendor =
-				__constant_cpu_to_le16(pdata->vendor_id);
-		if (pdata->product_id) {
-			dev->product_id = pdata->product_id;
-			device_desc.idProduct =
-				__constant_cpu_to_le16(pdata->product_id);
-		}
-		if (pdata->version)
-			dev->version = pdata->version;
-
-		if (pdata->product_name)
-			strings_dev[STRING_PRODUCT_IDX].s = pdata->product_name;
-		if (pdata->manufacturer_name)
-			strings_dev[STRING_MANUFACTURER_IDX].s =
-					pdata->manufacturer_name;
-		if (pdata->serial_number)
-			strings_dev[STRING_SERIAL_IDX].s = pdata->serial_number;
-		CSY_DBG_ESS("vid=0x%x,pid=0x%x,ver=0x%x,product_name=%s,manufacturer_name=%s,serial=%s\n",
-			pdata->vendor_id, pdata->product_id, pdata->version, pdata->product_name, pdata->manufacturer_name,
-			pdata->serial_number);
+	if (android_usb_pdata) {
+		printk(KERN_INFO "usb: %s nluns=%d\n", __func__,
+				android_usb_pdata->nluns);
+	} else {
+		printk(KERN_INFO "usb: %s pdata is not available\n", __func__);
 	}
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* woojin80.kim : Create attribute of sysfs as '/sys/devices/platform/android_usb/UsbMenuSel'
- *                It is for USB menu selection.
- * 		  Application for USB Setting made by SAMSUNG uses property that uses below sysfs.
- */
-	if (device_create_file(&pdev->dev, &dev_attr_UsbMenuSel) < 0)
-		CSY_DBG("Failed to create device file(%s)!\n", dev_attr_UsbMenuSel.attr.name);
-
-/* woojin80.kim : Create attribute of sysfs as '/sys/devices/platform/android_usb/tethering'
- *                It is for tethering menu. Netd controls usb setting when user click tethering menu.
- *                Actually netd is android open source project.
- *                And it did use sysfs as '/sys/class/usb_composite/rndis/enable'
- *                But SAMSUNG modified this path to '/sys/class/sec/switch/tethering' in S1 model.
- *
- *		  This driver I made supports both original sysfs and modified sysfs as
- *                '/sys/devices/platform/android_usb/tethering' for compatibility.
- *
- *                But old modified path as '/sys/class/sec/switch/tethering' is not available.
- *                You can refer netd source code in '/Android/system/netd/UsbController.cpp'
- */
-	if (device_create_file(&pdev->dev, &dev_attr_tethering) < 0)
-		CSY_DBG("Failed to create device file(%s)!\n", dev_attr_tethering.attr.name);
-
-/* woojin80.kim : If you use usb switch and enable usb switch before to initilize final function driver,
- *		  it can be called as vbus_session function without to initialize product number
- *		  and present product. 
- *		  But, Best guide is that usb switch doesn't initialize before usb driver.
- *		  If you want initialize, please implement it.
- */
-
- /* wookwang.lee : Create attribute of sysfs as '/sys/devices/platform/android_usb/disable_vbus'
- *                It is for MTP application termination.(Press Home Key)
- * 		  Application for USB Setting made by SAMSUNG uses property that uses below sysfs.
- */
-if (device_create_file(&pdev->dev, &dev_attr_disable_vbus) < 0)
-	CSY_DBG("Failed to create device file(%s)!\n", dev_attr_disable_vbus.attr.name);
-#endif
-	return usb_composite_register(&android_usb_driver);
+	return 0;
 }
 
 static struct platform_driver android_platform_driver = {
 	.driver = { .name = "android_usb", },
 	.probe = android_probe,
 };
+#endif
 
 static int __init init(void)
 {
 	struct android_dev *dev;
+	int err;
 
-	printk(KERN_INFO "android init\n");
+	printk(KERN_DEBUG "%s\n", __func__);
+	android_class = class_create(THIS_MODULE, "android_usb");
+	if (IS_ERR(android_class))
+		return PTR_ERR(android_class);
 
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 	if (!dev)
 		return -ENOMEM;
 
-	/* set default values, which should be overridden by platform data */
-	dev->product_id = PRODUCT_ID;
+	dev->functions = supported_functions;
+	INIT_LIST_HEAD(&dev->enabled_functions);
+	INIT_WORK(&dev->work, android_work);
+	mutex_init(&dev->mutex);
+
+	err = android_create_device(dev);
+	if (err) {
+		class_destroy(android_class);
+		kfree(dev);
+		return err;
+	}
+
 	_android_dev = dev;
 
-	CSY_DBG_ESS("android init pid=0x%x\n",dev->product_id);
-	return platform_driver_register(&android_platform_driver);
+	/* Override composite driver functions */
+	composite_driver.setup = android_setup;
+	composite_driver.disconnect = android_disconnect;
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	err = platform_driver_register(&android_platform_driver);
+	if (err) {
+		printk(KERN_ERR "usb: %s platform register is failed\n",
+				__func__);
+		return err;
+	}
+#endif
+
+#ifdef CONFIG_USB_DUN_SUPPORT
+	err = modem_misc_register();
+	if (err) {
+		printk(KERN_ERR "usb: %s modem misc register is failed\n",
+				__func__);
+		return err;
+	}
+#endif
+
+	return usb_composite_probe(&android_usb_driver, android_bind);
 }
 module_init(init);
 
 static void __exit cleanup(void)
 {
-	CSY_DBG("\n");
 	usb_composite_unregister(&android_usb_driver);
-	platform_driver_unregister(&android_platform_driver);
+	class_destroy(android_class);
 	kfree(_android_dev);
 	_android_dev = NULL;
 }

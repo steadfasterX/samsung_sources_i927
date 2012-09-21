@@ -14,10 +14,10 @@
 //BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
 //LIABILITY, WHETHER IN CONRTACT, STRICT LIABILITY, OR TORT (INCLUDING
 //NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-//SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.  
+//SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Disclaimer: CYPRESS MAKES NO WARRANTY OF ANY KIND,EXPRESS OR IMPLIED, 
-// WITH REGARD TO THIS MATERIAL, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED 
+// Disclaimer: CYPRESS MAKES NO WARRANTY OF ANY KIND,EXPRESS OR IMPLIED,
+// WITH REGARD TO THIS MATERIAL, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 // Cypress reserves the right to make changes without further notice to the
 // materials described herein. Cypress does not assume any liability arising
@@ -57,8 +57,8 @@ extern signed char fReadCalRegisters(void);
 extern signed char fReadWriteSetup(void);	//PTJ: READ-WRITE-SETUP
 extern signed char fReadSecurity(void);	//PTJ: READ-SECURITY
 
-extern signed char fSyncDisable(void);	//PTJ: SYNC-DISABLE rev 307 
-extern signed char fSyncEnable(void);	//PTJ: SYNC-ENABLE rev 307 
+extern signed char fSyncDisable(void);	//PTJ: SYNC-DISABLE rev 307
+extern signed char fSyncEnable(void);	//PTJ: SYNC-ENABLE rev 307
 
 extern void InitTargetTestData(void);
 extern void LoadArrayWithSecurityData(unsigned char, unsigned char,

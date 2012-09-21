@@ -11,7 +11,7 @@
 
 
 
-#define IRQ_TOUCH_INT			gpio_to_irq(GPIO_TKEY_INT) 
+#define IRQ_TOUCH_INT			gpio_to_irq(GPIO_TKEY_INT)
 
 
 
@@ -20,4 +20,3 @@
 
 
 #endif
-

@@ -30,6 +30,9 @@
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
 
+/* Machine specific panic information string */
+char *mach_panic_string;
+
 int panic_on_oops;
 static unsigned long tainted_mask;
 static int pause_on_oops;
@@ -40,6 +43,7 @@ static DEFINE_SPINLOCK(pause_on_oops_lock);
 #define CONFIG_PANIC_TIMEOUT 0
 #endif
 int panic_timeout = CONFIG_PANIC_TIMEOUT;
+EXPORT_SYMBOL_GPL(panic_timeout);
 
 ATOMIC_NOTIFIER_HEAD(panic_notifier_list);
 
@@ -113,6 +117,9 @@ NORET_TYPE void panic(const char * fmt, ...)
 		kernel_sec_set_upload_cause(UPLOAD_CAUSE_FORCED_UPLOAD);
 	else
 		kernel_sec_set_upload_cause(UPLOAD_CAUSE_KERNEL_PANIC);
+
+	kernel_sec_set_upload_magic_number();
+	
 #endif
 
 	if (!panic_blink)
@@ -138,8 +145,8 @@ NORET_TYPE void panic(const char * fmt, ...)
 		 * TODO : debugLevel considerationi should be done. (tkhwang)
 		 *        bluescreen display will be necessary.
 		 */
-		//kernel_sec_set_cp_upload();
-		//kernel_sec_save_final_context();
+		/* kernel_sec_set_cp_upload(); */
+		/* kernel_sec_save_final_context(); */
 		kernel_sec_hw_reset(false);
 #endif
 		/*
@@ -179,8 +186,8 @@ NORET_TYPE void panic(const char * fmt, ...)
 	 * TODO : debugLevel considerationi should be done. (tkhwang)
 	 *        bluescreen display will be necessary.
 	 */
-	//kernel_sec_set_cp_upload(); 
-	//kernel_sec_save_final_context();
+	/* kernel_sec_set_cp_upload(); */
+	/* kernel_sec_save_final_context(); */
 	kernel_sec_hw_reset(false);
 #endif
 }
@@ -374,6 +381,11 @@ late_initcall(init_oops_id);
 void print_oops_end_marker(void)
 {
 	init_oops_id();
+
+	if (mach_panic_string)
+		printk(KERN_WARNING "Board Information: %s\n",
+		       mach_panic_string);
+
 	printk(KERN_WARNING "---[ end trace %016llx ]---\n",
 		(unsigned long long)oops_id);
 }
@@ -465,3 +477,13 @@ EXPORT_SYMBOL(__stack_chk_fail);
 
 core_param(panic, panic_timeout, int, 0644);
 core_param(pause_on_oops, pause_on_oops, int, 0644);
+
+static int __init oops_setup(char *s)
+{
+	if (!s)
+		return -EINVAL;
+	if (!strcmp(s, "panic"))
+		panic_on_oops = 1;
+	return 0;
+}
+early_param("oops", oops_setup);

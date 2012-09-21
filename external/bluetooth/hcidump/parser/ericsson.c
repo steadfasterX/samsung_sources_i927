@@ -2,7 +2,7 @@
  *
  *  BlueZ - Bluetooth protocol stack for Linux
  *
- *  Copyright (C) 2004-2007  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2004-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include "parser.h"
+#include "parser/parser.h"
 
 void ericsson_dump(int level, struct frame *frm)
 {

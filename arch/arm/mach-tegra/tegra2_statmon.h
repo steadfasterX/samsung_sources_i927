@@ -18,6 +18,16 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#ifdef CONFIG_TEGRA_STAT_MON
 int tegra2_statmon_start(void);
 void tegra2_statmon_stop(void);
+#else
+static inline int tegra2_statmon_start(void)
+{
+	return 0;
+}
 
+static inline void tegra2_statmon_stop(void)
+{
+}
+#endif

@@ -4,7 +4,7 @@
 
 when              who                         what, where, why
 --------        ---                        ----------------------------------------------------------
-2010/11/06    Daniel Lee(Philju)      Initial version of file, SIMG Korea 
+2010/11/06    Daniel Lee(Philju)      Initial version of file, SIMG Korea
 ===========================================================================*/
 
 /*===========================================================================
@@ -79,7 +79,7 @@ when              who                         what, where, why
 #define TPI_YC_Input_Mode					(0x0B)
 
 // TPI AVI InfoFrame Data
-//======================= 
+//=======================
 
 #define TPI_AVI_BYTE_0						(0x0C)
 #define TPI_AVI_BYTE_1						(0x0D)
@@ -104,7 +104,7 @@ when              who                         what, where, why
 
 // Colorimetry
 //============
-#define SET_EX_COLORIMETRY	0x0C	// Set TPI_AVI_BYTE_2 to extended colorimetry and use 
+#define SET_EX_COLORIMETRY	0x0C	// Set TPI_AVI_BYTE_2 to extended colorimetry and use
 									//TPI_AVI_BYTE_3
 
 // ===================================================== //
@@ -205,7 +205,7 @@ when              who                         what, where, why
 | | HDCP Implementation
 | |
 | | HDCP link security logic is implemented in certain transmitters; unique
-| |   keys are embedded in each chip as part of the solution. The security 
+| |   keys are embedded in each chip as part of the solution. The security
 | |   scheme is fully automatic and handled completely by the hardware.
 \*/
 
@@ -422,7 +422,7 @@ when              who                         what, where, why
 
 
 
-typedef struct 
+typedef struct
 {
     //bool_t		interruptDriven;	// Remember what app told us about interrupt availability.
     //uint8_t		pollIntervalMs;		// Remember what app set the polling frequency as.
@@ -451,7 +451,7 @@ typedef struct
 	byte		mscMsgLastCommand;
 	byte		mscMsgLastData;
 	byte		mscSaveRcpKeyCode;
-  
+
 
 //  uint8_t 	mscData[ 16 ]; 		// What we got back as message data
 
@@ -464,4 +464,3 @@ enum
 	MSC_STATE_POW_DONE	= 0x02,		// Just read devcap[2]. Next do the feature flags
 	MSC_STATE_RCP_READY = 0x03		// Feature flags done. Ready to take in RCP.
 };
-

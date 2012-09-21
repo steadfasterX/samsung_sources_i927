@@ -33,7 +33,7 @@
 #define MXT_THREADED_IRQ
 
 /*Normal Feature*/
-#define MXT_SLEEP_POWEROFF 
+#define MXT_SLEEP_POWEROFF
 #define MXT_ESD_WORKAROUND
 #define KEY_LED_CONTROL
 
@@ -679,29 +679,29 @@ struct mxt_platform_data {
 	void  (*exit_platform_hw)(void *);
 	void  (*suspend_platform_hw)(void *);
 	void  (*resume_platform_hw)(void *);
-	
+
 	u32	key_led_en1;
 	u32	key_led_en2;
 	u32	key_led_en3;
 	u32	key_led_en4;
-	
+
 	int   max_x;    /* The default reported X range   */
 	int   max_y;    /* The default reported Y range   */
 	u8    (*valid_interrupt) (void);
 	void	(*register_cb)(struct mxt_callbacks *);
-	
+
 	const char *reg_vdd_name;
 	const char *reg_avdd_name;
 	const char *reg_vdd_lvsio_name;
-	
+
 	struct regulator *reg_vdd;  /* TSP_VDD_1V8 */
 	struct regulator *reg_avdd;  /* TSP_AVDD_3V3 */
 	struct regulator *reg_vdd_lvsio;	/* TSP_VDD_LVSIO_2V8 (for level shifter) */
-	
+
 	int	reg_vdd_level;	/* uV range */
 	int	reg_avdd_level;	/* uV range */
 	int	reg_vdd_lvsio_level;	/* uV range */
-	
+
 	enum tegra_pingroup i2c_pingroup;
 	enum tegra_pullupdown i2c_suspend_pupd;
 	enum tegra_pullupdown i2c_resume_pupd;
@@ -716,23 +716,23 @@ struct mxt_data {
 	struct mxt_platform_data *pdata;
 	char              phys_name[32];
 	int               irq;
-	
+
 	u16               last_read_addr;
 	bool              new_msgs;
 	u8                *last_message;
-	
+
 	wait_queue_head_t msg_queue;
 	struct semaphore  msg_sem;
-	
+
 	int               valid_irq_counter;
 	int               invalid_irq_counter;
 	int               irq_counter;
 	int               message_counter;
 	int               read_fail_counter;
-	
-	
+
+
 	int               bytes_to_read;
-	
+
 	/* Protect canceling/rescheduling of dwork */
 	spinlock_t           lock;
 	struct delayed_work  dwork;
@@ -743,34 +743,34 @@ struct mxt_data {
 	struct delayed_work  config_dwork;
 	struct delayed_work  timer_dwork;
 	struct delayed_work  initial_dwork;
-	
+
 	struct delayed_work  timer_get_delta;
-	
+
 #ifdef MXT_FACTORY_TEST
 	struct delayed_work  firmup_dwork;
 #endif
 	u8                   xpos_format;
 	u8                   ypos_format;
-	
+
 	struct mxt_device_info  device_info;
-	
+
 	u32                  info_block_crc;
 	u32                  configuration_crc;
 	u16                  report_id_count;
 	struct report_id_map *rid_map;
 	struct mxt_object    *object_table;
-	
+
 	u16                  msg_proc_addr;
 	u8                   message_size;
-	
-	
+
+
 	/* u8 debug_config[32]; */
-	
+
 	/* Pointers to diagnostic objects, not allocated, unless needed */
 	s16                  *delta;
 	u16                  *reference;
 	u16                  *cte;
-	
+
 	struct wake_lock wakelock;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend    early_suspend;
@@ -806,12 +806,10 @@ object_type_name[REPORT_ID_TO_OBJECT(rid)]
 /* ADD TRACKING_ID */
 #define REPORT_MT(touch_number, x, y, amplitude, size)		\
 	do {														\
-	input_report_abs(mxt->input, ABS_MT_TRACKING_ID, touch_number); \
 	input_report_abs(mxt->input, ABS_MT_POSITION_X, x);             \
 	input_report_abs(mxt->input, ABS_MT_POSITION_Y, y);             \
 	input_report_abs(mxt->input, ABS_MT_TOUCH_MAJOR, amplitude);    \
 	input_report_abs(mxt->input, ABS_MT_WIDTH_MAJOR, size);         \
-	input_mt_sync(mxt->input);                                      \
 	} while (0)
 
 /* Routines for memory access within a 16 bit address space */
@@ -859,12 +857,12 @@ int mxt_write_block_bl(
 		       );
 int mxt_write_block(struct i2c_client *client, u16 addr, u16 length, u8 *value);
 int mxt_read_block(struct i2c_client *client, u16 addr, u16 length, u8 *value);
-u16 get_object_address(uint8_t object_type, 
-		       uint8_t instance, 
-		       struct mxt_object *object_table, 
+u16 get_object_address(uint8_t object_type,
+		       uint8_t instance,
+		       struct mxt_object *object_table,
 		       int max_objs);
-u16 get_object_size(uint8_t object_type, 
-		    struct mxt_object *object_table, 
+u16 get_object_size(uint8_t object_type,
+		    struct mxt_object *object_table,
 		    int max_objs);
 int backup_to_nv(struct mxt_data *mxt);
 int reset_chip(struct mxt_data *mxt, u8 mode);
@@ -890,9 +888,3 @@ void    mxt_hw_reset(void);
 
 static void key_led_on(struct mxt_data *mxt, u32 val);
 #endif
-
-
-
-
-
-

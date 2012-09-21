@@ -28,4 +28,6 @@ struct cm3663_platform_data {
 };
 #endif /* __KERNEL__ */
 
+int Is_proximitysensor_active(void);
+
 #endif

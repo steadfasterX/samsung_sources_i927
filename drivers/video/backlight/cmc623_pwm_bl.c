@@ -38,8 +38,8 @@
 #define LOW_BRIGHTNESS_LEVEL_AFTER_HW12 8
 #define DIM_BRIGHTNESS_LEVEL_AFTER_HW12 8
 
-#define MAX_BACKLIGHT_VALUE_AFTER_HW12 1600 	
-#define MID_BACKLIGHT_VALUE_AFTER_HW12 560//576  	
+#define MAX_BACKLIGHT_VALUE_AFTER_HW12 1600
+#define MID_BACKLIGHT_VALUE_AFTER_HW12 560//576
 #define LOW_BACKLIGHT_VALUE_AFTER_HW12 48
 #define DIM_BACKLIGHT_VALUE_AFTER_HW12 48
 
@@ -49,8 +49,8 @@
 #define LOW_BRIGHTNESS_LEVEL 10
 #define DIM_BRIGHTNESS_LEVEL 10
 
-#define MAX_BACKLIGHT_VALUE 1600 
-#define MID_BACKLIGHT_VALUE 720  	
+#define MAX_BACKLIGHT_VALUE 1600
+#define MID_BACKLIGHT_VALUE 720
 #define LOW_BACKLIGHT_VALUE 64
 #define DIM_BACKLIGHT_VALUE 64
 
@@ -98,7 +98,7 @@ static void cmc623_pwm_backlight_ctl(struct platform_device *pdev, int intensity
 		else if (intensity > 0)
 			tune_level = DIM_BACKLIGHT_VALUE_AFTER_HW12;
 		else
-			tune_level = intensity;	
+			tune_level = intensity;
 	}
 	else
 	{
@@ -114,8 +114,9 @@ static void cmc623_pwm_backlight_ctl(struct platform_device *pdev, int intensity
 			tune_level = intensity;
 	}
 
+	/*
 	pr_info("--- [cmc backlight control HW rev %d]%d(%d)---\n",system_rev,intensity, tune_level);
-
+	*/
 	cmc623_pwm_apply_brightness(pdev, tune_level);
 }
 
@@ -127,7 +128,7 @@ static void cmc623_pwm_send_intensity(struct backlight_device *bd)
 	struct platform_device *pdev = NULL;
 
 	pdev = dev_get_drvdata(&bd->dev);
-	if (pdev == NULL) 
+	if (pdev == NULL)
 		{
 		printk(KERN_ERR "%s:failed to get platform device.\n", __func__);
 		return;
@@ -170,7 +171,7 @@ static int cmc623_pwm_suspend(struct platform_device *swi_dev, pm_message_t stat
 
 	cmc623_pwm_suspended = 1;
 	cmc623_pwm_send_intensity(bd);
-	
+
 	return 0;
 }
 
@@ -219,7 +220,9 @@ static void cmc623_pwm_early_resume(struct early_suspend *h)
 
 static int cmc623_pwm_set_intensity(struct backlight_device *bd)
 {
+	/*
 	pr_info("BD->PROPS.BRIGHTNESS = %d\n", bd->props.brightness);
+	*/
 
 	cmc623_pwm_send_intensity(bd);
 
@@ -275,7 +278,7 @@ static int cmc623_pwm_probe(struct platform_device *pdev)
 
 	if(system_rev>=12)
 		bd->props.brightness = CMC623_PWM_DEFAULT_INTENSITY_AFTER_HW12;
-	else		
+	else
 		bd->props.brightness = CMC623_PWM_DEFAULT_INTENSITY;
 
 	cmc623_pwm_gpio_init();

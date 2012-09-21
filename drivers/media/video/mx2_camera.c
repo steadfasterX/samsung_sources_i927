@@ -23,7 +23,6 @@
 #include <linux/mm.h>
 #include <linux/moduleparam.h>
 #include <linux/time.h>
-#include <linux/version.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/mutex.h>
@@ -31,6 +30,7 @@
 
 #include <media/v4l2-common.h>
 #include <media/v4l2-dev.h>
+#include <media/videobuf-core.h>
 #include <media/videobuf-dma-contig.h>
 #include <media/soc_camera.h>
 #include <media/soc_mediabus.h>
@@ -46,7 +46,7 @@
 #include <asm/dma.h>
 
 #define MX2_CAM_DRV_NAME "mx2-camera"
-#define MX2_CAM_VERSION_CODE KERNEL_VERSION(0, 0, 5)
+#define MX2_CAM_VERSION "0.0.6"
 #define MX2_CAM_DRIVER_DESCRIPTION "i.MX2x_Camera"
 
 /* reset values */
@@ -277,7 +277,7 @@ static void mx2_camera_deactivate(struct mx2_camera_dev *pcdev)
  */
 static int mx2_camera_add_device(struct soc_camera_device *icd)
 {
-	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 	struct mx2_camera_dev *pcdev = ici->priv;
 	int ret;
 	u32 csicr1;
@@ -302,7 +302,7 @@ static int mx2_camera_add_device(struct soc_camera_device *icd)
 
 	pcdev->icd = icd;
 
-	dev_info(icd->dev.parent, "Camera driver attached to camera %d\n",
+	dev_info(icd->parent, "Camera driver attached to camera %d\n",
 		 icd->devnum);
 
 	return 0;
@@ -310,12 +310,12 @@ static int mx2_camera_add_device(struct soc_camera_device *icd)
 
 static void mx2_camera_remove_device(struct soc_camera_device *icd)
 {
-	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 	struct mx2_camera_dev *pcdev = ici->priv;
 
 	BUG_ON(icd != pcdev->icd);
 
-	dev_info(icd->dev.parent, "Camera driver detached from camera %d\n",
+	dev_info(icd->parent, "Camera driver detached from camera %d\n",
 		 icd->devnum);
 
 	mx2_camera_deactivate(pcdev);
@@ -436,7 +436,7 @@ static int mx2_videobuf_setup(struct videobuf_queue *vq, unsigned int *count,
 	int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
 			icd->current_fmt->host_fmt);
 
-	dev_dbg(&icd->dev, "count=%d, size=%d\n", *count, *size);
+	dev_dbg(icd->parent, "count=%d, size=%d\n", *count, *size);
 
 	if (bytes_per_line < 0)
 		return bytes_per_line;
@@ -456,17 +456,17 @@ static void free_buffer(struct videobuf_queue *vq, struct mx2_buffer *buf)
 	struct soc_camera_device *icd = vq->priv_data;
 	struct videobuf_buffer *vb = &buf->vb;
 
-	dev_dbg(&icd->dev, "%s (vb=0x%p) 0x%08lx %d\n", __func__,
+	dev_dbg(icd->parent, "%s (vb=0x%p) 0x%08lx %d\n", __func__,
 		vb, vb->baddr, vb->bsize);
 
 	/*
 	 * This waits until this buffer is out of danger, i.e., until it is no
-	 * longer in STATE_QUEUED or STATE_ACTIVE
+	 * longer in state VIDEOBUF_QUEUED or VIDEOBUF_ACTIVE
 	 */
-	videobuf_waiton(vb, 0, 0);
+	videobuf_waiton(vq, vb, 0, 0);
 
 	videobuf_dma_contig_free(vq, vb);
-	dev_dbg(&icd->dev, "%s freed\n", __func__);
+	dev_dbg(icd->parent, "%s freed\n", __func__);
 
 	vb->state = VIDEOBUF_NEEDS_INIT;
 }
@@ -480,7 +480,7 @@ static int mx2_videobuf_prepare(struct videobuf_queue *vq,
 			icd->current_fmt->host_fmt);
 	int ret = 0;
 
-	dev_dbg(&icd->dev, "%s (vb=0x%p) 0x%08lx %d\n", __func__,
+	dev_dbg(icd->parent, "%s (vb=0x%p) 0x%08lx %d\n", __func__,
 		vb, vb->baddr, vb->bsize);
 
 	if (bytes_per_line < 0)
@@ -532,12 +532,12 @@ static void mx2_videobuf_queue(struct videobuf_queue *vq,
 {
 	struct soc_camera_device *icd = vq->priv_data;
 	struct soc_camera_host *ici =
-		to_soc_camera_host(icd->dev.parent);
+		to_soc_camera_host(icd->parent);
 	struct mx2_camera_dev *pcdev = ici->priv;
 	struct mx2_buffer *buf = container_of(vb, struct mx2_buffer, vb);
 	unsigned long flags;
 
-	dev_dbg(&icd->dev, "%s (vb=0x%p) 0x%08lx %d\n", __func__,
+	dev_dbg(icd->parent, "%s (vb=0x%p) 0x%08lx %d\n", __func__,
 		vb, vb->baddr, vb->bsize);
 
 	spin_lock_irqsave(&pcdev->lock, flags);
@@ -610,27 +610,27 @@ static void mx2_videobuf_release(struct videobuf_queue *vq,
 				 struct videobuf_buffer *vb)
 {
 	struct soc_camera_device *icd = vq->priv_data;
-	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 	struct mx2_camera_dev *pcdev = ici->priv;
 	struct mx2_buffer *buf = container_of(vb, struct mx2_buffer, vb);
 	unsigned long flags;
 
 #ifdef DEBUG
-	dev_dbg(&icd->dev, "%s (vb=0x%p) 0x%08lx %d\n", __func__,
+	dev_dbg(icd->parent, "%s (vb=0x%p) 0x%08lx %d\n", __func__,
 		vb, vb->baddr, vb->bsize);
 
 	switch (vb->state) {
 	case VIDEOBUF_ACTIVE:
-		dev_info(&icd->dev, "%s (active)\n", __func__);
+		dev_info(icd->parent, "%s (active)\n", __func__);
 		break;
 	case VIDEOBUF_QUEUED:
-		dev_info(&icd->dev, "%s (queued)\n", __func__);
+		dev_info(icd->parent, "%s (queued)\n", __func__);
 		break;
 	case VIDEOBUF_PREPARED:
-		dev_info(&icd->dev, "%s (prepared)\n", __func__);
+		dev_info(icd->parent, "%s (prepared)\n", __func__);
 		break;
 	default:
-		dev_info(&icd->dev, "%s (unknown) %d\n", __func__,
+		dev_info(icd->parent, "%s (unknown) %d\n", __func__,
 				vb->state);
 		break;
 	}
@@ -640,14 +640,26 @@ static void mx2_videobuf_release(struct videobuf_queue *vq,
 	 * Terminate only queued but inactive buffers. Active buffers are
 	 * released when they become inactive after videobuf_waiton().
 	 *
-	 * FIXME: implement forced termination of active buffers, so that the
-	 * user won't get stuck in an uninterruptible state. This requires a
-	 * specific handling for each of the three DMA types that this driver
-	 * supports.
+	 * FIXME: implement forced termination of active buffers for mx27 and
+	 * mx27 eMMA, so that the user won't get stuck in an uninterruptible
+	 * state. This requires a specific handling for each of the these DMA
+	 * types.
 	 */
 	spin_lock_irqsave(&pcdev->lock, flags);
 	if (vb->state == VIDEOBUF_QUEUED) {
 		list_del(&vb->queue);
+		vb->state = VIDEOBUF_ERROR;
+	} else if (cpu_is_mx25() && vb->state == VIDEOBUF_ACTIVE) {
+		if (pcdev->fb1_active == buf) {
+			pcdev->csicr1 &= ~CSICR1_FB1_DMA_INTEN;
+			writel(0, pcdev->base_csi + CSIDMASA_FB1);
+			pcdev->fb1_active = NULL;
+		} else if (pcdev->fb2_active == buf) {
+			pcdev->csicr1 &= ~CSICR1_FB2_DMA_INTEN;
+			writel(0, pcdev->base_csi + CSIDMASA_FB2);
+			pcdev->fb2_active = NULL;
+		}
+		writel(pcdev->csicr1, pcdev->base_csi + CSICR1);
 		vb->state = VIDEOBUF_ERROR;
 	}
 	spin_unlock_irqrestore(&pcdev->lock, flags);
@@ -665,12 +677,13 @@ static struct videobuf_queue_ops mx2_videobuf_ops = {
 static void mx2_camera_init_videobuf(struct videobuf_queue *q,
 			      struct soc_camera_device *icd)
 {
-	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
+	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 	struct mx2_camera_dev *pcdev = ici->priv;
 
 	videobuf_queue_dma_contig_init(q, &mx2_videobuf_ops, pcdev->dev,
 			&pcdev->lock, V4L2_BUF_TYPE_VIDEO_CAPTURE,
-			V4L2_FIELD_NONE, sizeof(struct mx2_buffer), icd);
+			V4L2_FIELD_NONE, sizeof(struct mx2_buffer),
+			icd, &icd->video_lock);
 }
 
 #define MX2_BUS_FLAGS	(SOCAM_DATAWIDTH_8 | \
@@ -705,7 +718,7 @@ static void mx27_camera_emma_buf_init(struct soc_camera_device *icd,
 		int bytesperline)
 {
 	struct soc_camera_host *ici =
-		to_soc_camera_host(icd->dev.parent);
+		to_soc_camera_host(icd->parent);
 	struct mx2_camera_dev *pcdev = ici->priv;
 
 	writel(pcdev->discard_buffer_dma,
@@ -716,8 +729,11 @@ static void mx27_camera_emma_buf_init(struct soc_camera_device *icd,
 	/*
 	 * We only use the EMMA engine to get rid of the broken
 	 * DMA Engine. No color space consversion at the moment.
-	 * We adjust incoming and outgoing pixelformat to rgb16
-	 * and adjust the bytesperline accordingly.
+	 * We set the incomming and outgoing pixelformat to an
+	 * 16 Bit wide format and adjust the bytesperline
+	 * accordingly. With this configuration the inputdata
+	 * will not be changed by the emma and could be any type
+	 * of 16 Bit Pixelformat.
 	 */
 	writel(PRP_CNTL_CH1EN |
 			PRP_CNTL_CSIEN |
@@ -755,7 +771,7 @@ static int mx2_camera_set_bus_param(struct soc_camera_device *icd,
 		__u32 pixfmt)
 {
 	struct soc_camera_host *ici =
-		to_soc_camera_host(icd->dev.parent);
+		to_soc_camera_host(icd->parent);
 	struct mx2_camera_dev *pcdev = ici->priv;
 	unsigned long camera_flags, common_flags;
 	int ret = 0;
@@ -874,7 +890,7 @@ static int mx2_camera_set_crop(struct soc_camera_device *icd,
 	if (ret < 0)
 		return ret;
 
-	dev_dbg(icd->dev.parent, "Sensor cropped %dx%d\n",
+	dev_dbg(icd->parent, "Sensor cropped %dx%d\n",
 		mf.width, mf.height);
 
 	icd->user_width		= mf.width;
@@ -886,8 +902,6 @@ static int mx2_camera_set_crop(struct soc_camera_device *icd,
 static int mx2_camera_set_fmt(struct soc_camera_device *icd,
 			       struct v4l2_format *f)
 {
-	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
-	struct mx2_camera_dev *pcdev = ici->priv;
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	const struct soc_camera_format_xlate *xlate;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
@@ -896,14 +910,10 @@ static int mx2_camera_set_fmt(struct soc_camera_device *icd,
 
 	xlate = soc_camera_xlate_by_fourcc(icd, pix->pixelformat);
 	if (!xlate) {
-		dev_warn(icd->dev.parent, "Format %x not found\n",
+		dev_warn(icd->parent, "Format %x not found\n",
 				pix->pixelformat);
 		return -EINVAL;
 	}
-
-	/* eMMA can only do RGB565 */
-	if (mx27_camera_emma(pcdev) && pix->pixelformat != V4L2_PIX_FMT_RGB565)
-		return -EINVAL;
 
 	mf.width	= pix->width;
 	mf.height	= pix->height;
@@ -930,8 +940,6 @@ static int mx2_camera_set_fmt(struct soc_camera_device *icd,
 static int mx2_camera_try_fmt(struct soc_camera_device *icd,
 				  struct v4l2_format *f)
 {
-	struct soc_camera_host *ici = to_soc_camera_host(icd->dev.parent);
-	struct mx2_camera_dev *pcdev = ici->priv;
 	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
 	const struct soc_camera_format_xlate *xlate;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
@@ -942,15 +950,11 @@ static int mx2_camera_try_fmt(struct soc_camera_device *icd,
 
 	xlate = soc_camera_xlate_by_fourcc(icd, pixfmt);
 	if (pixfmt && !xlate) {
-		dev_warn(icd->dev.parent, "Format %x not found\n", pixfmt);
+		dev_warn(icd->parent, "Format %x not found\n", pixfmt);
 		return -EINVAL;
 	}
 
 	/* FIXME: implement MX27 limits */
-
-	/* eMMA can only do RGB565 */
-	if (mx27_camera_emma(pcdev) && pixfmt != V4L2_PIX_FMT_RGB565)
-		return -EINVAL;
 
 	/* limit to MX25 hardware capabilities */
 	if (cpu_is_mx25()) {
@@ -969,11 +973,16 @@ static int mx2_camera_try_fmt(struct soc_camera_device *icd,
 		if (pix->bytesperline < 0)
 			return pix->bytesperline;
 		pix->sizeimage = pix->height * pix->bytesperline;
-		if (pix->sizeimage > (4 * 0x3ffff)) { /* CSIRXCNT limit */
-			dev_warn(icd->dev.parent,
-					"Image size (%u) above limit\n",
-					pix->sizeimage);
-			return -EINVAL;
+		/* Check against the CSIRXCNT limit */
+		if (pix->sizeimage > 4 * 0x3ffff) {
+			/* Adjust geometry, preserve aspect ratio */
+			unsigned int new_height = int_sqrt(4 * 0x3ffff *
+					pix->height / pix->bytesperline);
+			pix->width = new_height * pix->width / pix->height;
+			pix->height = new_height;
+			pix->bytesperline = soc_mbus_bytes_per_line(pix->width,
+							xlate->host_fmt);
+			BUG_ON(pix->bytesperline < 0);
 		}
 	}
 
@@ -991,7 +1000,7 @@ static int mx2_camera_try_fmt(struct soc_camera_device *icd,
 	if (mf.field == V4L2_FIELD_ANY)
 		mf.field = V4L2_FIELD_NONE;
 	if (mf.field != V4L2_FIELD_NONE) {
-		dev_err(icd->dev.parent, "Field type %d unsupported.\n",
+		dev_err(icd->parent, "Field type %d unsupported.\n",
 				mf.field);
 		return -EINVAL;
 	}
@@ -1009,19 +1018,18 @@ static int mx2_camera_querycap(struct soc_camera_host *ici,
 {
 	/* cap->name is set by the friendly caller:-> */
 	strlcpy(cap->card, MX2_CAM_DRIVER_DESCRIPTION, sizeof(cap->card));
-	cap->version = MX2_CAM_VERSION_CODE;
 	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
 
 	return 0;
 }
 
-static int mx2_camera_reqbufs(struct soc_camera_file *icf,
+static int mx2_camera_reqbufs(struct soc_camera_device *icd,
 			      struct v4l2_requestbuffers *p)
 {
 	int i;
 
 	for (i = 0; i < p->count; i++) {
-		struct mx2_buffer *buf = container_of(icf->vb_vidq.bufs[i],
+		struct mx2_buffer *buf = container_of(icd->vb_vidq.bufs[i],
 						      struct mx2_buffer, vb);
 		INIT_LIST_HEAD(&buf->vb.queue);
 	}
@@ -1142,9 +1150,9 @@ err_out:
 
 static unsigned int mx2_camera_poll(struct file *file, poll_table *pt)
 {
-	struct soc_camera_file *icf = file->private_data;
+	struct soc_camera_device *icd = file->private_data;
 
-	return videobuf_poll_stream(file, &icf->vb_vidq, pt);
+	return videobuf_poll_stream(file, &icd->vb_vidq, pt);
 }
 
 static struct soc_camera_host_ops mx2_soc_camera_host_ops = {
@@ -1424,6 +1432,9 @@ static int __devinit mx2_camera_probe(struct platform_device *pdev)
 	if (err)
 		goto exit_free_emma;
 
+	dev_info(&pdev->dev, "MX2 Camera (CSI) driver probed, clock frequency: %ld\n",
+			clk_get_rate(pcdev->clk_csi));
+
 	return 0;
 
 exit_free_emma:
@@ -1515,3 +1526,4 @@ module_exit(mx2_camera_exit);
 MODULE_DESCRIPTION("i.MX27/i.MX25 SoC Camera Host driver");
 MODULE_AUTHOR("Sascha Hauer <sha@pengutronix.de>");
 MODULE_LICENSE("GPL");
+MODULE_VERSION(MX2_CAM_VERSION);

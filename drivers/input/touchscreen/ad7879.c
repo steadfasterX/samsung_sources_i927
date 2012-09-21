@@ -129,6 +129,9 @@ struct ad7879 {
 	u16			cmd_crtl1;
 	u16			cmd_crtl2;
 	u16			cmd_crtl3;
+	int			x;
+	int			y;
+	int			Rt;
 };
 
 static int ad7879_read(struct ad7879 *ts, u8 reg)
@@ -175,13 +178,32 @@ static int ad7879_report(struct ad7879 *ts)
 		Rt /= z1;
 		Rt = (Rt + 2047) >> 12;
 
-		if (!timer_pending(&ts->timer))
-			input_report_key(input_dev, BTN_TOUCH, 1);
+		/*
+		 * Sample found inconsistent, pressure is beyond
+		 * the maximum. Don't report it to user space.
+		 */
+		if (Rt > ts->pressure_max)
+			return -EINVAL;
 
-		input_report_abs(input_dev, ABS_X, x);
-		input_report_abs(input_dev, ABS_Y, y);
-		input_report_abs(input_dev, ABS_PRESSURE, Rt);
-		input_sync(input_dev);
+		/*
+		 * Note that we delay reporting events by one sample.
+		 * This is done to avoid reporting last sample of the
+		 * touch sequence, which may be incomplete if finger
+		 * leaves the surface before last reading is taken.
+		 */
+		if (timer_pending(&ts->timer)) {
+			/* Touch continues */
+			input_report_key(input_dev, BTN_TOUCH, 1);
+			input_report_abs(input_dev, ABS_X, ts->x);
+			input_report_abs(input_dev, ABS_Y, ts->y);
+			input_report_abs(input_dev, ABS_PRESSURE, ts->Rt);
+			input_sync(input_dev);
+		}
+
+		ts->x = x;
+		ts->y = y;
+		ts->Rt = Rt;
+
 		return 0;
 	}
 
@@ -227,12 +249,14 @@ static void __ad7879_enable(struct ad7879 *ts)
 
 static void __ad7879_disable(struct ad7879 *ts)
 {
+	u16 reg = (ts->cmd_crtl2 & ~AD7879_PM(-1)) |
+		AD7879_PM(AD7879_PM_SHUTDOWN);
 	disable_irq(ts->irq);
 
 	if (del_timer_sync(&ts->timer))
 		ad7879_ts_event_release(ts);
 
-	ad7879_write(ts, AD7879_REG_CTRL2, AD7879_PM(AD7879_PM_SHUTDOWN));
+	ad7879_write(ts, AD7879_REG_CTRL2, reg);
 }
 
 

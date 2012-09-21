@@ -2,7 +2,7 @@
  *
  *  BlueZ - Bluetooth protocol stack for Linux
  *
- *  Copyright (C) 2003-2007  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2003-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -30,24 +30,20 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 
-#include <net/ethertypes.h>
+#include <net/ethernet.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
-
-#ifdef HAS_INET6
 #include <netinet/ip6.h>
-#endif
-
 #include <netinet/if_ether.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#include "parser.h"
+#include "parser/parser.h"
 
 void arp_dump(int level, struct frame *frm)
 {
+// SSBT :: KJH -
 #if 0
 	int i;
 	char buf[20];
@@ -73,14 +69,12 @@ void arp_dump(int level, struct frame *frm)
 	printf("(%s)\n", buf);
 	frm->ptr += sizeof(struct ether_arp);
 	frm->len -= sizeof(struct ether_arp);
-#endif
 	raw_dump(level, frm);		// not needed.
-
+#endif
 }
 
 void ip_dump(int level, struct frame *frm)
 {
-#if 0
 	char src[50], dst[50];
 	struct ip *ip = (struct ip *) (frm->ptr);
 	uint8_t proto;
@@ -144,6 +138,6 @@ void ip_dump(int level, struct frame *frm)
 		printf("Unknown Protocol: 0x%02x\n", ip->ip_p);
 		break;
 	}
-#endif
+
 	raw_dump(level, frm);
 }

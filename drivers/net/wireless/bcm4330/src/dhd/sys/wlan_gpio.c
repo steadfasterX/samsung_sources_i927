@@ -24,7 +24,7 @@ void n1_device_wifi_power(int on,int flag)
 
 	    return;
 	}
-	
+
 	if (on)
 	{
         n1_wifi_power(1);

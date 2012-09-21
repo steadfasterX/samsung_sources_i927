@@ -69,7 +69,8 @@ static int hid_device_probe(struct btd_device *device, GSList *uuids)
 		return -1;
 
 	adapter_get_address(adapter, &src);
-	device_get_address(device, &dst);
+	//device_get_address(device, &dst);
+	device_get_address(device, &dst, NULL);
 
 	return input_device_register(connection, device, path, &src, &dst,
 				HID_UUID, rec->handle, idle_timeout * 60);
@@ -86,10 +87,11 @@ static int headset_probe(struct btd_device *device, GSList *uuids)
 	const gchar *path = device_get_path(device);
 	const sdp_record_t *record;
 	sdp_list_t *protos;
-	uint8_t ch;
+	int ch;
 	bdaddr_t src, dst;
 
-	DBG("path %s", path);
+	//DBG("path %s", path);
+	DBG("path ");   // log checker (BT)
 
 	if (!g_slist_find_custom(uuids, HSP_HS_UUID,
 					(GCompareFunc) strcasecmp))
@@ -112,7 +114,8 @@ static int headset_probe(struct btd_device *device, GSList *uuids)
 	}
 
 	adapter_get_address(adapter, &src);
-	device_get_address(device, &dst);
+	//device_get_address(device, &dst);
+	device_get_address(device, &dst, NULL);
 
 	return fake_input_register(connection, device, path, &src, &dst,
 				HSP_HS_UUID, ch);

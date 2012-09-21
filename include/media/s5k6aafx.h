@@ -187,10 +187,16 @@ struct s5k6aafx_reg_8 {
 	u8 addr;
 	u8 val;
 };
+struct s5k6aafx_reg {
+	u16 addr;
+	u16 val;
+};
 
 int s5k6aafx_write_table_8(struct i2c_client *client,
 			      const struct s5k6aafx_reg_8 *table);
-			      
+int s5k6aafx_write_table(struct i2c_client *client,
+			      const struct s5k6aafx_reg table[]);
+
 #ifdef __KERNEL__
 
 struct s5k6aafx_platform_data {
@@ -200,5 +206,3 @@ struct s5k6aafx_platform_data {
 #endif /* __KERNEL__ */
 
 #endif  /* __S5K6AAFX_H__ */
-
-

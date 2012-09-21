@@ -14,8 +14,8 @@
  *
  */
 
-#ifndef _MACH_TEGRA_BOARD_VENTANA_H
-#define _MACH_TEGRA_BOARD_VENTANA_H
+#ifndef _MACH_TEGRA_BOARD_N1_H
+#define _MACH_TEGRA_BOARD_N1_H
 
 int n1_regulator_init(void);
 int n1_sdhci_init(void);
@@ -29,14 +29,17 @@ void wm8994_set_mic_bias(bool on);
 void wm8994_set_sub_mic_bias(bool on);
 void wm8994_set_ear_sel(bool on);
 
+#ifdef CONFIG_BT_BCM4330
+extern void bcm_bt_lpm_exit_lpm_locked(struct uart_port *uport);
+#endif
+
+#ifdef CONFIG_SAMSUNG_LPM_MODE
+int charging_mode_from_boot;
+#endif
+
 /* Interrupt numbers from external peripherals */
 #define MAX8907C_INT_BASE       TEGRA_NR_IRQS
 #define MAX8907C_INT_END        (MAX8907C_INT_BASE + 32)
-
-struct otg_detect_data{
-	void (*check_detection)(int *, int);
-	unsigned int *clk_cause;
-};
 
 #ifdef CONFIG_USB_ANDROID_ACCESSORY
 #    define ANDROID_ACCESSORY_CONFIG_STRING		"ACCESSORY Only(ADK mode)"

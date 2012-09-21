@@ -3,7 +3,7 @@
  *  BlueZ - Bluetooth protocol stack for Linux
  *
  *  Copyright (C) 2002-2003  Takashi Sasai <sasai@sm.sony.co.jp>
- *  Copyright (C) 2003-2007  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2003-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -31,11 +31,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 
-#include <net/ethertypes.h>
+#include <net/ethernet.h>
 
-#include "parser.h"
+#include "parser/parser.h"
 
 /* BNEP Type */
 #define BNEP_GENERAL_ETHERNET			0x00

@@ -16,6 +16,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/input.h>
+#include <linux/input/mt.h>
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
 #include <linux/delay.h>
@@ -108,7 +109,7 @@ EXPORT_SYMBOL(tsp_deepsleep);
 static bool auto_cal_flag;
 static bool boot_or_resume = 1;		/*1: boot_or_resume,0: others*/
 static bool suspend_ta_status;
-static u8 Doing_calibration_falg;
+static u8 Doing_calibration_flag;
 
 #if 1 /* eplus andy add 20111028 */
 /* add for AT&T TA noise protection */
@@ -119,11 +120,11 @@ typedef struct
 	bool median_on_flag;
 	bool mferr_setting;
 	uint8_t mferr_count;
-	uint8_t t46_actvsyncsperx_for_mferr;
-	uint8_t t48_mfinvlddiffthr_for_mferr;
-	uint8_t t48_mferrorthr_for_mferr;
-	uint8_t t48_thr_for_mferr;
-	uint8_t t48_movfilter_for_mferr;
+	uint8_t t46_actvsyncsperx;
+	uint8_t t48_mfinvlddiffthr;
+	uint8_t t48_mferrorthr;
+	uint8_t t48_thr;
+	uint8_t t48_movfilter;
 }__packed t48_median_config_t;
 
 static t48_median_config_t noise_median = {0};
@@ -304,6 +305,7 @@ static unsigned int mxt_time_point;
 static unsigned int mxt_time_diff;
 static unsigned int mxt_timer_state;
 static unsigned int good_check_flag;
+static unsigned int not_yet_count;
 static u8 cal_check_flag;
 
 uint8_t calibrate_chip(void)
@@ -318,6 +320,7 @@ uint8_t calibrate_chip(void)
 /*	printk(KERN_ERR"[TSP]ret is %d,ret1 is %d\n",ret,ret1); */
 
 	if (cal_check_flag == 0) {
+		cal_check_flag = 1u;
 
 		ret = get_object_info(copy_data, GEN_ACQUISITIONCONFIG_T8, &size, &obj_address);
 		size = 1;
@@ -331,10 +334,7 @@ uint8_t calibrate_chip(void)
 		tchautocal_tmp = 0;
 		atchcalst_tmp = 0;
 		atchcalsthr_tmp = 0;
-		auto_cal_flag = 0;
 
-		ret = write_mem(copy_data, obj_address+4, 1, &tchautocal_tmp);	/* TCHAUTOCAL */
-		printk(KERN_DEBUG"[TSP] auto calibration enable state is %d\n", tchautocal_tmp);
 		ret |= write_mem(copy_data, obj_address+6, size, &atchcalst_tmp);
 		ret1 = write_mem(copy_data, obj_address+7, size, &atchcalsthr_tmp);
 		if (copy_data->family_id == 0x81) { /* mxT224E */
@@ -344,7 +344,7 @@ uint8_t calibrate_chip(void)
 	}
 
 	/* send calibration command to the chip */
-	if (!ret && !ret1 && !Doing_calibration_falg) {
+	if (!ret && !ret1 && !Doing_calibration_flag) {
 		/* change calibration suspend settings to zero until calibration confirmed good */
 		ret = write_mem(copy_data, copy_data->cmd_proc + CMD_CALIBRATE_OFFSET, 1, &cal_data);
 		/* msleep(5); */
@@ -352,24 +352,9 @@ uint8_t calibrate_chip(void)
 		/* set flag for calibration lockup recovery if cal command was successful */
 		if (!ret) {
 			/* set flag to show we must still confirm if calibration was good or bad */
-			cal_check_flag = 1u;
-			Doing_calibration_falg = 1;
+			Doing_calibration_flag = 1;
 			printk(KERN_ERR "[TSP] calibration success!!!\n");
 		}
-	}
-	return ret;
-}
-
-uint8_t calibrate_chip_e(void)
-{
-	u8 cal_data = 1;
-	int ret = 0;
-	/* send calibration command to the chip */
-	ret = write_mem(copy_data, copy_data->cmd_proc + CMD_CALIBRATE_OFFSET, 1, &cal_data);
-	/* set flag for calibration lockup recovery if cal command was successful */
-	if (!ret)
-	{
-		printk("[TSP] calibration success!!!\n");
 	}
 	return ret;
 }
@@ -392,7 +377,6 @@ static void mxt224_ta_probe(int ta_status)
 	u16 obj_address = 0;
 	u16 size;
 	int ret;
-	u8 value;
 	u8 val = 0;
 	u8 noise_threshold;
 	u8 movfilter;
@@ -401,7 +385,7 @@ static void mxt224_ta_probe(int ta_status)
 	u8 active_depth;
 	u8 charge_time;
 
-	printk(KERN_DEBUG"%s\n", __func__);
+	printk(KERN_DEBUG"%s(%d)\n", __func__, ta_status);
 
 	if (!mxt224_enabled) {
 		printk(KERN_ERR"[TSP] mxt224_enabled is 0\n");
@@ -413,7 +397,7 @@ static void mxt224_ta_probe(int ta_status)
 			threshold = copy_data->tchthr_charging;
 			calcfg_dis = copy_data->calcfg_charging_e;
 			calcfg_en = copy_data->calcfg_charging_e | 0x20;
-			active_depth = 34;
+			active_depth = 24;
 			charge_time = 22;
 #ifdef CLEAR_MEDIAN_FILTER_ERROR
 			noise_median.mferr_setting = false;
@@ -422,8 +406,8 @@ static void mxt224_ta_probe(int ta_status)
 			threshold = copy_data->tchthr_batt;
 			calcfg_dis = copy_data->calcfg_batt_e;
 			calcfg_en = copy_data->calcfg_batt_e | 0x20;
-			active_depth = 32;
-			charge_time = 27;
+			active_depth = 20;
+			charge_time = 24;
 #ifdef CLEAR_MEDIAN_FILTER_ERROR
 			noise_median.mferr_count = 0;
 			noise_median.mferr_setting = false;
@@ -431,20 +415,6 @@ static void mxt224_ta_probe(int ta_status)
 #endif
 		}
 
-#ifdef CLEAR_MEDIAN_FILTER_ERROR
-		if (!ta_status) {
-			ret = get_object_info(copy_data, TOUCH_MULTITOUCHSCREEN_T9, &size, &obj_address);
-			value = 32; /* blen */
-			write_mem(copy_data, obj_address+6, 1, &value);
-			value = 50; /* threshold */
-			write_mem(copy_data, obj_address+7, 1, &value);
-			value = 46; /* move Filter */
-			write_mem(copy_data, obj_address+13, 1, &value);
-			value = 2; /* next tchdi */
-			write_mem(copy_data, obj_address+34, 1, &value);
-			noise_median.median_on_flag = true;
-		}
-#endif
 		ret = get_object_info(copy_data, SPT_CTECONFIG_T46, &size, &obj_address);
 		write_mem(copy_data, obj_address+3, 1, &active_depth);
 
@@ -454,14 +424,10 @@ static void mxt224_ta_probe(int ta_status)
 
 		/* PROCG_NOISESUPPRESSION_T48 */
 		ret = get_object_info(copy_data, PROCG_NOISESUPPRESSION_T48, &size, &obj_address);
-		write_mem(copy_data, obj_address+2, 1, &calcfg_dis);
-
 		if (ta_status)
 			write_config(copy_data, copy_data->t48_config_chrg_e[0], copy_data->t48_config_chrg_e + 1);
 		else
 			write_config(copy_data, copy_data->t48_config_batt_e[0], copy_data->t48_config_batt_e + 1);
-
-		write_mem(copy_data, obj_address+2, 1, &calcfg_en);
 		read_mem(copy_data, obj_address+2, 1, &val);
 		printk(KERN_ERR"[TSP]TA_probe MXT224E T48 Byte2 is %d\n", val);
 
@@ -590,7 +556,7 @@ void check_chip_calibration(void)
 			}
 		}
 
-		printk(KERN_DEBUG"[TSP] t: %d, a: %d\n", tch_ch, atch_ch);
+		//printk(KERN_DEBUG"[TSP] t: %d, a: %d\n", tch_ch, atch_ch);
 
 		/* send page up command so we can detect when data updates next time,
 		* page byte will sit at 1 until we next send F3 command */
@@ -601,8 +567,22 @@ void check_chip_calibration(void)
 
 
 		/* process counters and decide if we must re-calibrate or if cal was good */
-		if ((tch_ch > 0) && (atch_ch == 0)) {  /* jwlee change. */
+		if ((tch_ch + atch_ch) > 21) {
+			printk(KERN_ERR "[TSP]touch ch + anti ch > 21\n");
+			calibrate_chip();
+			mxt_timer_state = 0;
+			mxt_time_point = jiffies_to_msecs(jiffies);
+			not_yet_count = 0;
+		} else if (tch_ch > 17) {
+			printk(KERN_ERR "[TSP]touch ch > 17\n");
+			calibrate_chip();
+			mxt_timer_state = 0;
+			mxt_time_point = jiffies_to_msecs(jiffies);
+			not_yet_count = 0;
+		} else if ((tch_ch > 0) && (atch_ch == 0)) {
 			/* cal was good - don't need to check any more */
+			not_yet_count = 0;
+
 			if ((auto_cal_flag == 0)&&(copy_data->family_id == 0x80)) {
 				data_byte = 5;
 				ret = get_object_info(copy_data, GEN_ACQUISITIONCONFIG_T8, &size, &object_address);
@@ -619,17 +599,13 @@ void check_chip_calibration(void)
 					cal_check_flag = 0;
 					good_check_flag = 0;
 					mxt_timer_state = 0;
-					data_byte = 0;
 					auto_cal_flag = 0;
-
 					mxt_time_point = jiffies_to_msecs(jiffies);
 
 					ret = get_object_info(copy_data, GEN_ACQUISITIONCONFIG_T8, &size, &object_address);
 
 					/* change calibration suspend settings to zero until calibration confirmed good */
 					/* store normal settings */
-					write_mem(copy_data, object_address+4, 1, &data_byte);	/* TCHAUTOCAL disable */
-					/* printk(KERN_DEBUG"[TSP] auto calibration enable state is %d\n",data_byte); */
 					write_mem(copy_data, object_address+6, 1, &copy_data->atchcalst);
 					write_mem(copy_data, object_address+7, 1, &copy_data->atchcalsthr);
 
@@ -660,6 +636,7 @@ void check_chip_calibration(void)
 			printk(KERN_ERR"[TSP] calibration was bad\n");
 			calibrate_chip();
 			mxt_timer_state = 0;
+			not_yet_count = 0;
 			mxt_time_point = jiffies_to_msecs(jiffies);
 		} else {
 			/* we cannot confirm if good or bad - we must wait for next touch  message to confirm */
@@ -667,6 +644,11 @@ void check_chip_calibration(void)
 			cal_check_flag = 1u;
 			mxt_timer_state = 0;
 			mxt_time_point = jiffies_to_msecs(jiffies);
+			not_yet_count++;
+			if (not_yet_count > 10) {
+				not_yet_count = 0;
+				calibrate_chip();
+			}
 		}
 	}
 }
@@ -829,22 +811,43 @@ static void report_input_data(struct mxt224_data *data)
 		if (data->fingers[i].state == MXT224_STATE_INACTIVE)
 			continue;
 
-		input_report_abs(data->input_dev, ABS_MT_POSITION_X, data->fingers[i].x);
-		input_report_abs(data->input_dev, ABS_MT_POSITION_Y, data->fingers[i].y);
-		input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR, data->fingers[i].z);
-		input_report_abs(data->input_dev, ABS_MT_WIDTH_MAJOR, data->fingers[i].w);
+#if 0
+		input_report_abs(data->input_dev, ABS_MT_POSITION_X,
+				data->fingers[i].x);
+		input_report_abs(data->input_dev, ABS_MT_POSITION_Y,
+				data->fingers[i].y);
+		input_report_abs(data->input_dev, ABS_MT_PRESSURE,
+				data->fingers[i].z);
+		input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR,
+				data->fingers[i].w);
 		input_report_abs(data->input_dev, ABS_MT_TRACKING_ID, i);
 
-#if defined(CONFIG_SHAPE_TOUCH)
-		input_report_abs(data->input_dev, ABS_MT_COMPONENT, data->fingers[i].component);
-		/* printk(KERN_ERR"the component data is %d\n",data->fingers[i].component); */
+		input_mt_sync(data->input_dev);
+#else
+// N1_ICS
+		if (data->fingers[i].state == MXT224_STATE_RELEASE) {
+			input_mt_slot(data->input_dev, i);
+			input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, false);
+		}
+		else {
+			input_mt_slot(data->input_dev, i);
+			input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, true);
+			input_report_abs(data->input_dev, ABS_MT_POSITION_X,
+					data->fingers[i].x);
+			input_report_abs(data->input_dev, ABS_MT_POSITION_Y,
+					data->fingers[i].y);
+			input_report_abs(data->input_dev, ABS_MT_PRESSURE,
+					data->fingers[i].z);
+			input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR,
+					data->fingers[i].w);
+			count++;
+		}
 #endif
 
-		input_mt_sync(data->input_dev);
-
+#if 0
 		if ((checkTSPKEYdebuglevel == KERNEL_SEC_DEBUG_LEVEL_MID) ||
 			(checkTSPKEYdebuglevel == KERNEL_SEC_DEBUG_LEVEL_HIGH)) {
-			if (data->fingers[i].state == MXT224_STATE_PRESS) {			
+			if (data->fingers[i].state == MXT224_STATE_PRESS) {
 				printk(KERN_DEBUG "[TSP][P] id[%d],x=%d,y=%d,z=%d,w=%d\n",
 					i , data->fingers[i].x, data->fingers[i].y,
 					data->fingers[i].z, data->fingers[i].w);
@@ -854,19 +857,28 @@ static void report_input_data(struct mxt224_data *data)
 					data->fingers[i].z, data->fingers[i].w);
 			}
 		}
+#else
+		if (data->fingers[i].state == MXT224_STATE_PRESS) {
+			printk(KERN_DEBUG "[TSP][%d] press\n", i);
+		} else if (data->fingers[i].state == MXT224_STATE_RELEASE) {
+			printk(KERN_DEBUG "[TSP][%d] release\n", i);
+		}
+#endif
 
-		if (data->fingers[i].state == MXT224_STATE_RELEASE) {
-			data->fingers[i].state = MXT224_STATE_INACTIVE;
-		}
-		else {
-			data->fingers[i].state = MXT224_STATE_MOVE;
-			count++;
-		}
+	if (data->fingers[i].state == MXT224_STATE_RELEASE) {
+		data->fingers[i].state = MXT224_STATE_INACTIVE;
+	} else {
+		data->fingers[i].state = MXT224_STATE_MOVE;
+		count++;
+	}
+
 	}
 	input_sync(data->input_dev);
 
-	if (count) touch_is_pressed = 1;
-	else touch_is_pressed = 0;
+	if (count)
+		touch_is_pressed = 1;
+	else
+		touch_is_pressed = 0;
 
 	data->finger_mask = 0;
 }
@@ -884,37 +896,12 @@ static void median_err_setting(void)
 	copy_data->read_ta_status(&ta_status_check);
 
 	if (ta_status_check == 0) {
-		ret = get_object_info(copy_data, TOUCH_MULTITOUCHSCREEN_T9, &size, &obj_address);
-		value = 16;
-		write_mem(copy_data, obj_address+6, 1, &value);
-		value = 40;
-		write_mem(copy_data, obj_address+7, 1, &value);
-		value = 80;
-		write_mem(copy_data, obj_address+13, 1, &value);
 		ret = get_object_info(copy_data, SPT_CTECONFIG_T46, &size, &obj_address);
 		value = 32;
 		write_mem(copy_data, obj_address+3, 1, &value);
 		ret = get_object_info(copy_data, PROCG_NOISESUPPRESSION_T48, &size, &obj_address);
-		value = 29;
-		write_mem(copy_data, obj_address+3, 1, &value);
-		value = 1;
-		write_mem(copy_data, obj_address+8, 1, &value);
-		value = 2;
-		write_mem(copy_data, obj_address+9, 1, &value);
-		value = 100;
-		write_mem(copy_data, obj_address+17, 1, &value);
-		value = 64;
-		write_mem(copy_data, obj_address+19, 1, &value);
-		value = 20;
-		write_mem(copy_data, obj_address+22, 1, &value);
-		value = 38;
-		write_mem(copy_data, obj_address+25, 1, &value);
-		value = 16;
-		write_mem(copy_data, obj_address+34, 1, &value);
 		value = 40;
 		write_mem(copy_data, obj_address+35, 1, &value);
-		value = 80;
-		write_mem(copy_data, obj_address+39, 1, &value);
 	} else {
 
 		value = 1;
@@ -926,17 +913,18 @@ static void median_err_setting(void)
 			state = noise_median.mferr_count/value;
 
 			get_object_info(copy_data, PROCG_NOISESUPPRESSION_T48, &size, &obj_address);
+#if 0
 			if (state == 1) {
-				value = noise_median.t48_mfinvlddiffthr_for_mferr;
+				value = noise_median.t48_mfinvlddiffthr;
 				write_mem(copy_data, obj_address+22, 1, &value);
-				value = noise_median.t48_mferrorthr_for_mferr;
+				value = noise_median.t48_mferrorthr;
 				write_mem(copy_data, obj_address+25, 1, &value);
-				value = noise_median.t48_thr_for_mferr;
+				value = noise_median.t48_thr;
 				write_mem(copy_data, obj_address+35, 1, &value);
-				value = noise_median.t48_movfilter_for_mferr;
+				value = noise_median.t48_movfilter;
 				write_mem(copy_data, obj_address+39, 1, &value);
 				get_object_info(copy_data, SPT_CTECONFIG_T46, &size, &obj_address);
-				value = noise_median.t46_actvsyncsperx_for_mferr;
+				value = noise_median.t46_actvsyncsperx;
 				write_mem(copy_data, obj_address+3, 1, &value);
 			} else if (state >= 2) {
 				value = 7; /* basefreq */
@@ -957,6 +945,28 @@ static void median_err_setting(void)
 				value = 63; /* actvsyncsperx */
 				write_mem(copy_data, obj_address+3, 1, &value);
 			}
+#else
+			if (state == 1) {
+				value = 7;
+				write_mem(copy_data, obj_address+3, 1, &value);
+				value = 1;
+				write_mem(copy_data, obj_address+8, 1, &value);
+				value = 2;
+				write_mem(copy_data, obj_address+9, 1, &value);
+				value = noise_median.t48_mfinvlddiffthr;
+				write_mem(copy_data, obj_address+22, 1, &value);
+				value = noise_median.t48_mferrorthr;
+				write_mem(copy_data, obj_address+25, 1, &value);
+				value = noise_median.t48_thr;
+				write_mem(copy_data, obj_address+35, 1, &value);
+				value = noise_median.t48_movfilter;
+				write_mem(copy_data, obj_address+39, 1, &value);
+				get_object_info(copy_data,
+					SPT_CTECONFIG_T46, &size, &obj_address);
+				value = noise_median.t46_actvsyncsperx;
+				write_mem(copy_data, obj_address+3, 1, &value);
+			}
+#endif
 		}
 	}
 	noise_median.mferr_setting = true;
@@ -987,9 +997,6 @@ static irqreturn_t mxt224_irq_thread(int irq, void *ptr)
 		printk(KERN_ERR"[TSP]%s read_mem fail. hardware reset\n", __func__);
 		mxt224_hardware_reset(data);
 		msleep(80);
-		calibrate_chip();
-		if (data->family_id == 0x81)
-			schedule_delayed_work(&data->config_dwork, HZ*5);
 
 #ifdef CLEAR_MEDIAN_FILTER_ERROR
 		noise_median.mferr_count = 0;
@@ -1002,43 +1009,38 @@ static irqreturn_t mxt224_irq_thread(int irq, void *ptr)
 			if (ta_status)
 				mxt224_ta_probe(ta_status);
 		}
+		calibrate_chip();
 		return IRQ_HANDLED;
 	}
 	if (msg[0] == 0x1) {
-		if (msg[1] == 0x00) /* normal mode */
-		{
-			Doing_calibration_falg = 0;
+		if (msg[1] == 0x00) { /* normal mode */
+			Doing_calibration_flag = 0;
 			printk("[TSP] normal mode\n");
-			if (cal_check_flag == 1)
+			if (cal_check_flag == 1) {
 				mxt_timer_state = 0;
+				mxt_time_point = jiffies_to_msecs(jiffies);
+			}
 		}
 		if ((msg[1]&0x04) == 0x04) /* I2C checksum error */
-		{
 			printk("[TSP] I2C checksum error\n");
-		}
-		if ((msg[1]&0x08) == 0x08) /* config error */
-		{
+
+		if ((msg[1]&0x08) == 0x08) { /* config error */
 			printk("[TSP] config error\n");
 			reset = 1;
 		}
-		if ((msg[1]&0x10) == 0x10) /* calibration */
-		{
+		if ((msg[1]&0x10) == 0x10) { /* calibration */
 			printk("[TSP] calibration is on going\n");
+			Doing_calibration_flag = 1;
 		}
-		if ((msg[1]&0x20) == 0x20) /* signal error */
-		{
+		if ((msg[1]&0x20) == 0x20) {/* signal error */
 			printk("[TSP] signal error\n");
 			reset = 1;
 		}
 		if ((msg[1]&0x40) == 0x40) /* overflow */
-		{
 			printk("[TSP] overflow detected\n");
-			reset = 1;
-		}
+
 		if ((msg[1]&0x80) == 0x80) /* reset */
-		{
 			printk("[TSP] reset is ongoing\n");
-		}
 
 		if (reset) {
 			Mxt224_force_released();
@@ -1063,8 +1065,6 @@ static irqreturn_t mxt224_irq_thread(int irq, void *ptr)
 					mxt224_ta_probe(ta_status);
 			}
 			calibrate_chip();
-			if (data->family_id == 0x81)
-				schedule_delayed_work(&data->config_dwork, HZ*5);
 			printk(KERN_ERR"[TSP] touch error reset done\n");
 			return IRQ_HANDLED;
 		}
@@ -1145,10 +1145,6 @@ static irqreturn_t mxt224_irq_thread(int irq, void *ptr)
 				equalize_coordinate(0, id, &data->fingers[id].x, &data->fingers[id].y);
 			}
 #endif
-#if defined(CONFIG_SHAPE_TOUCH)
-			data->fingers[id].component= msg[7];
-#endif
-
 		} else if ((msg[1] & SUPPRESS_MSG_MASK)
 				&& (data->fingers[id].state != MXT224_STATE_INACTIVE)) {
 			data->fingers[id].z = 0;
@@ -1163,7 +1159,8 @@ static irqreturn_t mxt224_irq_thread(int irq, void *ptr)
 	if (data->finger_mask)
 		report_input_data(data);
 
-	if (touch_message_flag && (cal_check_flag))
+	if (touch_message_flag && (cal_check_flag) &&
+		!Doing_calibration_flag)
 		check_chip_calibration();
 
 	return IRQ_HANDLED;
@@ -1213,13 +1210,6 @@ static int mxt224_internal_resume(struct mxt224_data *data)
 	else
 		data->power_on(data);
 
-	if (data->family_id == 0x81) {	/*  : MXT-224E */
-		calibrate_chip();
-		schedule_delayed_work(&data->config_dwork, HZ*5);
-	} else {
-		boot_or_resume = 1;
-		calibrate_chip();
-	}
 	return 0;
 }
 
@@ -1239,13 +1229,13 @@ static void mxt224_early_suspend(struct early_suspend *h)
 	if (suspend_ta_status) {
 		mxt224_deepsleep(data);
 	} else {
-		disable_irq(data->client->irq);
 		msleep(10);
 		mxt224_enabled = 0;
 	}
+	disable_irq(data->client->irq);
 	mxt224_internal_suspend(data);
 	touch_is_pressed = 0;
-	Doing_calibration_falg = 0;
+	Doing_calibration_flag = 0;
 	mxt_timer_state = 0;
 }
 
@@ -1259,8 +1249,16 @@ static void mxt224_late_resume(struct early_suspend *h)
 	mxt224_internal_resume(data);
 	mxt224_enabled = 1;
 
-	if (!tsp_deepsleep)
-		enable_irq(data->client->irq);
+	if (data->read_ta_status) {
+		data->read_ta_status(&ta_status);
+		printk(KERN_DEBUG"[TSP] ta_status is %d\n", ta_status);
+		mxt224_ta_probe(ta_status);
+	}
+	suspend_ta_status = ta_status;
+	if (data->family_id == 0x80)
+		boot_or_resume = 1;
+	calibrate_chip();
+	enable_irq(data->client->irq);
 
 #ifdef CLEAR_MEDIAN_FILTER_ERROR
 	noise_median.mferr_count = 0;
@@ -1268,12 +1266,6 @@ static void mxt224_late_resume(struct early_suspend *h)
 	noise_median.median_on_flag = false;
 #endif
 
-	if (data->read_ta_status) {
-		data->read_ta_status(&ta_status);
-		printk("[TSP] ta_status is %d\n", ta_status);
-		mxt224_ta_probe(ta_status);
-	}
-	suspend_ta_status = ta_status;
 	tsp_deepsleep = 0;
 }
 #else
@@ -1606,11 +1598,11 @@ static int mxt224_load_fw(struct device *dev, const char *fn)
 	else
 		client->addr = MXT224_BOOT_HIGH;
 	printk(KERN_ERR "[TSP]change mxt224 address = 0x%x\n", client->addr);
-	
+
 	ret = mxt224_check_bootloader(client, MXT224_WAITING_BOOTLOAD_CMD);
 	if (ret)
 		goto out;
-	
+
 	/* Unlock bootloader */
 	mxt224_unlock_bootloader(client);
 
@@ -1632,7 +1624,7 @@ static int mxt224_load_fw(struct device *dev, const char *fn)
 		/* Write one frame to device */
 		/* mxt224_fw_write(client, fw->data + pos, frame_size); */
 		mxt224_fw_write(client, fw->data + pos, frame_size);
-			
+
 		ret = mxt224_check_bootloader(client,
 						MXT224_FRAME_CRC_PASS);
 		if (ret)
@@ -1766,7 +1758,7 @@ static ssize_t set_mxt_firm_update_store(struct device *dev, struct device_attri
 		dev_err(dev, "Invalid values\n");
 		return -EINVAL;
 	}
-	
+
 	disable_irq(data->client->irq);
 	firm_status_data = 1;
 	if (data->family_id == 0x80) {	/*  : MXT-224 */
@@ -1789,7 +1781,7 @@ static ssize_t set_mxt_firm_update_store(struct device *dev, struct device_attri
 		printk("[TSP] mxt224E_fm_update\n");
 		error = mxt224_load_fw(dev, MXT224_ECHO_FW_NAME);
 	}
-	
+
 	if (error) {
 		dev_err(dev, "The firmware update failed(%d)\n", error);
 		firm_status_data =3;
@@ -1969,22 +1961,23 @@ static int __devinit mxt224_probe(struct i2c_client *client, const struct i2c_de
 	input_set_drvdata(input_dev, data);
 	input_dev->name = "sec_touchscreen";
 
+	set_bit(EV_SYN, input_dev->evbit);
 	set_bit(EV_ABS, input_dev->evbit);
+	set_bit(MT_TOOL_FINGER, input_dev->keybit);
+	set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
+	input_mt_init_slots(input_dev, MAX_USING_FINGER_NUM);
 
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X, pdata->min_x,
 			pdata->max_x, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, pdata->min_y,
 			pdata->max_y, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, pdata->min_z,
+	input_set_abs_params(input_dev, ABS_MT_PRESSURE, pdata->min_z,
 			pdata->max_z, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_WIDTH_MAJOR, pdata->min_w,
+	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, pdata->min_w,
 			pdata->max_w, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TRACKING_ID, 0,
 			data->num_fingers - 1, 0, 0);
 
-#if defined(CONFIG_SHAPE_TOUCH)
-	input_set_abs_params(input_dev, ABS_MT_COMPONENT, 0, 255, 0, 0);
-#endif
 	ret = input_register_device(input_dev);
 	if (ret) {
 		input_free_device(input_dev);
@@ -2007,7 +2000,7 @@ static int __devinit mxt224_probe(struct i2c_client *client, const struct i2c_de
 
 	/* mxt224E PMIC regulator get */
 	data->reg_vdd = regulator_get(NULL, data->reg_vdd_name);
-	if (IS_ERR(data->reg_vdd)) { 
+	if (IS_ERR(data->reg_vdd)) {
 		ret = PTR_ERR(data->reg_vdd);
 		pr_err("[TSP] [%s: %s]unable to get regulator %s: %d\n",
 			__func__,
@@ -2017,7 +2010,7 @@ static int __devinit mxt224_probe(struct i2c_client *client, const struct i2c_de
 	}
 
 	data->reg_avdd = regulator_get(NULL,data->reg_avdd_name);
-	if (IS_ERR(data->reg_avdd)) { 
+	if (IS_ERR(data->reg_avdd)) {
 		ret = PTR_ERR(data->reg_avdd);
 		pr_err("[TSP] [%s: %s]unable to get regulator %s: %d\n",
 			__func__,
@@ -2035,11 +2028,11 @@ static int __devinit mxt224_probe(struct i2c_client *client, const struct i2c_de
 	noise_median.median_on_flag = false;
 	noise_median.mferr_setting = false;
 	noise_median.mferr_count = 0;
-	noise_median.t46_actvsyncsperx_for_mferr = 38;
-	noise_median.t48_mfinvlddiffthr_for_mferr = 10;
-	noise_median.t48_mferrorthr_for_mferr = 19;
-	noise_median.t48_thr_for_mferr = 40;
-	noise_median.t48_movfilter_for_mferr = 0;
+	noise_median.t46_actvsyncsperx = 36;
+	noise_median.t48_mfinvlddiffthr = 20;
+	noise_median.t48_mferrorthr = 38;
+	noise_median.t48_thr = 45;
+	noise_median.t48_movfilter = 81;
 
 	data->register_cb(mxt224_ta_probe);
 
@@ -2069,6 +2062,8 @@ static int __devinit mxt224_probe(struct i2c_client *client, const struct i2c_de
 		data->tchthr_charging = pdata->tchthr_charging_e;
 		data->calcfg_batt_e = pdata->calcfg_batt_e;
 		data->calcfg_charging_e = pdata->calcfg_charging_e;
+		data->atchcalst = pdata->atchcalst_e;
+		data->atchcalsthr = pdata->atchcalsthr_e;
 		data->atchfrccalthr_e = pdata->atchfrccalthr_e;
 		data->atchfrccalratio_e = pdata->atchfrccalratio_e;
 
@@ -2122,11 +2117,20 @@ static int __devinit mxt224_probe(struct i2c_client *client, const struct i2c_de
 
 	msleep(MXT224_RESET_TIME);
 
+/*	if (data->family_id == 0x81) {
+		schedule_delayed_work(&data->config_dwork, HZ*30);
+	}
+*/
+	if (data->read_ta_status) {
+		data->read_ta_status(&ta_status);
+		printk(KERN_DEBUG "[TSP] ta_status is %d\n", ta_status);
+		mxt224_ta_probe(ta_status);
+	}
+
 	calibrate_chip();
 
-	for (i = 0; i < data->num_fingers; i++) {
+	for (i = 0; i < data->num_fingers; i++)
 		data->fingers[i].state = MXT224_STATE_INACTIVE;
-	}
 
 	mxt224_enabled = 1;
 	ret = request_threaded_irq(client->irq, NULL, mxt224_irq_thread,
@@ -2199,15 +2203,6 @@ static int __devinit mxt224_probe(struct i2c_client *client, const struct i2c_de
 	data->early_suspend.resume = mxt224_late_resume;
 	register_early_suspend(&data->early_suspend);
 #endif
-	if (data->family_id == 0x81) {	/*  : MXT-224E */
-		schedule_delayed_work(&data->config_dwork, HZ*30);
-	}
-
-	if (data->read_ta_status) {
-		data->read_ta_status(&ta_status);
-		printk("[TSP] ta_status is %d\n", ta_status);
-		mxt224_ta_probe(ta_status);
-	}
 
 	return 0;
 

@@ -42,6 +42,7 @@
 #include <mach/nand.h>
 #include <mach/clock.h>
 #include <mach/cdce949.h>
+#include <mach/aemif.h>
 
 #include "clock.h"
 
@@ -69,6 +70,16 @@ static struct mtd_partition davinci_nand_partitions[] = {
 		.size		= MTDPART_SIZ_FULL,
 		.mask_flags	= 0,
 	}
+};
+
+static struct davinci_aemif_timing dm6467tevm_nandflash_timing = {
+	.wsetup		= 29,
+	.wstrobe	= 24,
+	.whold		= 14,
+	.rsetup		= 19,
+	.rstrobe	= 33,
+	.rhold		= 0,
+	.ta		= 29,
 };
 
 static struct davinci_nand_pdata davinci_nand_data = {
@@ -552,7 +563,7 @@ static int setup_vpif_input_channel_mode(int mux_mode)
 	int val;
 	u32 value;
 
-	if (!vpif_vsclkdis_reg || !cpld_client)
+	if (!vpif_vidclkctl_reg || !cpld_client)
 		return -ENXIO;
 
 	val = i2c_smbus_read_byte(cpld_client);
@@ -560,7 +571,7 @@ static int setup_vpif_input_channel_mode(int mux_mode)
 		return val;
 
 	spin_lock_irqsave(&vpif_reg_lock, flags);
-	value = __raw_readl(vpif_vsclkdis_reg);
+	value = __raw_readl(vpif_vidclkctl_reg);
 	if (mux_mode) {
 		val &= VPIF_INPUT_TWO_CHANNEL;
 		value |= VIDCH1CLK;
@@ -568,7 +579,7 @@ static int setup_vpif_input_channel_mode(int mux_mode)
 		val |= VPIF_INPUT_ONE_CHANNEL;
 		value &= ~VIDCH1CLK;
 	}
-	__raw_writel(value, vpif_vsclkdis_reg);
+	__raw_writel(value, vpif_vidclkctl_reg);
 	spin_unlock_irqrestore(&vpif_reg_lock, flags);
 
 	err = i2c_smbus_write_byte(cpld_client, val);
@@ -708,9 +719,15 @@ static void __init cdce_clk_init(void)
 	}
 }
 
+#define DM6467T_EVM_REF_FREQ		33000000
+
 static void __init davinci_map_io(void)
 {
 	dm646x_init();
+
+	if (machine_is_davinci_dm6467tevm())
+		davinci_set_refclk_rate(DM6467T_EVM_REF_FREQ);
+
 	cdce_clk_init();
 }
 
@@ -718,9 +735,7 @@ static struct davinci_uart_config uart_config __initdata = {
 	.enabled_uarts = (1 << 0),
 };
 
-#define DM646X_EVM_PHY_MASK		(0x2)
-#define DM646X_EVM_MDIO_FREQUENCY	(2200000) /* PHY bus frequency */
-
+#define DM646X_EVM_PHY_ID		"0:01"
 /*
  * The following EDMA channels/slots are not being used by drivers (for
  * example: Timer, GPIO, UART events etc) on dm646x, hence they are being
@@ -763,6 +778,9 @@ static __init void evm_init(void)
 	dm646x_init_mcasp0(&dm646x_evm_snd_data[0]);
 	dm646x_init_mcasp1(&dm646x_evm_snd_data[1]);
 
+	if (machine_is_davinci_dm6467tevm())
+		davinci_nand_data.timing = &dm6467tevm_nandflash_timing;
+
 	platform_device_register(&davinci_nand_device);
 
 	dm646x_init_edma(dm646x_edma_rsv);
@@ -770,38 +788,24 @@ static __init void evm_init(void)
 	if (HAS_ATA)
 		davinci_init_ide();
 
-	soc_info->emac_pdata->phy_mask = DM646X_EVM_PHY_MASK;
-	soc_info->emac_pdata->mdio_max_freq = DM646X_EVM_MDIO_FREQUENCY;
-}
-
-#define DM646X_EVM_REF_FREQ		27000000
-#define DM6467T_EVM_REF_FREQ		33000000
-
-void __init dm646x_board_setup_refclk(struct clk *clk)
-{
-	if (machine_is_davinci_dm6467tevm())
-		clk->rate = DM6467T_EVM_REF_FREQ;
-	else
-		clk->rate = DM646X_EVM_REF_FREQ;
+	soc_info->emac_pdata->phy_id = DM646X_EVM_PHY_ID;
 }
 
 MACHINE_START(DAVINCI_DM6467_EVM, "DaVinci DM646x EVM")
-	.phys_io      = IO_PHYS,
-	.io_pg_offst  = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params  = (0x80000100),
 	.map_io       = davinci_map_io,
 	.init_irq     = davinci_irq_init,
 	.timer        = &davinci_timer,
 	.init_machine = evm_init,
+	.dma_zone_size	= SZ_128M,
 MACHINE_END
 
 MACHINE_START(DAVINCI_DM6467TEVM, "DaVinci DM6467T EVM")
-	.phys_io      = IO_PHYS,
-	.io_pg_offst  = (__IO_ADDRESS(IO_PHYS) >> 18) & 0xfffc,
 	.boot_params  = (0x80000100),
 	.map_io       = davinci_map_io,
 	.init_irq     = davinci_irq_init,
 	.timer        = &davinci_timer,
 	.init_machine = evm_init,
+	.dma_zone_size	= SZ_128M,
 MACHINE_END
 

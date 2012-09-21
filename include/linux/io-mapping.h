@@ -81,8 +81,7 @@ io_mapping_free(struct io_mapping *mapping)
 /* Atomic map/unmap */
 static inline void __iomem *
 io_mapping_map_atomic_wc(struct io_mapping *mapping,
-			 unsigned long offset,
-			 int slot)
+			 unsigned long offset)
 {
 	resource_size_t phys_addr;
 	unsigned long pfn;
@@ -90,13 +89,13 @@ io_mapping_map_atomic_wc(struct io_mapping *mapping,
 	BUG_ON(offset >= mapping->size);
 	phys_addr = mapping->base + offset;
 	pfn = (unsigned long) (phys_addr >> PAGE_SHIFT);
-	return iomap_atomic_prot_pfn(pfn, slot, mapping->prot);
+	return iomap_atomic_prot_pfn(pfn, mapping->prot);
 }
 
 static inline void
-io_mapping_unmap_atomic(void __iomem *vaddr, int slot)
+io_mapping_unmap_atomic(void __iomem *vaddr)
 {
-	iounmap_atomic(vaddr, slot);
+	iounmap_atomic(vaddr);
 }
 
 static inline void __iomem *
@@ -118,6 +117,8 @@ io_mapping_unmap(void __iomem *vaddr)
 
 #else
 
+#include <linux/uaccess.h>
+
 /* this struct isn't actually defined anywhere */
 struct io_mapping;
 
@@ -137,15 +138,16 @@ io_mapping_free(struct io_mapping *mapping)
 /* Atomic map/unmap */
 static inline void __iomem *
 io_mapping_map_atomic_wc(struct io_mapping *mapping,
-			 unsigned long offset,
-			 int slot)
+			 unsigned long offset)
 {
+	pagefault_disable();
 	return ((char __force __iomem *) mapping) + offset;
 }
 
 static inline void
-io_mapping_unmap_atomic(void __iomem *vaddr, int slot)
+io_mapping_unmap_atomic(void __iomem *vaddr)
 {
+	pagefault_enable();
 }
 
 /* Non-atomic map/unmap */

@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -39,7 +39,7 @@ typedef enum
 	,SA__PreAuthenticationPage1						= 0x50
 	,SA__PreAuthenticationPage2						= 0x52
 	,SA__PreAuthenticationPage3						= 0x54
-	
+
 	,SA_RX_Page0_Primary							= 0x60
 	,SA_RX_Page0_Secondary							= 0x62
 	,SA_PP_RX_TMDS_Ports_0_1						= 0x64
@@ -47,7 +47,7 @@ typedef enum
 	,SA_RX_Page1_Primary							= 0x68 ,SA_PP_RX_TMDS_Port_4	= SA_RX_Page1_Primary
 	,SA_RX_Page1_Secondary							= 0x6A
 
-	,SA_TX_Page0_Primary							= 0x72 
+	,SA_TX_Page0_Primary							= 0x72
 	,SA_RX_HDCP_EDDC								= 0x74
 	,SA_TX_Page0_Secondary							= 0x76
 	,SA_TX_Page1_Primary							= 0x7A
@@ -55,7 +55,7 @@ typedef enum
 
 	,SA_TX_HEAC_Primary								= 0x90 ,SA_PP_Transmitter_TMDS	= SA_TX_HEAC_Primary
 	,SA_TX_HDMI_RX_Primary							= 0x92
-	,SA_TX_HEAC_Secondary							= 0x94 
+	,SA_TX_HEAC_Secondary							= 0x94
 	,SA_TX_HDMI_RX_Secondary						= 0x96
 
 	,SA_EDID										= 0xA0
@@ -81,10 +81,3 @@ typedef enum
 	,SA_PP_CTRL_Ports_0_3							= 0xE6
 	,SA_PP_CTRL_Port_4								= 0xE8
 }SiI_I2C_Default_SlaveAddresses_e;
-
-
-
-
-
-
-

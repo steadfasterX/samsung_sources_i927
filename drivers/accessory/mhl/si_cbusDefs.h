@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -79,11 +79,11 @@
 */
 
 // VIDEO TYPES
-#define		MHD_VT_GRAPHICS					0x00		
-#define		MHD_VT_PHOTO					0x02		
-#define		MHD_VT_CINEMA					0x04		
-#define		MHD_VT_GAMES					0x08		
-#define		MHD_SUPP_VT						0x80		
+#define		MHD_VT_GRAPHICS					0x00
+#define		MHD_VT_PHOTO					0x02
+#define		MHD_VT_CINEMA					0x04
+#define		MHD_VT_GAMES					0x08
+#define		MHD_SUPP_VT						0x80
 
 //Logical Dev Map
 #define	MHD_DEV_LD_DISPLAY					(0x01 << 0)
@@ -118,18 +118,18 @@ typedef struct {
 	unsigned char	mhd_devcap_cbus_version;			// 0x01
 	unsigned char	mhd_devcap_device_category;			// 0x02
 	unsigned char	mhd_devcap_power_supply_capacity;	// 0x03
-   	unsigned char	mhd_devcap_power_supply_provided;	// 0x04
-   	unsigned char	mhd_devcap_video_link_mode_support;	// 0x05
-   	unsigned char	mhd_devcap_audio_link_mode_support;	// 0x06
-   	unsigned char	mhd_devcap_hdcp_status;				// 0x07
-   	unsigned char	mhd_devcap_logical_device_map;		// 0x08
-   	unsigned char	mhd_devcap_link_bandwidth_limit;	// 0x09
-   	unsigned char	mhd_devcap_reserved_1;				// 0x0a
-   	unsigned char	mhd_devcap_reserved_2;				// 0x0b
-   	unsigned char	mhd_devcap_reserved_3;				// 0x0c
-   	unsigned char	mhd_devcap_scratchpad_size;			// 0x0d
-   	unsigned char	mhd_devcap_interrupt_size;			// 0x0e
-   	unsigned char	mhd_devcap_devcap_size;				// 0x0f
+	unsigned char	mhd_devcap_power_supply_provided;	// 0x04
+	unsigned char	mhd_devcap_video_link_mode_support;	// 0x05
+	unsigned char	mhd_devcap_audio_link_mode_support;	// 0x06
+	unsigned char	mhd_devcap_hdcp_status;				// 0x07
+	unsigned char	mhd_devcap_logical_device_map;		// 0x08
+	unsigned char	mhd_devcap_link_bandwidth_limit;	// 0x09
+	unsigned char	mhd_devcap_reserved_1;				// 0x0a
+	unsigned char	mhd_devcap_reserved_2;				// 0x0b
+	unsigned char	mhd_devcap_reserved_3;				// 0x0c
+	unsigned char	mhd_devcap_scratchpad_size;			// 0x0d
+	unsigned char	mhd_devcap_interrupt_size;			// 0x0e
+	unsigned char	mhd_devcap_devcap_size;				// 0x0f
 
 } mhd_devcap_t;
 //------------------------------------------------------------------------------

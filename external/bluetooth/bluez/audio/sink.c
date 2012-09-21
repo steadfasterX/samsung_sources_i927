@@ -40,6 +40,7 @@
 
 #include "device.h"
 #include "avdtp.h"
+#include "media.h"
 #include "a2dp.h"
 #include "error.h"
 #include "sink.h"
@@ -55,12 +56,12 @@ struct pending_request {
 	unsigned int id;
 };
 
+#ifndef GLOBALCONFIG_BT_SCMST_FEATURE
 struct sink {
 	struct audio_device *dev;
 	struct avdtp *session;
 	struct avdtp_stream *stream;
 	unsigned int cb_id;
-	guint dc_id;
 	guint retry_id;
 	avdtp_session_state_t session_state;
 	avdtp_state_t stream_state;
@@ -69,6 +70,7 @@ struct sink {
 	struct pending_request *disconnect;
 	DBusConnection *conn;
 };
+#endif
 
 struct sink_state_callback {
 	sink_state_cb cb;
@@ -79,6 +81,13 @@ struct sink_state_callback {
 static GSList *sink_callbacks = NULL;
 
 static unsigned int avdtp_callback_id = 0;
+
+static char *str_state[] = {
+	"SINK_STATE_DISCONNECTED",
+	"SINK_STATE_CONNECTING",
+	"SINK_STATE_CONNECTED",
+	"SINK_STATE_PLAYING",
+};
 
 static const char *state2str(sink_state_t state)
 {
@@ -97,6 +106,19 @@ static const char *state2str(sink_state_t state)
 	}
 }
 
+#ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+static void set_sink_protection(struct audio_device *dev, gboolean protected)
+{
+	struct sink *sink = dev->sink;
+DBG("function= %s;  line= %d",__func__,__LINE__);
+	sink->protected = protected;
+	emit_property_changed(dev->conn, dev->path,
+			AUDIO_SINK_INTERFACE, "Protected",
+			DBUS_TYPE_BOOLEAN, &protected);
+
+}
+#endif
+
 static void sink_set_state(struct audio_device *dev, sink_state_t new_state)
 {
 	struct sink *sink = dev->sink;
@@ -111,6 +133,9 @@ static void sink_set_state(struct audio_device *dev, sink_state_t new_state)
 		emit_property_changed(dev->conn, dev->path,
 					AUDIO_SINK_INTERFACE, "State",
 					DBUS_TYPE_STRING, &state_str);
+
+	DBG("State changed %s: %s -> %s", dev->path, str_state[old_state],
+		str_state[new_state]);
 
 	for (l = sink_callbacks; l != NULL; l = l->next) {
 		struct sink_state_callback *cb = l->data;
@@ -139,11 +164,6 @@ static void avdtp_state_callback(struct audio_device *dev,
 			emit_property_changed(dev->conn, dev->path,
 					AUDIO_SINK_INTERFACE, "Connected",
 					DBUS_TYPE_BOOLEAN, &value);
-			if (sink->dc_id) {
-				device_remove_disconnect_watch(dev->btd_dev,
-								sink->dc_id);
-				sink->dc_id = 0;
-			}
 		}
 		sink_set_state(dev, SINK_STATE_DISCONNECTED);
 		break;
@@ -168,17 +188,6 @@ static void pending_request_free(struct audio_device *dev,
 		a2dp_cancel(dev, pending->id);
 
 	g_free(pending);
-}
-
-static void disconnect_cb(struct btd_device *btd_dev, gboolean removal,
-				void *user_data)
-{
-	struct audio_device *device = user_data;
-	struct sink *sink = device->sink;
-
-	DBG("Sink: disconnect %s", device->path);
-
-	avdtp_close(sink->session, sink->stream, TRUE);
 }
 
 static void stream_state_changed(struct avdtp_stream *stream,
@@ -208,12 +217,6 @@ static void stream_state_changed(struct avdtp_stream *stream,
 			pending_request_free(dev, p);
 		}
 
-		if (sink->dc_id) {
-			device_remove_disconnect_watch(dev->btd_dev,
-							sink->dc_id);
-			sink->dc_id = 0;
-		}
-
 		if (sink->session) {
 			avdtp_unref(sink->session);
 			sink->session = NULL;
@@ -233,9 +236,6 @@ static void stream_state_changed(struct avdtp_stream *stream,
 						AUDIO_SINK_INTERFACE,
 						"Connected",
 						DBUS_TYPE_BOOLEAN, &value);
-			sink->dc_id = device_add_disconnect_watch(dev->btd_dev,
-								disconnect_cb,
-								dev, NULL);
 		} else if (old_state == AVDTP_STATE_STREAMING) {
 			value = FALSE;
 			g_dbus_emit_signal(dev->conn, dev->path,
@@ -268,10 +268,11 @@ static void stream_state_changed(struct avdtp_stream *stream,
 	sink->stream_state = new_state;
 }
 
-static DBusHandlerResult error_failed(DBusConnection *conn,
-					DBusMessage *msg, const char * desc)
+static void error_failed(DBusConnection *conn, DBusMessage *msg,
+							const char *desc)
 {
-	return error_common_reply(conn, msg, ERROR_INTERFACE ".Failed", desc);
+	DBusMessage *reply = btd_error_failed(msg, desc);
+	g_dbus_send_message(conn, reply);
 }
 
 static gboolean stream_setup_retry(gpointer user_data)
@@ -322,13 +323,15 @@ static void stream_setup_complete(struct avdtp *session, struct a2dp_sep *sep,
 
 		sink->connect = NULL;
 		pending_request_free(sink->dev, pending);
-
+                #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+		set_sink_protection(sink->dev, sink->protected);
+                #endif
 		return;
 	}
 
 	avdtp_unref(sink->session);
 	sink->session = NULL;
-	if (avdtp_error_type(err) == AVDTP_ERROR_ERRNO
+	if (avdtp_error_category(err) == AVDTP_ERRNO
 			&& avdtp_error_posix_errno(err) != EHOSTDOWN) {
 		DBG("connect:connect XCASE detected");
 		sink->retry_id = g_timeout_add_seconds(STREAM_SETUP_RETRY_TIMER,
@@ -343,146 +346,30 @@ static void stream_setup_complete(struct avdtp *session, struct a2dp_sep *sep,
 	}
 }
 
-static uint8_t default_bitpool(uint8_t freq, uint8_t mode)
+static void select_complete(struct avdtp *session, struct a2dp_sep *sep,
+			GSList *caps, void *user_data)
 {
-	switch (freq) {
-	case SBC_SAMPLING_FREQ_16000:
-	case SBC_SAMPLING_FREQ_32000:
-		return 53;
-	case SBC_SAMPLING_FREQ_44100:
-		switch (mode) {
-		case SBC_CHANNEL_MODE_MONO:
-		case SBC_CHANNEL_MODE_DUAL_CHANNEL:
-			return 31;
-		case SBC_CHANNEL_MODE_STEREO:
-		case SBC_CHANNEL_MODE_JOINT_STEREO:
-			return 53;
-		default:
-			error("Invalid channel mode %u", mode);
-			return 53;
-		}
-	case SBC_SAMPLING_FREQ_48000:
-		switch (mode) {
-		case SBC_CHANNEL_MODE_MONO:
-		case SBC_CHANNEL_MODE_DUAL_CHANNEL:
-			return 29;
-		case SBC_CHANNEL_MODE_STEREO:
-		case SBC_CHANNEL_MODE_JOINT_STEREO:
-			return 51;
-		default:
-			error("Invalid channel mode %u", mode);
-			return 51;
-		}
-	default:
-		error("Invalid sampling freq %u", freq);
-		return 53;
-	}
-}
+	struct sink *sink = user_data;
+	struct pending_request *pending;
+	int id;
 
-static gboolean select_sbc_params(struct sbc_codec_cap *cap,
-					struct sbc_codec_cap *supported)
-{
-	unsigned int max_bitpool, min_bitpool;
+	pending = sink->connect;
+	pending->id = 0;
 
-	memset(cap, 0, sizeof(struct sbc_codec_cap));
+	id = a2dp_config(session, sep, stream_setup_complete, caps, sink);
+	if (id == 0)
+		goto failed;
 
-	cap->cap.media_type = AVDTP_MEDIA_TYPE_AUDIO;
-	cap->cap.media_codec_type = A2DP_CODEC_SBC;
+	pending->id = id;
+	return;
 
-	if (supported->frequency & SBC_SAMPLING_FREQ_44100)
-		cap->frequency = SBC_SAMPLING_FREQ_44100;
-	else if (supported->frequency & SBC_SAMPLING_FREQ_48000)
-		cap->frequency = SBC_SAMPLING_FREQ_48000;
-	else if (supported->frequency & SBC_SAMPLING_FREQ_32000)
-		cap->frequency = SBC_SAMPLING_FREQ_32000;
-	else if (supported->frequency & SBC_SAMPLING_FREQ_16000)
-		cap->frequency = SBC_SAMPLING_FREQ_16000;
-	else {
-		error("No supported frequencies");
-		return FALSE;
-	}
-
-	if (supported->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
-		cap->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
-	else if (supported->channel_mode & SBC_CHANNEL_MODE_STEREO)
-		cap->channel_mode = SBC_CHANNEL_MODE_STEREO;
-	else if (supported->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-		cap->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
-	else if (supported->channel_mode & SBC_CHANNEL_MODE_MONO)
-		cap->channel_mode = SBC_CHANNEL_MODE_MONO;
-	else {
-		error("No supported channel modes");
-		return FALSE;
-	}
-
-	if (supported->block_length & SBC_BLOCK_LENGTH_16)
-		cap->block_length = SBC_BLOCK_LENGTH_16;
-	else if (supported->block_length & SBC_BLOCK_LENGTH_12)
-		cap->block_length = SBC_BLOCK_LENGTH_12;
-	else if (supported->block_length & SBC_BLOCK_LENGTH_8)
-		cap->block_length = SBC_BLOCK_LENGTH_8;
-	else if (supported->block_length & SBC_BLOCK_LENGTH_4)
-		cap->block_length = SBC_BLOCK_LENGTH_4;
-	else {
-		error("No supported block lengths");
-		return FALSE;
-	}
-
-	if (supported->subbands & SBC_SUBBANDS_8)
-		cap->subbands = SBC_SUBBANDS_8;
-	else if (supported->subbands & SBC_SUBBANDS_4)
-		cap->subbands = SBC_SUBBANDS_4;
-	else {
-		error("No supported subbands");
-		return FALSE;
-	}
-
-	if (supported->allocation_method & SBC_ALLOCATION_LOUDNESS)
-		cap->allocation_method = SBC_ALLOCATION_LOUDNESS;
-	else if (supported->allocation_method & SBC_ALLOCATION_SNR)
-		cap->allocation_method = SBC_ALLOCATION_SNR;
-
-	min_bitpool = MAX(MIN_BITPOOL, supported->min_bitpool);
-	max_bitpool = MIN(default_bitpool(cap->frequency, cap->channel_mode),
-							supported->max_bitpool);
-
-	cap->min_bitpool = min_bitpool;
-	cap->max_bitpool = max_bitpool;
-
-	return TRUE;
-}
-
-static gboolean select_capabilities(struct avdtp *session,
-					struct avdtp_remote_sep *rsep,
-					GSList **caps)
-{
-	struct avdtp_service_capability *media_transport, *media_codec;
-	struct sbc_codec_cap sbc_cap;
-
-	media_codec = avdtp_get_codec(rsep);
-	if (!media_codec)
-		return FALSE;
-
-	select_sbc_params(&sbc_cap, (struct sbc_codec_cap *) media_codec->data);
-
-	media_transport = avdtp_service_cap_new(AVDTP_MEDIA_TRANSPORT,
-						NULL, 0);
-
-	*caps = g_slist_append(*caps, media_transport);
-
-	media_codec = avdtp_service_cap_new(AVDTP_MEDIA_CODEC, &sbc_cap,
-						sizeof(sbc_cap));
-
-	*caps = g_slist_append(*caps, media_codec);
-
-	if (avdtp_get_delay_reporting(rsep)) {
-		struct avdtp_service_capability *delay_reporting;
-		delay_reporting = avdtp_service_cap_new(AVDTP_DELAY_REPORTING,
-								NULL, 0);
-		*caps = g_slist_append(*caps, delay_reporting);
-	}
-
-	return TRUE;
+failed:
+	if (pending->msg)
+		error_failed(pending->conn, pending->msg, "Stream setup failed");
+	pending_request_free(sink->dev, pending);
+	sink->connect = NULL;
+	avdtp_unref(sink->session);
+	sink->session = NULL;
 }
 
 static void discovery_complete(struct avdtp *session, GSList *seps, struct avdtp_error *err,
@@ -490,18 +377,20 @@ static void discovery_complete(struct avdtp *session, GSList *seps, struct avdtp
 {
 	struct sink *sink = user_data;
 	struct pending_request *pending;
-	struct avdtp_local_sep *lsep;
-	struct avdtp_remote_sep *rsep;
-	struct a2dp_sep *sep;
-	GSList *caps = NULL;
 	int id;
+
+	if (!sink->connect) {
+		avdtp_unref(sink->session);
+		sink->session = NULL;
+		return;
+	}
 
 	pending = sink->connect;
 
 	if (err) {
 		avdtp_unref(sink->session);
 		sink->session = NULL;
-		if (avdtp_error_type(err) == AVDTP_ERROR_ERRNO
+		if (avdtp_error_category(err) == AVDTP_ERRNO
 				&& avdtp_error_posix_errno(err) != EHOSTDOWN) {
 			DBG("connect:connect XCASE detected");
 			sink->retry_id =
@@ -515,24 +404,8 @@ static void discovery_complete(struct avdtp *session, GSList *seps, struct avdtp
 
 	DBG("Discovery complete");
 
-	if (avdtp_get_seps(session, AVDTP_SEP_TYPE_SINK, AVDTP_MEDIA_TYPE_AUDIO,
-				A2DP_CODEC_SBC, &lsep, &rsep) < 0) {
-		error("No matching ACP and INT SEPs found");
-		goto failed;
-	}
-
-	if (!select_capabilities(session, rsep, &caps)) {
-		error("Unable to select remote SEP capabilities");
-		goto failed;
-	}
-
-	sep = a2dp_get(session, rsep);
-	if (!sep) {
-		error("Unable to get a local source SEP");
-		goto failed;
-	}
-
-	id = a2dp_config(sink->session, sep, stream_setup_complete, caps, sink);
+	id = a2dp_select_capabilities(sink->session, AVDTP_SEP_TYPE_SINK, NULL,
+						select_complete, sink);
 	if (id == 0)
 		goto failed;
 
@@ -580,21 +453,16 @@ static DBusMessage *sink_connect(DBusConnection *conn,
 		sink->session = avdtp_get(&dev->src, &dev->dst);
 
 	if (!sink->session)
-		return g_dbus_create_error(msg, ERROR_INTERFACE ".Failed",
-						"Unable to get a session");
+		return btd_error_failed(msg, "Unable to get a session");
 
 	if (sink->connect || sink->disconnect)
-		return g_dbus_create_error(msg, ERROR_INTERFACE ".Failed",
-						"%s", strerror(EBUSY));
+		return btd_error_busy(msg);
 
 	if (sink->stream_state >= AVDTP_STATE_OPEN)
-		return g_dbus_create_error(msg, ERROR_INTERFACE
-						".AlreadyConnected",
-						"Device Already Connected");
+		return btd_error_already_connected(msg);
 
 	if (!sink_setup_stream(sink, NULL))
-		return g_dbus_create_error(msg, ERROR_INTERFACE ".Failed",
-						"Failed to create a stream");
+		return btd_error_failed(msg, "Failed to create a stream");
 
 	dev->auto_connect = FALSE;
 
@@ -617,13 +485,10 @@ static DBusMessage *sink_disconnect(DBusConnection *conn,
 	int err;
 
 	if (!sink->session)
-		return g_dbus_create_error(msg, ERROR_INTERFACE
-						".NotConnected",
-						"Device not Connected");
+		return btd_error_not_connected(msg);
 
 	if (sink->connect || sink->disconnect)
-		return g_dbus_create_error(msg, ERROR_INTERFACE ".Failed",
-						"%s", strerror(EBUSY));
+		return btd_error_busy(msg);
 
 	if (sink->stream_state < AVDTP_STATE_OPEN) {
 		DBusMessage *reply = dbus_message_new_method_return(msg);
@@ -636,8 +501,7 @@ static DBusMessage *sink_disconnect(DBusConnection *conn,
 
 	err = avdtp_close(sink->session, sink->stream, FALSE);
 	if (err < 0)
-		return g_dbus_create_error(msg, ERROR_INTERFACE ".Failed",
-						"%s", strerror(-err));
+		return btd_error_failed(msg, strerror(-err));
 
 	pending = g_new0(struct pending_request, 1);
 	pending->conn = dbus_connection_ref(conn);
@@ -766,6 +630,11 @@ static DBusMessage *sink_get_properties(DBusConnection *conn,
 	value = (sink->stream_state >= AVDTP_STATE_CONFIGURED);
 	dict_append_entry(&dict, "Connected", DBUS_TYPE_BOOLEAN, &value);
 
+        #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+	/* Protected */
+	value = sink->protected;
+	dict_append_entry(&dict, "Protected", DBUS_TYPE_BOOLEAN, &value);
+        #endif
 	/* State */
 	state = state2str(sink->state);
 	if (state)
@@ -775,6 +644,37 @@ static DBusMessage *sink_get_properties(DBusConnection *conn,
 
 	return reply;
 }
+#ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+static DBusMessage *set_sink_protection_required(DBusConnection *conn,
+						DBusMessage *msg, void *data)
+{
+	struct audio_device *device = data;
+	struct sink *sink = device->sink;
+	gboolean protection_required;
+        if(sink->stream == NULL)
+		DBG("sink->stream is NULL");
+	else
+		sink->stream->protection_required = 1;
+	avdtp_set_scms_t_protection_required(TRUE);
+
+	return dbus_message_new_method_return(msg);
+}
+
+static DBusMessage *reset_sink_protection_required(DBusConnection *conn,
+						DBusMessage *msg, void *data)
+{
+	struct audio_device *device = data;
+	struct sink *sink = device->sink;
+	gboolean protection_required;
+       if(sink->stream == NULL)
+		DBG("sink->stream is NULL");
+	else
+		sink->stream->protection_required = 0;
+	avdtp_set_scms_t_protection_required(FALSE);
+
+	return dbus_message_new_method_return(msg);
+}
+#endif
 
 static GDBusMethodTable sink_methods[] = {
 	{ "Connect",		"",	"",	sink_connect,
@@ -788,6 +688,10 @@ static GDBusMethodTable sink_methods[] = {
 	{ "IsConnected",	"",	"b",	sink_is_connected,
 						G_DBUS_METHOD_FLAG_DEPRECATED },
 	{ "GetProperties",	"",	"a{sv}",sink_get_properties },
+        #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+	{ "RequireProtection", "", "",	set_sink_protection_required },
+	{ "ResetRequireProtection", "", "", reset_sink_protection_required },
+        #endif
 	{ NULL, NULL, NULL, NULL }
 };
 
@@ -807,9 +711,6 @@ static void sink_free(struct audio_device *dev)
 	if (sink->cb_id)
 		avdtp_stream_remove_cb(sink->session, sink->stream,
 					sink->cb_id);
-
-	if (sink->dc_id)
-		device_remove_disconnect_watch(dev->btd_dev, sink->dc_id);
 
 	if (sink->session)
 		avdtp_unref(sink->session);
@@ -867,21 +768,22 @@ struct sink *sink_init(struct audio_device *dev)
 	return sink;
 }
 
+#ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+gboolean sink_get_protection(struct audio_device *dev)
+{
+	struct sink *sink = dev->sink;
+
+	if (sink->protected)
+		return TRUE;
+
+	return FALSE;
+}
+#endif
 gboolean sink_is_active(struct audio_device *dev)
 {
 	struct sink *sink = dev->sink;
 
 	if (sink->session)
-		return TRUE;
-
-	return FALSE;
-}
-
-gboolean sink_is_streaming(struct audio_device *dev)
-{
-	struct sink *sink = dev->sink;
-
-	if (sink_get_state(dev) == AVDTP_STATE_STREAMING)
 		return TRUE;
 
 	return FALSE;
@@ -909,12 +811,39 @@ gboolean sink_new_stream(struct audio_device *dev, struct avdtp *session,
 
 	sink->cb_id = avdtp_stream_add_cb(session, stream,
 						stream_state_changed, dev);
-
+        #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+	sink->stream->protection_required = 0;
+        #endif
 	return TRUE;
 }
 
 gboolean sink_shutdown(struct sink *sink)
 {
+	if (!sink->session)
+		return FALSE;
+
+	avdtp_set_device_disconnect(sink->session, TRUE);
+
+	/* cancel pending connect */
+	if (sink->connect) {
+		struct pending_request *pending = sink->connect;
+
+		if (pending->msg)
+			error_failed(pending->conn, pending->msg,
+							"Stream setup failed");
+		pending_request_free(sink->dev, pending);
+		sink->connect = NULL;
+
+		avdtp_unref(sink->session);
+		sink->session = NULL;
+
+		return TRUE;
+	}
+
+	/* disconnect already ongoing */
+	if (sink->disconnect)
+		return TRUE;
+
 	if (!sink->stream)
 		return FALSE;
 

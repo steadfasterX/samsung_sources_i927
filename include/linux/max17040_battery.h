@@ -14,7 +14,6 @@ struct max17040_platform_data {
 	int (*battery_online)(void);
 	int (*charger_online)(void);
 	int (*charger_enable)(void);
-	int (*low_batt_cb)(void);	
 };
 
 #endif

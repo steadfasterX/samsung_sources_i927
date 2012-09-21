@@ -15,8 +15,7 @@
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 
-/* #include <asm/gpio.h> */
-#include <linux/gpio.h>
+#include <asm/gpio.h>
 
 /* Toggle SDA by changing the direction of the pin */
 static void i2c_gpio_setsda_dir(void *data, int state)
@@ -104,10 +103,7 @@ static int __devinit i2c_gpio_probe(struct platform_device *pdev)
 	ret = gpio_request(pdata->scl_pin, "scl");
 	if (ret)
 		goto err_request_scl;
-#ifdef CONFIG_MACH_N1
-	tegra_gpio_enable(pdata->scl_pin);
-	tegra_gpio_enable(pdata->sda_pin);
-#endif
+
 	if (pdata->sda_is_open_drain) {
 		gpio_direction_output(pdata->sda_pin, 1);
 		bit_data->setsda = i2c_gpio_setsda_val;
@@ -223,7 +219,7 @@ static void __exit i2c_gpio_exit(void)
 }
 module_exit(i2c_gpio_exit);
 
-MODULE_AUTHOR("Haavard Skinnemoen <hskinnemoen@atmel.com>");
+MODULE_AUTHOR("Haavard Skinnemoen (Atmel)");
 MODULE_DESCRIPTION("Platform-independent bitbanging I2C driver");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:i2c-gpio");

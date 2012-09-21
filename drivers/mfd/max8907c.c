@@ -23,20 +23,17 @@ static struct mfd_cell cells[] = {
 	{.name = "max8907-regulator",},
 	{.name = "max8907c-rtc",},
 #ifdef CONFIG_MACH_N1
-	{.name = "max8907c-adc",},
+    {.name = "max8907c-adc",},
 #endif
 };
-
-
-#define RETRY_CNT    5		
 
 static int max8907c_i2c_read(struct i2c_client *i2c, u8 reg, u8 count, u8 *dest)
 {
 	struct i2c_msg xfer[2];
-	int ret = 0, ret_cnt = 0 ;
+	int ret = 0;
 
 	xfer[0].addr = i2c->addr;
-	xfer[0].flags = I2C_M_NOSTART;
+	xfer[0].flags = 0;
 	xfer[0].len = 1;
 	xfer[0].buf = &reg;
 
@@ -45,18 +42,7 @@ static int max8907c_i2c_read(struct i2c_client *i2c, u8 reg, u8 count, u8 *dest)
 	xfer[1].len = count;
 	xfer[1].buf = dest;
 
-	// +Evan workaround 
-	while(ret_cnt < RETRY_CNT )
-	{
-		ret = i2c_transfer(i2c->adapter, xfer, 2);
-		if (ret >= 0 )
-			break;
-
-        printk("max8907c_i2c_read Fail Error code(0x%x) retry cnt=%d ", ret, ret_cnt);
-		ret_cnt++;
-	} 
-	// -Evan workaround 
-
+	ret = i2c_transfer(i2c->adapter, xfer, 2);
 	if (ret < 0)
 		return ret;
 	if (ret != 2)
@@ -68,23 +54,12 @@ static int max8907c_i2c_read(struct i2c_client *i2c, u8 reg, u8 count, u8 *dest)
 static int max8907c_i2c_write(struct i2c_client *i2c, u8 reg, u8 count, const u8 *src)
 {
 	u8 msg[0x100 + 1];
-	int ret = 0, ret_cnt = 0 ;
+	int ret = 0;
 
 	msg[0] = reg;
 	memcpy(&msg[1], src, count);
 
-	// +Evan workaround 
-	while(ret_cnt < RETRY_CNT )
-	{
-		ret = i2c_master_send(i2c, msg, count + 1);
-		if (ret >= 0 )
-			break;
-		
-        printk("max8907c_i2c_write Fail Error code(0x%x) retry cnt=%d ", ret, ret_cnt);
-		ret_cnt++;
-	}
-	// -Evan workaround
-
+	ret = i2c_master_send(i2c, msg, count + 1);
 	if (ret < 0)
 		return ret;
 	if (ret != count + 1)
@@ -96,15 +71,15 @@ static int max8907c_i2c_write(struct i2c_client *i2c, u8 reg, u8 count, const u8
 #ifdef CONFIG_MACH_N1
 int max8907c_send_cmd(struct i2c_client *i2c, u8 cmd)
 {
-	int ret = 0;
+    int ret = 0;
 
-	ret = i2c_master_send(i2c, &cmd, 1);
-	if (ret < 0)
-		return ret;
-	if (ret != 1)
-		return -EIO;
+    ret = i2c_master_send(i2c, &cmd, 1);
+    if (ret < 0)
+        return ret;
+    if (ret != 1)
+        return -EIO;
 
-	return 0;
+    return 0;
 }
 #endif
 
@@ -118,10 +93,8 @@ int max8907c_reg_read(struct i2c_client *i2c, u8 reg)
 	pr_debug("max8907c: reg read  reg=%x, val=%x\n",
 		 (unsigned int)reg, (unsigned int)val);
 
-	if (ret != 0) {
+	if (ret != 0)
 		pr_err("Failed to read max8907c I2C driver: %d\n", ret);
-		dump_stack();
-	}
 	return val;
 }
 EXPORT_SYMBOL_GPL(max8907c_reg_read);
@@ -135,10 +108,8 @@ int max8907c_reg_bulk_read(struct i2c_client *i2c, u8 reg, u8 count, u8 *val)
 	pr_debug("max8907c: reg read  reg=%x, val=%x\n",
 		 (unsigned int)reg, (unsigned int)*val);
 
-	if (ret != 0) {
+	if (ret != 0)
 		pr_err("Failed to read max8907c I2C driver: %d\n", ret);
-		dump_stack();
-	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(max8907c_reg_bulk_read);
@@ -155,10 +126,8 @@ int max8907c_reg_write(struct i2c_client *i2c, u8 reg, u8 val)
 	ret = max8907c_i2c_write(i2c, reg, 1, &val);
 	mutex_unlock(&max8907c->io_lock);
 
-	if (ret != 0) {
+	if (ret != 0)
 		pr_err("Failed to write max8907c I2C driver: %d\n", ret);
-		dump_stack();
-	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(max8907c_reg_write);
@@ -175,10 +144,8 @@ int max8907c_reg_bulk_write(struct i2c_client *i2c, u8 reg, u8 count, u8 *val)
 	ret = max8907c_i2c_write(i2c, reg, count, val);
 	mutex_unlock(&max8907c->io_lock);
 
-	if (ret != 0) {
+	if (ret != 0)
 		pr_err("Failed to write max8907c I2C driver: %d\n", ret);
-		dump_stack();
-	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(max8907c_reg_bulk_write);
@@ -198,7 +165,6 @@ int max8907c_set_bits(struct i2c_client *i2c, u8 reg, u8 mask, u8 val)
 		val = (tmp & ~mask) | (val & mask);
 		ret = max8907c_i2c_write(i2c, reg, 1, &val);
 	}
-
 	mutex_unlock(&max8907c->io_lock);
 
 	if (ret != 0)
@@ -208,62 +174,72 @@ int max8907c_set_bits(struct i2c_client *i2c, u8 reg, u8 mask, u8 val)
 EXPORT_SYMBOL_GPL(max8907c_set_bits);
 
 static struct i2c_client *max8907c_client = NULL;
+#ifdef	CONFIG_MACH_N1
 static struct i2c_client *max8907c_i2c_client = NULL;
 static struct i2c_client *max8907c_rtc_client = NULL;
+#endif
 int max8907c_power_off(void)
 {
-	int ret = -EINVAL;
+#ifdef	CONFIG_MACH_N1
+    int ret = -EINVAL;
 
-	if (!max8907c_i2c_client)
-		return ret;
+    if (!max8907c_i2c_client)
+        return ret;
 
-	/* Clear ON OFF IRQ1 */
-	max8907c_reg_read(max8907c_i2c_client, MAX8907C_REG_ON_OFF_IRQ1);
-	
-	/* Set up LDO2 after resume, attach to SEQ01 and max power down count to 0x07 */
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL2, MAX8907C_MASK_LDO_SEQ, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOSEQCNT2, MAX8907C_MASK_LDO_OFF_CNT, 0x07);
+    /* Clear ON OFF IRQ1 */
+    max8907c_reg_read(max8907c_i2c_client, MAX8907C_REG_ON_OFF_IRQ1);
 
-	/* Attach SD2, LDO 4, 10, 11, 17 to original sequence. */
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_SDCTL2, MAX8907C_MASK_LDO_SEQ, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL4, MAX8907C_MASK_LDO_SEQ, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL10, MAX8907C_MASK_LDO_SEQ, 0x1c);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL11, MAX8907C_MASK_LDO_SEQ, 0x1c);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL17, MAX8907C_MASK_LDO_SEQ, 0x1c);
+    /* Set up LDO2 after resume, attach to SEQ01 and max power down count to 0x07 */
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL2, MAX8907C_MASK_LDO_SEQ, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOSEQCNT2, MAX8907C_MASK_LDO_OFF_CNT, 0x07);
 
-	max8907c_reg_write(max8907c_i2c_client, MAX8907C_REG_RESET_CNFG, 0x12);
+    /* Attach SD2, LDO 4, 10, 11, 17 to original sequence. */
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_SDCTL2, MAX8907C_MASK_LDO_SEQ, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL4, MAX8907C_MASK_LDO_SEQ, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL10, MAX8907C_MASK_LDO_SEQ, 0x1c);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL11, MAX8907C_MASK_LDO_SEQ, 0x1c);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL17, MAX8907C_MASK_LDO_SEQ, 0x1c);
+
+    max8907c_reg_write(max8907c_i2c_client, MAX8907C_REG_RESET_CNFG, 0x12);
 
     max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_SYSENSEL, 0x10, 0x00);
 
-	/* Attach LDO3, 5, 10 to SEQ1 */
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL3, MAX8907C_MASK_LDO_SEQ, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL5, MAX8907C_MASK_LDO_SEQ, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL10, MAX8907C_MASK_LDO_SEQ, 0x00);
+    /* Attach LDO3, 5, 10 to SEQ1 */
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL3, MAX8907C_MASK_LDO_SEQ, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL5, MAX8907C_MASK_LDO_SEQ, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL10, MAX8907C_MASK_LDO_SEQ, 0x00);
 
-	/* Trun off non SEQ1 LDOs */
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL6, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL7, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL8, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL9, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL11, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL12, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL13, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL14, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL15, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL16, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL17, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL18, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL19, MAX8907C_MASK_LDO_EN, 0x00);
-	max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL20, MAX8907C_MASK_LDO_EN, 0x00);
+    /* Trun off non SEQ1 LDOs */
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL6, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL7, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL8, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL9, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL11, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL12, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL13, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL14, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL15, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL16, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL17, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL18, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL19, MAX8907C_MASK_LDO_EN, 0x00);
+    max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_LDOCTL20, MAX8907C_MASK_LDO_EN, 0x00);
 
 #if DEBUG_PMIC_REG
-	max8907c_print_regs();
+    max8907c_print_regs();
 #endif
 
-	ret = max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_RESET_CNFG, 0x40, 0x40);
-	if (ret)
-		return ret;
-	return 0;
+    ret = max8907c_set_bits(max8907c_i2c_client, MAX8907C_REG_RESET_CNFG, 0x40, 0x40);
+    if (ret)
+        return ret;
+    return 0;
+#else
+	if (!max8907c_client)
+		return -EINVAL;
+
+	return max8907c_set_bits(max8907c_client, MAX8907C_REG_RESET_CNFG,
+						MAX8907C_MASK_POWER_OFF, 0x40);
+#endif	/* CONFIG_MACH_N1 */
 }
 
 void max8907c_deep_sleep(int enter)
@@ -332,7 +308,7 @@ error:
 	_read = max8907c_reg_read(_dev, _reg_id+1);		\
 	pr_info("Sequence: %s\n", byte_to_binary(_read));	\
 	_read = max8907c_reg_read(_dev, _reg_id+2);		\
-	pr_info("Output:   %s\n", byte_to_binary(_read));	
+	pr_info("Output:   %s\n", byte_to_binary(_read));
 
 static const char *byte_to_binary(int x)
 {
@@ -482,7 +458,7 @@ static int max8907c_print_rtc_regs(void)
 {
 	int read, ret;
 	u8 buf[8];
-	
+
 	pr_info(" ****** RTC Registers ******\n");
 	read = max8907c_reg_read(max8907c_rtc_client, MAX8907C_REG_RTC_STATUS);
 	pr_info("%s :MAX8907C_REG_RTC_STATUS\n", byte_to_binary(read));
@@ -498,7 +474,7 @@ static int max8907c_print_rtc_regs(void)
 	ret = max8907c_reg_bulk_read(max8907c_rtc_client, MAX8907C_REG_RTC_SEC, 8, buf);
 	if (ret < 0)
 		return ret;
-	pr_info("MAX8907C-RTC: RTC: %2x%2x/%2x/%2x %x %2x:%2x:%2x\n", 
+	pr_info("MAX8907C-RTC: RTC: %2x%2x/%2x/%2x %x %2x:%2x:%2x\n",
 		buf[7], buf[6], buf[5]+1, buf[4], buf[3], buf[2], buf[1], buf[0]);
 
 	read = max8907c_reg_read(max8907c_rtc_client, MAX8907C_REG_ALARM0_CNTL);
@@ -507,7 +483,7 @@ static int max8907c_print_rtc_regs(void)
 	ret = max8907c_reg_bulk_read(max8907c_rtc_client, MAX8907C_REG_ALARM0_SEC, 8, buf);
 	if (ret < 0)
 		return ret;
-	pr_info("MAX8907C-RTC: ALARM0: %2x%2x/%2x/%2x %x %2x:%2x:%2x\n", 
+	pr_info("MAX8907C-RTC: ALARM0: %2x%2x/%2x/%2x %x %2x:%2x:%2x\n",
 		buf[7], buf[6], buf[5]+1, buf[4], buf[3], buf[2], buf[1], buf[0]);
 	return 0;
 }
@@ -519,7 +495,7 @@ int max8907c_print_regs(void)
 	printMask = PRINT_PMIC_REG_MASK &
 		( PRINT_PMIC_REG_ONOFF |
 		PRINT_PMIC_REG_RTC);
-		
+
 	if (printMask & PRINT_PMIC_REG_ONOFF) {
 		max8907c_print_onoff_regs();
 	}
@@ -542,8 +518,8 @@ int max8907c_print_regs(void)
 {
     int read=0;
     int i;
- 
-   
+
+
     printk("\n\n=================MAX8907C register map=========================\n");
     for(i=MAX8907C_REG_SYSENSEL; i < MAX8907C_REG_LDO20VOUT + 1; i++){
         read = max8907c_reg_read(max8907c_i2c_client, i);
@@ -611,29 +587,33 @@ int max8907c_pwr_en_attach(void)
 #ifdef CONFIG_MACH_N1
 static int max8907c_init_regs(struct i2c_client *i2c)
 {
-	max8907c_reg_write(i2c, MAX8907C_REG_RESET_CNFG, 0x92);
-	
-	/* Attach SD2, LDO 4, 10, 11, 17 to SEQ02. */
-	max8907c_set_bits(i2c, MAX8907C_REG_SDCTL2, MAX8907C_MASK_LDO_SEQ, 0x04);
-	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL3, MAX8907C_MASK_LDO_EN | MAX8907C_MASK_LDO_SEQ,
-		MAX8907C_MASK_LDO_EN | MAX8907C_MASK_LDO_SEQ);
-	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL4, MAX8907C_MASK_LDO_SEQ, 0x04);
-#if defined (CONFIG_MACH_BOSE_ATT)
-	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL5, MAX8907C_MASK_LDO_SEQ, MAX8907C_MASK_LDO_SEQ);			// 20110520_HDLNC_PMIC
-#endif
-	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL10, MAX8907C_MASK_LDO_SEQ, 0x04);
-	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL17, MAX8907C_MASK_LDO_SEQ, 0x04);
+	max8907c_reg_write(i2c, MAX8907C_REG_RESET_CNFG, 0x93);
 
-	/* Set up LDO2 for suspend, attach to SEQ02 and max power down count to 0x0F */
-	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL2, MAX8907C_MASK_LDO_SEQ, 0x04);
-	max8907c_set_bits(i2c, MAX8907C_REG_LDOSEQCNT2, MAX8907C_MASK_LDO_OFF_CNT, 0x0F);
+	/* Attach SD2, LDO 4, 10, 11, 17 to SEQ02. */
+	max8907c_set_bits(i2c, MAX8907C_REG_SDCTL2,
+		MAX8907C_MASK_LDO_SEQ, 0x04);
+	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL3,
+		MAX8907C_MASK_LDO_EN | MAX8907C_MASK_LDO_SEQ,
+		MAX8907C_MASK_LDO_EN | MAX8907C_MASK_LDO_SEQ);
+	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL4,
+		MAX8907C_MASK_LDO_SEQ, MAX8907C_MASK_LDO_SEQ);
+	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL5,
+		MAX8907C_MASK_LDO_SEQ, MAX8907C_MASK_LDO_SEQ);
+	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL10,
+		MAX8907C_MASK_LDO_SEQ, 0x04);
+	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL17,
+		MAX8907C_MASK_LDO_SEQ, 0x04);
+
+    /* Set up LDO2 for suspend, attach to SEQ02 and max power down count to 0x0F */
+    max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL2, MAX8907C_MASK_LDO_SEQ, 0x04);
+    max8907c_set_bits(i2c, MAX8907C_REG_LDOSEQCNT2, MAX8907C_MASK_LDO_OFF_CNT, 0x0F);
 }
 
 static int max8907c_suspend_regs(struct i2c_client *i2c)
 {
-	/* Register LDO11 to SEQ2 in suspend because of voltage drop problem */
-	max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL11, MAX8907C_MASK_LDO_SEQ, 0x04);
-}	
+    /* Register LDO11 to SEQ2 in suspend because of voltage drop problem */
+    max8907c_set_bits(i2c, MAX8907C_REG_LDOCTL11, MAX8907C_MASK_LDO_SEQ, 0x04);
+}
 #endif /* CONFIG_MACH_N1 */
 
 static int max8907c_i2c_probe(struct i2c_client *i2c,
@@ -643,6 +623,7 @@ static int max8907c_i2c_probe(struct i2c_client *i2c,
 	struct max8907c_platform_data *pdata = i2c->dev.platform_data;
 	int ret;
 	int i;
+	u8 tmp;
 
 	max8907c = kzalloc(sizeof(struct max8907c), GFP_KERNEL);
 	if (max8907c == NULL)
@@ -658,22 +639,24 @@ static int max8907c_i2c_probe(struct i2c_client *i2c,
 	i2c_set_clientdata(max8907c->i2c_rtc, max8907c);
 
 #ifdef CONFIG_MACH_N1
-	max8907c->i2c_adc = i2c_new_dummy(i2c->adapter, ADC_I2C_ADDR);
-	i2c_set_clientdata(max8907c->i2c_adc, max8907c);
+    max8907c->i2c_adc = i2c_new_dummy(i2c->adapter, ADC_I2C_ADDR);
+    i2c_set_clientdata(max8907c->i2c_adc, max8907c);
 
-	max8907c_i2c_client = i2c;
-	max8907c_rtc_client = max8907c->i2c_rtc;
+    max8907c_i2c_client = i2c;
+    max8907c_rtc_client = max8907c->i2c_rtc;
 #endif
 	mutex_init(&max8907c->io_lock);
 
-	for (i = 0; i < ARRAY_SIZE(cells); i++)
-		cells[i].driver_data = max8907c;
+	for (i = 0; i < ARRAY_SIZE(cells); i++) {
+		cells[i].platform_data = max8907c;
+		cells[i].pdata_size = sizeof(*max8907c);
+	}
 	ret = mfd_add_devices(max8907c->dev, -1, cells, ARRAY_SIZE(cells),
 			      NULL, 0);
 	if (ret != 0) {
 	  	i2c_unregister_device(max8907c->i2c_rtc);
 #ifdef CONFIG_MACH_N1
-	  	i2c_unregister_device(max8907c->i2c_adc);
+        i2c_unregister_device(max8907c->i2c_adc);
 #endif
 		kfree(max8907c);
 		pr_debug("max8907c: failed to add MFD devices   %X\n", ret);
@@ -685,56 +668,67 @@ static int max8907c_i2c_probe(struct i2c_client *i2c,
 	max8907c_irq_init(max8907c, i2c->irq, pdata->irq_base);
 
 #ifdef CONFIG_MACH_N1
-	ret = max8907c_reg_write(i2c, MAX8907C_REG_SYSENSEL, 
-		MAX8907C_MASK_HRDRSTEN);
-	if (ret != 0)
-		return ret;
+    ret = max8907c_reg_write(i2c, MAX8907C_REG_SYSENSEL,
+        MAX8907C_MASK_HRDRSTEN);
+    if (ret != 0)
+        return ret;
 
 #if !defined(CONFIG_MACH_BOSE_ATT)
-	/* Set HRDRSTEN bit for HW Rev 15 or greater. */
-	if(system_rev > 14) {
-		ret = max8907c_reg_write(i2c, MAX8907C_REG_SYSENSEL, 
-			0xbf);
-		if (ret != 0)
-			return ret;
-	}
+    /* Set HRDRSTEN bit for HW Rev 15 or greater. */
+    if(system_rev > 14) {
+        ret = max8907c_reg_write(i2c, MAX8907C_REG_SYSENSEL,
+            0xbf);
+        if (ret != 0)
+            return ret;
+    }
 #endif
-	ret = max8907c_set_bits(i2c, MAX8907C_REG_SYSENSEL, 
-		MAX8907C_MASK_ALARM0_WAKE | MAX8907C_MASK_ALARM1_WAKE, 0x00);
-	if (ret != 0)
-		return ret;
+    ret = max8907c_set_bits(i2c, MAX8907C_REG_SYSENSEL,
+        MAX8907C_MASK_ALARM0_WAKE | MAX8907C_MASK_ALARM1_WAKE, 0x00);
+    if (ret != 0)
+        return ret;
 #endif
 
 	ret = max8097c_add_subdevs(max8907c, pdata);
 
-	/* Initialize max8907c registers */
-	max8907c_init_regs(i2c);
-
-#if DEBUG_PMIC_REG
-	max8907c_print_regs();
+#ifdef CONFIG_MACH_N1
+    /* Initialize max8907c registers */
+    max8907c_init_regs(i2c);
 #endif
+
+	ret = max8907c_i2c_read(i2c, MAX8907C_REG_SYSENSEL, 1, &tmp);
+	/*Mask HARD RESET, if enabled */
+	if (ret == 0) {
+		tmp &= ~(BIT(7));
+		ret = max8907c_i2c_write(i2c, MAX8907C_REG_SYSENSEL, 1, &tmp);
+	}
+
+	if (ret != 0) {
+		pr_err("Failed to write max8907c I2C driver: %d\n", ret);
+		return ret;
+	}
 
 	if (pdata->max8907c_setup)
 		return pdata->max8907c_setup();
 
 	return ret;
 }
+
 #ifdef CONFIG_MACH_N1
 static int max8907c_suspend(struct i2c_client *i2c, pm_message_t state)
 {
-	max8907c_suspend_regs(i2c);
+    max8907c_suspend_regs(i2c);
 
 #if DEBUG_PMIC_REG
-	max8907c_print_regs();
-#endif	
-	max8907c_irq_suspend(i2c, state);
-	return 0;
+    max8907c_print_regs();
+#endif
+    max8907c_irq_suspend(i2c, state);
+    return 0;
 }
 
 static int max8907c_resume(struct i2c_client *i2c)
 {
-	max8907c_irq_resume(i2c);
-	return 0;
+    max8907c_irq_resume(i2c);
+    return 0;
 }
 #endif
 
@@ -745,7 +739,7 @@ static int max8907c_i2c_remove(struct i2c_client *i2c)
 	max8907c_remove_subdevs(max8907c);
 	i2c_unregister_device(max8907c->i2c_rtc);
 #ifdef CONFIG_MACH_N1
-	i2c_unregister_device(max8907c->i2c_adc);
+    i2c_unregister_device(max8907c->i2c_adc);
 #endif
 	mfd_remove_devices(max8907c->dev);
 	max8907c_irq_free(max8907c);

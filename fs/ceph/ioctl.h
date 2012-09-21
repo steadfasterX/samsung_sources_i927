@@ -17,6 +17,8 @@ struct ceph_ioctl_layout {
 				   struct ceph_ioctl_layout)
 #define CEPH_IOC_SET_LAYOUT _IOW(CEPH_IOCTL_MAGIC, 2,		\
 				   struct ceph_ioctl_layout)
+#define CEPH_IOC_SET_LAYOUT_POLICY _IOW(CEPH_IOCTL_MAGIC, 5,	\
+				   struct ceph_ioctl_layout)
 
 /*
  * Extract identity, address of the OSD and object storing a given
@@ -38,5 +40,6 @@ struct ceph_ioctl_dataloc {
 				   struct ceph_ioctl_dataloc)
 
 #define CEPH_IOC_LAZYIO _IO(CEPH_IOCTL_MAGIC, 4)
+#define CEPH_IOC_SYNCIO _IO(CEPH_IOCTL_MAGIC, 5)
 
 #endif

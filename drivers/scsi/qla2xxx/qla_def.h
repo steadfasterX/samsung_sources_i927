@@ -1,6 +1,6 @@
 /*
  * QLogic Fibre Channel HBA Driver
- * Copyright (c)  2003-2010 QLogic Corporation
+ * Copyright (c)  2003-2011 QLogic Corporation
  *
  * See LICENSE.qla2xxx for copyright and licensing details.
  */
@@ -705,6 +705,11 @@ typedef struct {
 #define MBC_SET_VENDOR_ID		0x76	/* Set Vendor ID. */
 #define MBC_SET_PORT_CONFIG		0x122	/* Set port configuration */
 #define MBC_GET_PORT_CONFIG		0x123	/* Get port configuration */
+
+/*
+ * ISP81xx mailbox commands
+ */
+#define MBC_WRITE_MPI_REGISTER		0x01    /* Write MPI Register. */
 
 /* Firmware return data sizes */
 #define FCAL_MAP_SIZE	128
@@ -1695,9 +1700,7 @@ typedef struct fc_port {
 	atomic_t state;
 	uint32_t flags;
 
-	int port_login_retry_count;
 	int login_retry;
-	atomic_t port_down_timer;
 
 	struct fc_rport *rport, *drport;
 	u32 supported_classes;
@@ -1713,6 +1716,14 @@ typedef struct fc_port {
 #define FCS_DEVICE_DEAD		2
 #define FCS_DEVICE_LOST		3
 #define FCS_ONLINE		4
+
+static const char * const port_state_str[] = {
+	"Unknown",
+	"UNCONFIGURED",
+	"DEAD",
+	"LOST",
+	"ONLINE"
+};
 
 /*
  * FC port flags.
@@ -2083,7 +2094,7 @@ struct ct_sns_pkt {
 };
 
 /*
- * SNS command structures -- for 2200 compatability.
+ * SNS command structures -- for 2200 compatibility.
  */
 #define	RFT_ID_SNS_SCMD_LEN	22
 #define	RFT_ID_SNS_CMD_SIZE	60
@@ -2399,14 +2410,13 @@ struct qla_hw_data {
 	volatile struct {
 		uint32_t	mbox_int		:1;
 		uint32_t	mbox_busy		:1;
-
 		uint32_t	disable_risc_code_load	:1;
 		uint32_t	enable_64bit_addressing	:1;
 		uint32_t	enable_lip_reset	:1;
 		uint32_t	enable_target_reset	:1;
 		uint32_t	enable_lip_full_login	:1;
 		uint32_t	enable_led_scheme	:1;
-		uint32_t	inta_enabled		:1;
+
 		uint32_t	msi_enabled		:1;
 		uint32_t	msix_enabled		:1;
 		uint32_t	disable_serdes		:1;
@@ -2415,6 +2425,7 @@ struct qla_hw_data {
 		uint32_t	pci_channel_io_perm_failure	:1;
 		uint32_t	fce_enabled		:1;
 		uint32_t	fac_supported		:1;
+
 		uint32_t	chip_reset_done		:1;
 		uint32_t	port0			:1;
 		uint32_t	running_gold_fw		:1;
@@ -2422,7 +2433,12 @@ struct qla_hw_data {
 		uint32_t	cpu_affinity_enabled	:1;
 		uint32_t	disable_msix_handshake	:1;
 		uint32_t	fcp_prio_enabled	:1;
-		uint32_t	fw_hung	:1;
+		uint32_t	isp82xx_fw_hung:1;
+
+		uint32_t	quiesce_owner:1;
+		uint32_t	thermal_supported:1;
+		uint32_t	isp82xx_reset_hdlr_active:1;
+		/* 26 bits */
 	} flags;
 
 	/* This spinlock is used to protect "io transactions", you must
@@ -2513,6 +2529,7 @@ struct qla_hw_data {
 #define DT_ISP8021			BIT_14
 #define DT_ISP_LAST			(DT_ISP8021 << 1)
 
+#define DT_T10_PI                       BIT_25
 #define DT_IIDMA                        BIT_26
 #define DT_FWI2                         BIT_27
 #define DT_ZIO_SUPPORTED                BIT_28
@@ -2556,6 +2573,7 @@ struct qla_hw_data {
 #define IS_NOCACHE_VPD_TYPE(ha)	(IS_QLA81XX(ha))
 #define IS_ALOGIO_CAPABLE(ha)	(IS_QLA23XX(ha) || IS_FWI2_CAPABLE(ha))
 
+#define IS_T10_PI_CAPABLE(ha)   ((ha)->device_type & DT_T10_PI)
 #define IS_IIDMA_CAPABLE(ha)    ((ha)->device_type & DT_IIDMA)
 #define IS_FWI2_CAPABLE(ha)     ((ha)->device_type & DT_FWI2)
 #define IS_ZIO_SUPPORTED(ha)    ((ha)->device_type & DT_ZIO_SUPPORTED)
@@ -2860,6 +2878,8 @@ typedef struct scsi_qla_host {
 #define NPIV_CONFIG_NEEDED	16
 #define ISP_UNRECOVERABLE	17
 #define FCOE_CTX_RESET_NEEDED	18	/* Initiate FCoE context reset */
+#define MPI_RESET_NEEDED	19	/* Initiate MPI FW reset */
+#define ISP_QUIESCE_NEEDED	20	/* Driver need some quiescence */
 
 	uint32_t	device_flags;
 #define SWITCH_FOUND		BIT_0
@@ -3002,6 +3022,8 @@ typedef struct scsi_qla_host {
 #define	QLA_DSDS_PER_IOCB	37
 
 #define CMD_SP(Cmnd)		((Cmnd)->SCp.ptr)
+
+#define QLA_SG_ALL	1024
 
 enum nexus_wait_type {
 	WAIT_HOST = 0,

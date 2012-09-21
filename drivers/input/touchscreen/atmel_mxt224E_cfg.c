@@ -53,13 +53,14 @@
 
 #define ATMEL_DEBUG	0401
 
-u8 firmware_latest[] = { 
+u8 firmware_latest[] = {
 	#include "atmel_mxt224e_fw_ver10_aa.h"
 	};
-u8 firmware_testver[] = { 
+/*
+u8 firmware_testver[] = {
 	#include "atmel_mxt224e_fw_ver04_f6.h"
 	};
-
+*/
 /*
 static gen_powerconfig_t7_config_t          power_config = { 0 };
 static gen_acquisitionconfig_t8_config_t    acquisition_config = { 0 };
@@ -116,7 +117,7 @@ static spt_userdata_t38_t				userdata_t38 = { 0 };
 /* PROCG_NOISESUPPRESSION_T48  */
 
 int mxt_get_object_values(struct mxt_data *mxt, int obj_type)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 
 
@@ -126,7 +127,7 @@ int mxt_get_object_values(struct mxt_data *mxt, int obj_type)
 	int error;
 
 
-	switch (obj_type) { 
+	switch (obj_type) {
 	case MXT_GEN_POWERCONFIG_T7:
 		obj = (u8 *)&power_config;
 		break;
@@ -170,13 +171,13 @@ int mxt_get_object_values(struct mxt_data *mxt, int obj_type)
 	obj_size = MXT_GET_SIZE(obj_type);
 
 
-	if ((obj_addr == 0) || (obj_size == 0)) { 
+	if ((obj_addr == 0) || (obj_size == 0)) {
 		pr_err("[TSP] Not supporting object type (object type: %d)", obj_type);
 		return -1;
 	}
 
 	error = mxt_read_block(client, obj_addr, obj_size, obj);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -187,11 +188,11 @@ int mxt_get_object_values(struct mxt_data *mxt, int obj_type)
 
 
 int mxt_copy_object(struct mxt_data *mxt, u8 *buf, int obj_type)
-{ 
+{
 	u8 *obj = NULL;
 	u16 obj_size = 0;
 
-	switch (obj_type) { 
+	switch (obj_type) {
 	case MXT_GEN_POWERCONFIG_T7:
 		obj = (u8 *)&power_config;
 		obj_size = MXT_GET_SIZE(obj_type);
@@ -243,7 +244,7 @@ int mxt_copy_object(struct mxt_data *mxt, u8 *buf, int obj_type)
 	pr_info("[TSP] obj type: %d, obj size: %d", obj_type, obj_size);
 
 
-	if (memcpy(buf, obj, obj_size) == NULL) { 
+	if (memcpy(buf, obj, obj_size) == NULL) {
 		pr_err("[TSP] memcpy failed! (%s, %d)\n", __func__, __LINE__);
 		return -1;
 	}
@@ -252,7 +253,7 @@ int mxt_copy_object(struct mxt_data *mxt, u8 *buf, int obj_type)
 
 int mxt_userdata_config(struct mxt_data *mxt)
 
-{ 
+{
         struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -270,7 +271,7 @@ int mxt_userdata_config(struct mxt_data *mxt)
 	if(T38_USERDATA7 != 0) userdata_t38.data[7] = T38_USERDATA7;
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&userdata_t38);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -280,7 +281,7 @@ int mxt_userdata_config(struct mxt_data *mxt)
 
 
 int mxt_power_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 
 	u16 obj_addr, obj_size;
@@ -294,7 +295,7 @@ int mxt_power_config(struct mxt_data *mxt)
 	power_config.actv2idleto    = T7_ACTV2IDLETO;    /* Set Active to Idle Timeout to 4 s (one unit = 200ms). */
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&power_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -303,7 +304,7 @@ int mxt_power_config(struct mxt_data *mxt)
 
 extern bool mxt_reconfig_flag;
 int mxt_acquisition_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -323,7 +324,7 @@ int mxt_acquisition_config(struct mxt_data *mxt)
 	acquisition_config.atchcalfrcratio = T8_ATCHFRCCALRATIO;  /*!< Anti-touch force calibration ratio */
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&acquisition_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -333,7 +334,7 @@ int mxt_acquisition_config(struct mxt_data *mxt)
 EXPORT_SYMBOL(mxt_acquisition_config);
 
 int mxt_multitouch_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -380,7 +381,7 @@ int mxt_multitouch_config(struct mxt_data *mxt)
 	touchscreen_config.nexttchdi   = T9_NEXTTCHDI;
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&touchscreen_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -388,7 +389,7 @@ int mxt_multitouch_config(struct mxt_data *mxt)
 }
 
 int mxt_keyarray_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -415,7 +416,7 @@ int mxt_keyarray_config(struct mxt_data *mxt)
 
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&keyarray_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -424,7 +425,7 @@ int mxt_keyarray_config(struct mxt_data *mxt)
 
 
 int mxt_comc_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -436,7 +437,7 @@ int mxt_comc_config(struct mxt_data *mxt)
 	comc_config.cmd         = T18_COMMAND;
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&comc_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -445,7 +446,7 @@ int mxt_comc_config(struct mxt_data *mxt)
 }
 
 int mxt_gpio_pwm_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -471,7 +472,7 @@ int mxt_gpio_pwm_config(struct mxt_data *mxt)
 	gpiopwm_config.trigger[3]   = T19_TRIGGER_3 ;
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&gpiopwm_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -481,7 +482,7 @@ int mxt_gpio_pwm_config(struct mxt_data *mxt)
 
 
 int mxt_proximity_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -503,7 +504,7 @@ int mxt_proximity_config(struct mxt_data *mxt)
 	proximity_config.mvdthr     = T23_MVDTHR;
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&proximity_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -513,7 +514,7 @@ int mxt_proximity_config(struct mxt_data *mxt)
 
 
 int mxt_one_touch_gesture_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -538,7 +539,7 @@ int mxt_one_touch_gesture_config(struct mxt_data *mxt)
 	onetouch_gesture_config.throwthr        = T24_THROWTHR  ;
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&onetouch_gesture_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -549,7 +550,7 @@ int mxt_one_touch_gesture_config(struct mxt_data *mxt)
 
 
 int mxt_selftest_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -573,7 +574,7 @@ int mxt_selftest_config(struct mxt_data *mxt)
 	selftest_config.siglim[2].losiglim = T25_SIGLIM_2_LOSIGLIM;
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&selftest_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -583,7 +584,7 @@ int mxt_selftest_config(struct mxt_data *mxt)
 
 
 int mxt_gripsuppression_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -598,7 +599,7 @@ int mxt_gripsuppression_config(struct mxt_data *mxt)
 	gripsuppression_t40_config.yhigrip  = T40_YHIGRIP;
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&gripsuppression_t40_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -608,7 +609,7 @@ int mxt_gripsuppression_config(struct mxt_data *mxt)
 
 
 int mxt_touch_suppression_t42_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -627,7 +628,7 @@ int mxt_touch_suppression_t42_config(struct mxt_data *mxt)
 
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&touchsuppression_t42_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -637,7 +638,7 @@ int mxt_touch_suppression_t42_config(struct mxt_data *mxt)
 
 
 int mxt_cte_t46_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -657,7 +658,7 @@ int mxt_cte_t46_config(struct mxt_data *mxt)
 
 	/* Write CTE config to chip. */
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&cte_t46_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -667,7 +668,7 @@ int mxt_cte_t46_config(struct mxt_data *mxt)
 
 
 int mxt_stylus_t47_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -688,7 +689,7 @@ int mxt_stylus_t47_config(struct mxt_data *mxt)
 
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&stylus_t47_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -698,7 +699,7 @@ int mxt_stylus_t47_config(struct mxt_data *mxt)
 
 
 int mxt_noisesuppression_t48_config(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -759,7 +760,7 @@ int mxt_noisesuppression_t48_config(struct mxt_data *mxt)
 	noisesuppression_t48_config.nexttchdi  			= T48_NEXTTCHDI ;
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&noisesuppression_t48_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -769,7 +770,7 @@ int mxt_noisesuppression_t48_config(struct mxt_data *mxt)
 EXPORT_SYMBOL(mxt_noisesuppression_t48_config);
 
 int mxt_noisesuppression_t48_config_for_TA(struct mxt_data *mxt)
-{ 
+{
 	struct i2c_client *client = mxt->client;
 	u16 obj_addr, obj_size;
 	int error;
@@ -830,7 +831,7 @@ int mxt_noisesuppression_t48_config_for_TA(struct mxt_data *mxt)
 	noisesuppression_t48_config.nexttchdi  			= T48_NEXTTCHDI_TA;
 
 	error = mxt_write_block(client, obj_addr, obj_size, (u8 *)&noisesuppression_t48_config);
-	if (error < 0) { 
+	if (error < 0) {
 		dev_err(&client->dev, "[TSP] mxt_write_block failed! (%s, %d)\n", __func__, __LINE__);
 		return -EIO;
 	}
@@ -842,7 +843,7 @@ EXPORT_SYMBOL(mxt_noisesuppression_t48_config_for_TA);
 
 
 int mxt_config_settings(struct mxt_data *mxt)
-{ 
+{
 	pr_info("[TSP] mxt_config_settings");
 
 
@@ -897,10 +898,10 @@ int mxt_config_settings(struct mxt_data *mxt)
 */
 
 static void bootloader_status(u8 value)
-{ 
+{
 	u8 *str = NULL;
 
-	switch (value) { 
+	switch (value) {
 	case 0xC0:
 		str = "WAITING_BOOTLOAD_CMD"; break;
 	case 0x80:
@@ -921,24 +922,24 @@ static void bootloader_status(u8 value)
 }
 
 static int check_bootloader(struct i2c_client *client, unsigned int status)
-{ 
+{
 	u8 val = 0;
 	u16 retry = 0;
 
 	msleep(10);  /* recommendation from ATMEL */
 
 recheck:
-	if (i2c_master_recv(client, &val, 1) != 1) { 
+	if (i2c_master_recv(client, &val, 1) != 1) {
 		pr_err("[TSP] i2c recv failed");
 		return -EIO;
 	}
 
-	switch (status) { 
+	switch (status) {
 	case WAITING_BOOTLOAD_COMMAND:
 	case WAITING_FRAME_DATA:
 		val &= ~BOOTLOAD_STATUS_MASK;
 		bootloader_status(val);
-		if (val == APP_CRC_FAIL) { 
+		if (val == APP_CRC_FAIL) {
 			pr_info("[TSP] We've got a APP_CRC_FAIL, so try again (count=%d)", ++retry);
 			goto recheck;
 		}
@@ -946,7 +947,7 @@ recheck:
 
 	case FRAME_CRC_PASS:
 		bootloader_status(val);
-		if (val == FRAME_CRC_CHECK) { 
+		if (val == FRAME_CRC_CHECK) {
 			goto recheck;
 		}
 		break;
@@ -955,7 +956,7 @@ recheck:
 		return -EINVAL;
 	}
 
-	if (val != status) { 
+	if (val != status) {
 		pr_err("[TSP] Invalid status: 0x%02X ", val);
 		return -EINVAL;
 	}
@@ -964,7 +965,7 @@ recheck:
 }
 
 static int unlock_bootloader(struct i2c_client *client)
-{ 
+{
 	u8 cmd[2] = { 0};
 
 	cmd[0] = 0xdc;  /* MXT_CMD_UNLOCK_BL_LSB */
@@ -974,7 +975,7 @@ static int unlock_bootloader(struct i2c_client *client)
 }
 
 int mxt_load_firmware(struct device *dev, const char *fn)
-{ 
+{
 	struct mxt_data *mxt = dev_get_drvdata(dev);
 
 	unsigned int frame_size;
@@ -993,7 +994,7 @@ int mxt_load_firmware(struct device *dev, const char *fn)
 	const struct firmware *fw = NULL;
 
 	ret = request_firmware(&fw, fn, dev);
-	if (ret < 0) { 
+	if (ret < 0) {
 		dev_err(&client->dev, "[TSP] Unable to open firmware %s\n", fn);
 		return -ENOMEM;
 	}
@@ -1004,13 +1005,13 @@ int mxt_load_firmware(struct device *dev, const char *fn)
 	msleep(250);  /* mdelay(100); */
 
 	/* change to slave address of bootloader */
-	if (mxt->client->addr == MXT_I2C_APP_ADDR) { 
+	if (mxt->client->addr == MXT_I2C_APP_ADDR) {
 		pr_info("[TSP] I2C address: 0x%02X --> 0x%02X", MXT_I2C_APP_ADDR, MXT_I2C_BOOTLOADER_ADDR);
 		mxt->client->addr = MXT_I2C_BOOTLOADER_ADDR;
 	}
 
 	ret = check_bootloader(mxt->client, WAITING_BOOTLOAD_COMMAND);
-	if (ret < 0) { 
+	if (ret < 0) {
 		pr_err("[TSP] ... Waiting bootloader command: Failed");
 		goto err_fw;
 	}
@@ -1024,10 +1025,10 @@ int mxt_load_firmware(struct device *dev, const char *fn)
 	pr_info("Updating progress: ");
 	pos += 2;
 
-	while (pos < fw->size) { 
+	while (pos < fw->size) {
 		retry = 0;
 		ret = check_bootloader(mxt->client, WAITING_FRAME_DATA);
-		if (ret < 0) { 
+		if (ret < 0) {
 			pr_err("... Waiting frame data: Failed");
 			goto err_fw;
 		}
@@ -1044,8 +1045,8 @@ try_to_resend_the_last_frame:
 		i2c_master_send(mxt->client, (u8 *)(fw->data + pos), frame_size);
 
 		ret = check_bootloader(mxt->client, FRAME_CRC_PASS);
-		if (ret < 0) { 
-			if (++retry < 10) { 
+		if (ret < 0) {
+			if (++retry < 10) {
 				check_bootloader(mxt->client, WAITING_FRAME_DATA);  /* recommendation from ATMEL */
 				pr_info("[TSP] We've got a FRAME_CRC_FAIL, so try again up to 10 times (count=%d)", retry);
 				goto try_to_resend_the_last_frame;
@@ -1064,7 +1065,7 @@ try_to_resend_the_last_frame:
 
 err_fw:
 	/* change to slave address of application */
-	if (mxt->client->addr == MXT_I2C_BOOTLOADER_ADDR) { 
+	if (mxt->client->addr == MXT_I2C_BOOTLOADER_ADDR) {
 		pr_info("[TSP] I2C address: 0x%02X --> 0x%02X", MXT_I2C_BOOTLOADER_ADDR, MXT_I2C_APP_ADDR);
 		mxt->client->addr = MXT_I2C_APP_ADDR;
 	}
@@ -1075,4 +1076,3 @@ err_fw:
 
 	return ret;
 }
-

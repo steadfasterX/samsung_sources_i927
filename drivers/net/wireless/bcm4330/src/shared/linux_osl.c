@@ -2,13 +2,13 @@
  * Linux OS Independent Layer
  *
  * Copyright (C) 1999-2011, Broadcom Corporation
- * 
+ *
  *         Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- * 
+ *
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -16,7 +16,7 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- * 
+ *
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
@@ -163,7 +163,7 @@ static int16 linuxbcmerrormap[] =
 	-EINVAL,		/* BCME_NMODE_DISABLED */
 	-ENODATA,			/* BCME_NONRESIDENT */
 
-/* When an new error code is added to bcmutils.h, add os 
+/* When an new error code is added to bcmutils.h, add os
  * specific error translation here as well
  */
 /* check if BCME_LAST changed since the last time this function was updated */
@@ -571,13 +571,13 @@ osl_pktget_static(osl_t *osh, uint len)
 	int i = 0;
 	struct sk_buff *skb;
 
-	
+
 	if (len > DHD_SKB_4PAGE_BUFSIZE)
 	{
 		OSL_MSG_ERROR(("osl_pktget_static: Do we really need this big skb?? len=%d\n", len));
 		return osl_pktget(osh, len);
 	}
-	
+
 	down(&bcm_static_skb->osl_pkt_sem);
 	if (len <= DHD_SKB_1PAGE_BUFSIZE)
 	{
@@ -595,13 +595,13 @@ osl_pktget_static(osl_t *osh, uint len)
 			skb = bcm_static_skb->skb_4k[i];
 			skb->tail = skb->data + len;
 			skb->len = len;
-			
+
 			return skb;
 		}
 	}
 
 	if (len <= DHD_SKB_2PAGE_BUFSIZE) {
-	
+
 		for (i = 0; i < MAX_STATIC_PKT_NUM; i++)
 		{
 			if (bcm_static_skb->pkt_use[i+MAX_STATIC_PKT_NUM] == 0)
@@ -615,12 +615,12 @@ osl_pktget_static(osl_t *osh, uint len)
 			skb = bcm_static_skb->skb_8k[i];
 			skb->tail = skb->data + len;
 			skb->len = len;
-			
+
 			return skb;
 		}
 	}
 
-	if (bcm_static_skb->pkt_use[MAX_STATIC_PKT_NUM*2] == 0) 
+	if (bcm_static_skb->pkt_use[MAX_STATIC_PKT_NUM*2] == 0)
 	{
 		bcm_static_skb->pkt_use[MAX_STATIC_PKT_NUM*2] = 1;
 		up(&bcm_static_skb->osl_pkt_sem);
@@ -631,7 +631,7 @@ osl_pktget_static(osl_t *osh, uint len)
 
 		return skb;
 	}
-	
+
 	up(&bcm_static_skb->osl_pkt_sem);
 	OSL_MSG_ERROR(("osl_pktget_static: all static pkt in use!\n"));
 	return osl_pktget(osh, len);
@@ -642,7 +642,7 @@ void
 osl_pktfree_static(osl_t *osh, void *p, bool send)
 {
 	int i;
-	
+
 	for (i = 0; i < MAX_STATIC_PKT_NUM*2+1; i++)
 	{
 		if (p == bcm_static_skb->skb_4k[i])
@@ -656,7 +656,7 @@ osl_pktfree_static(osl_t *osh, void *p, bool send)
 	}
 	return osl_pktfree(osh, p, send);
 }
-#endif 
+#endif
 
 uint32
 osl_pci_read_config(osl_t *osh, uint offset, uint size)
@@ -750,32 +750,32 @@ osl_malloc(osl_t *osh, uint size)
 			if ((size >= PAGE_SIZE)&&(size <= STATIC_BUF_SIZE))
 			{
 				down(&bcm_static_buf->static_sem);
-				
+
 				for (i = 0; i < MAX_STATIC_BUF_NUM; i++)
 				{
 					if (bcm_static_buf->buf_use[i] == 0)
 						break;
 				}
-				
+
 				if (i == MAX_STATIC_BUF_NUM)
 				{
 					up(&bcm_static_buf->static_sem);
 					OSL_MSG_INFO(("osl_malloc: all static buff in use!\n"));
 					goto original;
 				}
-				
+
 				bcm_static_buf->buf_use[i] = 1;
 				up(&bcm_static_buf->static_sem);
-	
+
 				bzero(bcm_static_buf->buf_ptr+STATIC_BUF_SIZE*i, size);
 				if (osh)
 					atomic_add(size, &osh->malloced);
-	
+
 				return ((void *)(bcm_static_buf->buf_ptr+STATIC_BUF_SIZE*i));
 			}
 		}
 	original:
-#endif 
+#endif
 
 	if ((addr = kmalloc(size, GFP_ATOMIC)) == NULL) {
 		if (osh)
@@ -798,9 +798,9 @@ osl_mfree(osl_t *osh, void *addr, uint size)
 			<= ((unsigned char *)bcm_static_buf + STATIC_BUF_TOTAL_LEN)))
 		{
 			int buf_idx = 0;
-			
+
 			buf_idx = ((unsigned char *)addr - bcm_static_buf->buf_ptr)/STATIC_BUF_SIZE;
-			
+
 			down(&bcm_static_buf->static_sem);
 			bcm_static_buf->buf_use[buf_idx] = 0;
 			up(&bcm_static_buf->static_sem);
@@ -812,7 +812,7 @@ osl_mfree(osl_t *osh, void *addr, uint size)
 			return;
 		}
 	}
-#endif 
+#endif
 	if (osh) {
 		ASSERT(osh->magic == OS_HANDLE_MAGIC);
 		atomic_sub(size, &osh->malloced);
@@ -911,7 +911,7 @@ osl_assert(char *exp, char *file, int line)
 	__coverity_panic__();
 #endif
 }
-#endif 
+#endif
 
 void
 osl_delay(uint usec)

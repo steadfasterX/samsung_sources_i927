@@ -3,7 +3,7 @@
  *  BlueZ - Bluetooth protocol stack for Linux
  *
  *  Copyright (C) 2000-2002  Maxim Krasnyansky <maxk@qualcomm.com>
- *  Copyright (C) 2003-2007  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2003-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -27,8 +27,9 @@
 
 #include <time.h>
 #include <sys/time.h>
-#include <bluetooth/bluetooth.h>
 #include <netinet/in.h>
+
+#include "lib/bluetooth.h"
 
 struct frame {
 	void		*data;
@@ -77,6 +78,8 @@ struct frame {
 #define FILT_HCRP	0x0200
 #define FILT_AVDTP	0x0400
 #define FILT_AVCTP	0x0800
+#define FILT_ATT 	0x1000
+#define FILT_SMP	0x2000
 
 #define FILT_OBEX	0x00010000
 #define FILT_CAPI	0x00020000
@@ -105,7 +108,7 @@ struct parser_t {
 
 extern struct parser_t parser;
 
-void init_parser(unsigned long flags, unsigned long filter, 
+void init_parser(unsigned long flags, unsigned long filter,
 		unsigned short defpsm, unsigned short defcompid,
 		int pppdump_fd, int audio_fd);
 
@@ -229,6 +232,9 @@ void hidp_dump(int level, struct frame *frm);
 void hcrp_dump(int level, struct frame *frm);
 void avdtp_dump(int level, struct frame *frm);
 void avctp_dump(int level, struct frame *frm);
+void avrcp_dump(int level, struct frame *frm);
+void att_dump(int level, struct frame *frm);
+void smp_dump(int level, struct frame *frm);
 
 void obex_dump(int level, struct frame *frm);
 void capi_dump(int level, struct frame *frm);

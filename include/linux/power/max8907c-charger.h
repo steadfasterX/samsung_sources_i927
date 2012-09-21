@@ -90,9 +90,11 @@ enum max8907c_fast_charger_time {
 
 struct max8907c_charger_pdata {
 	int irq;
-	int (*topoff_cb) (void);
-	int (*vchg_f_cb) (int);
-	int (*vchg_r_f_cb) (int); /* FACTORY TEST BINARY */
+#ifdef CONFIG_MACH_N1
+    int (*topoff_cb) (void);
+    int (*vchg_f_cb) (int);
+    int (*vchg_r_f_cb) (int); /* FACTORY TEST BINARY */
+#endif
 	enum max8907c_charger_topoff_threshold topoff_threshold;
 	enum max8907c_charger_restart_hysteresis restart_hysteresis;
 	enum max8907c_charger_restart_hysteresis fast_charging_current;

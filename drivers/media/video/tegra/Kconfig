@@ -1,5 +1,6 @@
 source "drivers/media/video/tegra/avp/Kconfig"
 source "drivers/media/video/tegra/mediaserver/Kconfig"
+source "drivers/media/video/tegra/nvavp/Kconfig"
 
 config TEGRA_CAMERA
         bool "Enable support for tegra camera/isp hardware"
@@ -7,6 +8,15 @@ config TEGRA_CAMERA
         default y
         help
           Enables support for the Tegra camera interface
+
+          If unsure, say Y
+
+config TEGRA_DTV
+        bool "Enable support for tegra dtv interface"
+        depends on ARCH_TEGRA
+        default y
+        help
+          Enables support for the Tegra dtv interface
 
           If unsure, say Y
 
@@ -38,11 +48,33 @@ config VIDEO_M5MO
           This is a driver for the Fujitsu M5MO 8MP camera sensor
           for use with the tegra isp.
 
+config VIDEO_OV14810
+        tristate "OV14810 camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the Omnivision OV14810 14MP camera sensor
+          for use with the tegra isp.
+
+
+config VIDEO_OV9726
+        tristate "OV9726 camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the Omnivision OV9726 camera sensor
+          for use with the tegra isp.
+
 config VIDEO_OV2710
         tristate "OV2710 camera sensor support"
         depends on I2C && ARCH_TEGRA
         ---help---
           This is a driver for the Omnivision OV2710 camera sensor
+          for use with the tegra isp.
+
+config VIDEO_AR0832
+        tristate "AR0832 camera sensor support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the AR0832 camera sensor
           for use with the tegra isp.
 
 config VIDEO_SOC380
@@ -57,6 +89,12 @@ config TORCH_SSL3250A
         depends on I2C && ARCH_TEGRA
         ---help---
           This is a driver for the SSL3250A flash/torch camera device
+
+config TORCH_TPS61050
+        tristate "TPS61050 flash/torch support"
+        depends on I2C && ARCH_TEGRA
+        ---help---
+          This is a driver for the TPS61050 flash/torch camera device
 
 config VIDEO_SH532U
         tristate "SH532U focuser support"

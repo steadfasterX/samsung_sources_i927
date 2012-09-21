@@ -116,7 +116,7 @@ xfs_rename(
 	trace_xfs_rename(src_dp, target_dp, src_name, target_name);
 
 	new_parent = (src_dp != target_dp);
-	src_is_directory = ((src_ip->i_d.di_mode & S_IFMT) == S_IFDIR);
+	src_is_directory = S_ISDIR(src_ip->i_d.di_mode);
 
 	if (src_is_directory) {
 		/*
@@ -183,7 +183,7 @@ xfs_rename(
 	 * tree quota mechanism would be circumvented.
 	 */
 	if (unlikely((target_dp->i_d.di_flags & XFS_DIFLAG_PROJINHERIT) &&
-		     (target_dp->i_d.di_projid != src_ip->i_d.di_projid))) {
+		     (xfs_get_projid(target_dp) != xfs_get_projid(src_ip)))) {
 		error = XFS_ERROR(EXDEV);
 		goto error_return;
 	}
@@ -211,7 +211,9 @@ xfs_rename(
 			goto error_return;
 		if (error)
 			goto abort_return;
-		xfs_ichgtime(target_dp, XFS_ICHGTIME_MOD | XFS_ICHGTIME_CHG);
+
+		xfs_trans_ichgtime(tp, target_dp,
+					XFS_ICHGTIME_MOD | XFS_ICHGTIME_CHG);
 
 		if (new_parent && src_is_directory) {
 			error = xfs_bumplink(tp, target_dp);
@@ -224,7 +226,7 @@ xfs_rename(
 		 * target and source are directories and that target can be
 		 * destroyed, or that neither is a directory.
 		 */
-		if ((target_ip->i_d.di_mode & S_IFMT) == S_IFDIR) {
+		if (S_ISDIR(target_ip->i_d.di_mode)) {
 			/*
 			 * Make sure target dir is empty.
 			 */
@@ -249,7 +251,9 @@ xfs_rename(
 					&first_block, &free_list, spaceres);
 		if (error)
 			goto abort_return;
-		xfs_ichgtime(target_dp, XFS_ICHGTIME_MOD | XFS_ICHGTIME_CHG);
+
+		xfs_trans_ichgtime(tp, target_dp,
+					XFS_ICHGTIME_MOD | XFS_ICHGTIME_CHG);
 
 		/*
 		 * Decrement the link count on the target since the target
@@ -292,7 +296,8 @@ xfs_rename(
 	 * inode isn't really being changed, but old unix file systems did
 	 * it and some incremental backup programs won't work without it.
 	 */
-	xfs_ichgtime(src_ip, XFS_ICHGTIME_CHG);
+	xfs_trans_ichgtime(tp, src_ip, XFS_ICHGTIME_CHG);
+	xfs_trans_log_inode(tp, src_ip, XFS_ILOG_CORE);
 
 	/*
 	 * Adjust the link count on src_dp.  This is necessary when
@@ -315,7 +320,7 @@ xfs_rename(
 	if (error)
 		goto abort_return;
 
-	xfs_ichgtime(src_dp, XFS_ICHGTIME_MOD | XFS_ICHGTIME_CHG);
+	xfs_trans_ichgtime(tp, src_dp, XFS_ICHGTIME_MOD | XFS_ICHGTIME_CHG);
 	xfs_trans_log_inode(tp, src_dp, XFS_ILOG_CORE);
 	if (new_parent)
 		xfs_trans_log_inode(tp, target_dp, XFS_ILOG_CORE);

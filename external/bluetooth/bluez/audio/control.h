@@ -22,6 +22,8 @@
  *
  */
 
+#define AVRCP_CONTROL_AVRCP_SRV		"org.bluez.AvrcpService"
+#define AVRCP_CONTROL_ADAPTER 		"org.bluez.ControlAdapter"
 #define AUDIO_CONTROL_INTERFACE "org.bluez.Control"
 
 typedef enum {
@@ -41,6 +43,8 @@ gboolean avctp_remove_state_cb(unsigned int id);
 int avrcp_register(DBusConnection *conn, const bdaddr_t *src, GKeyFile *config);
 void avrcp_unregister(const bdaddr_t *src);
 
+int avrcp_adapter_register(DBusConnection *conn, struct btd_adapter *btd_adapter, GKeyFile *config);
+void avrcp_adapter_unregister(struct btd_adapter *btd_adapter);
 gboolean avrcp_connect(struct audio_device *dev);
 void avrcp_disconnect(struct audio_device *dev);
 

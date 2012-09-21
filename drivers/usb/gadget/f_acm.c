@@ -17,18 +17,10 @@
 #include <linux/slab.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
-#include <linux/usb/android_composite.h>
 
 #include "u_serial.h"
 #include "gadget_chips.h"
 
-/* #define CSY_SAMSUNG_NO_IAD */
-#ifdef CONFIG_USB_DUN_SUPPORT
-/* refered from S1 */
-extern int modem_register(void * data);
-extern void modem_unregister(void);
-extern void notify_control_line_state(u32 value);
-#endif
 
 /*
  * This CDC ACM function support just wraps control functions and
@@ -47,12 +39,6 @@ extern void notify_control_line_state(u32 value);
  * descriptors (roughly equivalent to CDC Unions) may sometimes help.
  */
 
-struct acm_ep_descs {
-	struct usb_endpoint_descriptor	*in;
-	struct usb_endpoint_descriptor	*out;
-	struct usb_endpoint_descriptor	*notify;
-};
-
 struct f_acm {
 	struct gserial			port;
 	u8				ctrl_id, data_id;
@@ -66,11 +52,7 @@ struct f_acm {
 	 */
 	spinlock_t			lock;
 
-	struct acm_ep_descs		fs;
-	struct acm_ep_descs		hs;
-
 	struct usb_ep			*notify;
-	struct usb_endpoint_descriptor	*notify_desc;
 	struct usb_request		*notify_req;
 
 	struct usb_cdc_line_coding	port_line_coding;	/* 8-N-1 etc */
@@ -109,9 +91,7 @@ static inline struct f_acm *port_to_acm(struct gserial *p)
 #define GS_NOTIFY_MAXPACKET		10	/* notification + 2 bytes */
 
 /* interface and class descriptors: */
-#ifdef CSY_SAMSUNG_NO_IAD
-/* Nothing to do */
-#else
+
 static struct usb_interface_assoc_descriptor
 acm_iad_descriptor = {
 	.bLength =		sizeof acm_iad_descriptor,
@@ -121,10 +101,10 @@ acm_iad_descriptor = {
 	.bInterfaceCount = 	2,	// control + data
 	.bFunctionClass =	USB_CLASS_COMM,
 	.bFunctionSubClass =	USB_CDC_SUBCLASS_ACM,
-	.bFunctionProtocol =	USB_CDC_PROTO_NONE,
+	.bFunctionProtocol =	USB_CDC_ACM_PROTO_AT_V25TER,
 	/* .iFunction =		DYNAMIC */
 };
-#endif
+
 
 static struct usb_interface_descriptor acm_control_interface_desc = {
 	.bLength =		USB_DT_INTERFACE_SIZE,
@@ -205,11 +185,7 @@ static struct usb_endpoint_descriptor acm_fs_out_desc = {
 };
 
 static struct usb_descriptor_header *acm_fs_function[] = {
-#ifdef CSY_SAMSUNG_NO_IAD
- /* Nothing to do */
-#else
 	(struct usb_descriptor_header *) &acm_iad_descriptor,
-#endif
 	(struct usb_descriptor_header *) &acm_control_interface_desc,
 	(struct usb_descriptor_header *) &acm_header_desc,
 	(struct usb_descriptor_header *) &acm_call_mgmt_descriptor,
@@ -248,11 +224,7 @@ static struct usb_endpoint_descriptor acm_hs_out_desc = {
 };
 
 static struct usb_descriptor_header *acm_hs_function[] = {
-#ifdef CSY_SAMSUNG_NO_IAD
-/* Nothing to do */
-#else
 	(struct usb_descriptor_header *) &acm_iad_descriptor,
-#endif
 	(struct usb_descriptor_header *) &acm_control_interface_desc,
 	(struct usb_descriptor_header *) &acm_header_desc,
 	(struct usb_descriptor_header *) &acm_call_mgmt_descriptor,
@@ -269,21 +241,13 @@ static struct usb_descriptor_header *acm_hs_function[] = {
 
 #define ACM_CTRL_IDX	0
 #define ACM_DATA_IDX	1
-#ifdef CSY_SAMSUNG_NO_IAD
- /* Nothing to do */
-#else
 #define ACM_IAD_IDX	2
-#endif
 
 /* static strings, in UTF-8 */
 static struct usb_string acm_string_defs[] = {
 	[ACM_CTRL_IDX].s = "CDC Abstract Control Model (ACM)",
 	[ACM_DATA_IDX].s = "CDC ACM Data",
-#ifdef CSY_SAMSUNG_NO_IAD
- /* Nothing to do */
-#else
 	[ACM_IAD_IDX ].s = "CDC Serial",
-#endif
 	{  /* ZEROES END LIST */ },
 };
 
@@ -393,7 +357,6 @@ static int acm_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 		 */
 		acm->port_handshake_bits = w_value;
 #ifdef CONFIG_USB_DUN_SUPPORT
-/* refered from S1 */
 		notify_control_line_state((unsigned long)w_value);
 #endif
 		break;
@@ -435,24 +398,28 @@ static int acm_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 			usb_ep_disable(acm->notify);
 		} else {
 			VDBG(cdev, "init acm ctrl interface %d\n", intf);
+			if (config_ep_by_speed(cdev->gadget, f, acm->notify))
+				return -EINVAL;
 		}
-		acm->notify_desc = ep_choose(cdev->gadget,
-				acm->hs.notify,
-				acm->fs.notify);
-		usb_ep_enable(acm->notify, acm->notify_desc);
+		usb_ep_enable(acm->notify);
 		acm->notify->driver_data = acm;
 
 	} else if (intf == acm->data_id) {
 		if (acm->port.in->driver_data) {
 			DBG(cdev, "reset acm ttyGS%d\n", acm->port_num);
 			gserial_disconnect(&acm->port);
-		} else {
-			DBG(cdev, "activate acm ttyGS%d\n", acm->port_num);
 		}
-		acm->port.in_desc = ep_choose(cdev->gadget,
-				acm->hs.in, acm->fs.in);
-		acm->port.out_desc = ep_choose(cdev->gadget,
-				acm->hs.out, acm->fs.out);
+		if (!acm->port.in->desc || !acm->port.out->desc) {
+			DBG(cdev, "activate acm ttyGS%d\n", acm->port_num);
+			if (config_ep_by_speed(cdev->gadget, f,
+					       acm->port.in) ||
+			    config_ep_by_speed(cdev->gadget, f,
+					       acm->port.out)) {
+				acm->port.in->desc = NULL;
+				acm->port.out->desc = NULL;
+				return -EINVAL;
+			}
+		}
 		gserial_connect(&acm->port, acm->port_num);
 
 	} else
@@ -567,13 +534,18 @@ static void acm_cdc_notify_complete(struct usb_ep *ep, struct usb_request *req)
 }
 
 #ifdef CONFIG_USB_DUN_SUPPORT
-/* refered from S1 */
-void acm_notify(void * dev, u16 state)
+int acm_notify(void *dev, u16 state)
 {
-	struct f_acm	*acm = (struct f_acm *)dev;
-
-	acm->serial_state = state;
-	acm_notify_serial_state(acm);
+	struct f_acm	*acm;
+	if (dev) {
+		acm = (struct f_acm *)dev;
+		acm->serial_state = state;
+		acm_notify_serial_state(acm);
+	} else {
+		printk(KERN_DEBUG "usb: %s not ready\n", __func__);
+		return -EAGAIN;
+	}
+	return 0;
 }
 #endif
 /* connect == the TTY link is open */
@@ -624,11 +596,8 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 	if (status < 0)
 		goto fail;
 	acm->ctrl_id = status;
-#ifdef CSY_SAMSUNG_NO_IAD
- /* Nothing to do */
-#else
 	acm_iad_descriptor.bFirstInterface = status;
-#endif
+
 	acm_control_interface_desc.bInterfaceNumber = status;
 	acm_union_desc .bMasterInterface0 = status;
 
@@ -672,17 +641,10 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 	acm->notify_req->complete = acm_cdc_notify_complete;
 	acm->notify_req->context = acm;
 
-	/* copy descriptors, and track endpoint copies */
+	/* copy descriptors */
 	f->descriptors = usb_copy_descriptors(acm_fs_function);
 	if (!f->descriptors)
 		goto fail;
-
-	acm->fs.in = usb_find_endpoint(acm_fs_function,
-			f->descriptors, &acm_fs_in_desc);
-	acm->fs.out = usb_find_endpoint(acm_fs_function,
-			f->descriptors, &acm_fs_out_desc);
-	acm->fs.notify = usb_find_endpoint(acm_fs_function,
-			f->descriptors, &acm_fs_notify_desc);
 
 	/* support all relevant hardware speeds... we expect that when
 	 * hardware is dual speed, all bulk-capable endpoints work at
@@ -696,15 +658,8 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 		acm_hs_notify_desc.bEndpointAddress =
 				acm_fs_notify_desc.bEndpointAddress;
 
-		/* copy descriptors, and track endpoint copies */
+		/* copy descriptors */
 		f->hs_descriptors = usb_copy_descriptors(acm_hs_function);
-
-		acm->hs.in = usb_find_endpoint(acm_hs_function,
-				f->hs_descriptors, &acm_hs_in_desc);
-		acm->hs.out = usb_find_endpoint(acm_hs_function,
-				f->hs_descriptors, &acm_hs_out_desc);
-		acm->hs.notify = usb_find_endpoint(acm_hs_function,
-				f->hs_descriptors, &acm_hs_notify_desc);
 	}
 
 	DBG(cdev, "acm ttyGS%d: %s speed IN/%s OUT/%s NOTIFY/%s\n",
@@ -713,7 +668,6 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 			acm->port.in->name, acm->port.out->name,
 			acm->notify->name);
 #ifdef CONFIG_USB_DUN_SUPPORT
-/* refered from S1 */
 	modem_register(acm);
 #endif
 	return 0;
@@ -744,14 +698,9 @@ acm_unbind(struct usb_configuration *c, struct usb_function *f)
 		usb_free_descriptors(f->hs_descriptors);
 	usb_free_descriptors(f->descriptors);
 	gs_free_req(acm->notify, acm->notify_req);
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* refered from S1 */
-	gserial_disconnect(&acm->port);
-	gserial_cleanup();
-#endif
+	kfree(acm->port.func.name);
 	kfree(acm);
 #ifdef CONFIG_USB_DUN_SUPPORT
-/* refered from S1 */
 	modem_unregister();
 #endif
 }
@@ -762,78 +711,6 @@ static inline bool can_support_cdc(struct usb_configuration *c)
 	/* everything else is *probably* fine ... */
 	return true;
 }
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-static int acm_set_interface_id(struct usb_function *f,
-	int intf_num,
-	int index_num)
-{
-	int ret = 0;
-	struct f_acm		*acm = func_to_acm(f);
-
-	if (gadget_is_dualspeed(f->config->cdev->gadget)) {
-		if (index_num == 0) {
-			if (usb_change_interface_num(acm_hs_function,
-				f->hs_descriptors, &acm_control_interface_desc,
-				intf_num)) {
-				acm->ctrl_id = intf_num;
-			}
-			usb_change_cdc_union_num(acm_hs_function,
-				f->hs_descriptors, &acm_union_desc,
-				intf_num, 1);
-			usb_change_iad_num(acm_hs_function,
-				f->hs_descriptors, &acm_iad_descriptor,
-				intf_num);
-			ret = 1;
-		} else if (index_num == 1) {
-			if (usb_change_interface_num(acm_hs_function,
-				f->hs_descriptors, &acm_data_interface_desc,
-				intf_num)) {
-				acm->data_id = intf_num;
-			}
-			usb_change_cdc_union_num(acm_hs_function,
-				f->hs_descriptors, &acm_union_desc,
-				intf_num, 0);
-			usb_change_cdc_call_mgmt_num(acm_hs_function,
-				f->hs_descriptors, &acm_call_mgmt_descriptor,
-				intf_num);
-			ret = 1;
-		} else {
-			printk(KERN_DEBUG "usb acm has only 2 interface. please check it\n");
-		}
-	} else {
-		if (index_num == 0) {
-			if (usb_change_interface_num(acm_fs_function,
-				f->descriptors, &acm_control_interface_desc,
-				intf_num)) {
-				acm->ctrl_id = intf_num;
-			}
-			usb_change_cdc_union_num(acm_fs_function,
-				f->descriptors, &acm_union_desc,
-				intf_num, 1);
-			usb_change_iad_num(acm_fs_function, f->descriptors,
-			    &acm_iad_descriptor, intf_num);
-			ret = 1;
-		} else if (index_num == 1) {
-			if (usb_change_interface_num(acm_fs_function,
-				f->descriptors, &acm_data_interface_desc,
-				intf_num)) {
-				acm->data_id = intf_num;
-			}
-			usb_change_cdc_union_num(acm_fs_function,
-				f->descriptors, &acm_union_desc,
-				intf_num, 0);
-			usb_change_cdc_call_mgmt_num(acm_fs_function,
-				f->descriptors, &acm_call_mgmt_descriptor,
-				intf_num);
-			ret = 1;
-		} else {
-			printk(KERN_DEBUG "usb acm has only 2 interface. please check it\n");
-		}
-	}
-	return ret;
-}
-#endif
 
 /**
  * acm_bind_config - add a CDC ACM function to a configuration
@@ -874,16 +751,13 @@ int acm_bind_config(struct usb_configuration *c, u8 port_num)
 		acm_string_defs[ACM_DATA_IDX].id = status;
 
 		acm_data_interface_desc.iInterface = status;
-#ifdef CSY_SAMSUNG_NO_IAD
- /* Nothing to do */
-#else
+
 		status = usb_string_id(c->cdev);
 		if (status < 0)
 			return status;
 		acm_string_defs[ACM_IAD_IDX].id = status;
 
 		acm_iad_descriptor.iFunction = status;
-#endif
 	}
 
 	/* allocate and initialize one new instance */
@@ -899,7 +773,11 @@ int acm_bind_config(struct usb_configuration *c, u8 port_num)
 	acm->port.disconnect = acm_disconnect;
 	acm->port.send_break = acm_send_break;
 
-	acm->port.func.name = "acm";
+	acm->port.func.name = kasprintf(GFP_KERNEL, "acm%u", port_num);
+	if (!acm->port.func.name) {
+		kfree(acm);
+		return -ENOMEM;
+	}
 	acm->port.func.strings = acm_strings;
 	/* descriptors are per-instance copies */
 	acm->port.func.bind = acm_bind;
@@ -908,36 +786,8 @@ int acm_bind_config(struct usb_configuration *c, u8 port_num)
 	acm->port.func.setup = acm_setup;
 	acm->port.func.disable = acm_disable;
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	acm->port.func.set_intf_num = acm_set_interface_id;
-#endif
 	status = usb_add_function(c, &acm->port.func);
 	if (status)
 		kfree(acm);
 	return status;
 }
-
-#ifdef CONFIG_USB_ANDROID_ACM
-
-int acm_function_bind_config(struct usb_configuration *c)
-{
-	int ret = acm_bind_config(c, 0);
-	if (ret == 0)
-		gserial_setup(c->cdev->gadget, 1);
-	return ret;
-}
-
-static struct android_usb_function acm_function = {
-	.name = "acm",
-	.bind_config = acm_function_bind_config,
-};
-
-static int __init init(void)
-{
-	printk(KERN_INFO "f_acm init\n");
-	android_register_function(&acm_function);
-	return 0;
-}
-module_init(init);
-
-#endif /* CONFIG_USB_ANDROID_ACM */

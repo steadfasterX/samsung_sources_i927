@@ -17,7 +17,7 @@ static ssize_t show_control(struct device *d,
 		struct device_attribute *attr, char *buf);
 static ssize_t store_control(struct device *d,
 		struct device_attribute *attr, const char *buf, size_t count);
-		
+
 static DEVICE_ATTR(control, 0664, show_control, store_control);
 
 static struct attribute *levelctl_attributes[] = {
@@ -29,7 +29,8 @@ static const struct attribute_group levelctl_group = {
 	.attrs = levelctl_attributes,
 };
 
-static unsigned int convert_debug_level_str(const char *str) {
+static unsigned int convert_debug_level_str(const char *str)
+{
 	if (strncmp(str, "0xA0A0", 6) == 0 || strncmp(str, "0xa0a0", 6) == 0)
 		return KERNEL_SEC_DEBUG_LEVEL_LOW;
 
@@ -42,7 +43,8 @@ static unsigned int convert_debug_level_str(const char *str) {
 	return 0;
 }
 
-static void convert_debug_level_int(unsigned int val, char *str) {
+static void convert_debug_level_int(unsigned int val, char *str)
+{
 	if (val == KERNEL_SEC_DEBUG_LEVEL_LOW) {
 		strcpy(str, "0xA0A0");
 		return;
@@ -61,19 +63,18 @@ static void convert_debug_level_int(unsigned int val, char *str) {
 
 static void set_debug_level()
 {
-	switch(kernel_sec_get_debug_level())
-	{
-		case KERNEL_SEC_DEBUG_LEVEL_LOW:
-			kernel_sec_set_debug_level(KERNEL_SEC_DEBUG_LEVEL_MID);
-			break;
-		case KERNEL_SEC_DEBUG_LEVEL_MID:
-			kernel_sec_set_debug_level(KERNEL_SEC_DEBUG_LEVEL_HIGH);
-			break;
-		case KERNEL_SEC_DEBUG_LEVEL_HIGH:
-			kernel_sec_set_debug_level(KERNEL_SEC_DEBUG_LEVEL_LOW);
-			break;
-		default:
-			break;
+	switch (kernel_sec_get_debug_level()) {
+	case KERNEL_SEC_DEBUG_LEVEL_LOW:
+		kernel_sec_set_debug_level(KERNEL_SEC_DEBUG_LEVEL_MID);
+		break;
+	case KERNEL_SEC_DEBUG_LEVEL_MID:
+		kernel_sec_set_debug_level(KERNEL_SEC_DEBUG_LEVEL_HIGH);
+		break;
+	case KERNEL_SEC_DEBUG_LEVEL_HIGH:
+		kernel_sec_set_debug_level(KERNEL_SEC_DEBUG_LEVEL_LOW);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -90,8 +91,19 @@ static ssize_t store_control(struct device *d,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 #if 1
-	if(!strncmp(buf, "set", 3)) {
+	if (!strncmp(buf, "set", 3)) {
 		set_debug_level();
+		return count;
+	}
+
+	if (!strncmp(buf, "0xA0A0", 6)) {
+		kernel_sec_set_debug_level(KERNEL_SEC_DEBUG_LEVEL_LOW);
+		return count;
+	} else if (!strncmp(buf, "0xB0B0", 6)) {
+		kernel_sec_set_debug_level(KERNEL_SEC_DEBUG_LEVEL_MID);
+		return count;
+	} else if (!strncmp(buf, "0xC0C0", 6)) {
+		kernel_sec_set_debug_level(KERNEL_SEC_DEBUG_LEVEL_HIGH);
 		return count;
 	}
 #else
@@ -99,8 +111,8 @@ static ssize_t store_control(struct device *d,
 
 	if (sec_debug_level == 0)
 		return -EINVAL;
-	
-	kernel_sec_set_debug_level(sec_debug_level); 
+
+	kernel_sec_set_debug_level(sec_debug_level);
 #endif
 
 return count;
@@ -108,13 +120,12 @@ return count;
 
 static int level_open(struct inode *inode, struct file *filp)
 {
-	printk("level Device open\n");
+	printk(KERN_ERR "level Device open\n");
 
 	return 0;
 }
 
-static struct file_operations level_fops = 
-{
+static struct file_operations level_fops = {
 	.owner = THIS_MODULE,
 	.open = level_open,
 };
@@ -130,14 +141,15 @@ static int __init level_init(void)
 {
 	int result;
 
-	printk("level device init\n");
+	printk(KERN_ERR "level device init\n");
 
 	result = misc_register(&level_device);
 
-	if (result < 0) 
+	if (result < 0)
 		goto init_exit;
-		
-	result = sysfs_create_group(&level_device.this_device->kobj, &levelctl_group);
+
+	result = sysfs_create_group(&level_device.this_device->kobj,\
+			&levelctl_group);
 
 	if (result < 0)
 		goto init_exit;
@@ -145,13 +157,13 @@ static int __init level_init(void)
 	return 0;
 
 init_exit:
-	printk("failed to create sysfs files\n");
+	printk(KERN_ERR "failed to create sysfs files\n");
 	return result;
 }
 
 static void __exit level_exit(void)
 {
-	printk("level device exit\n");
+	printk(KERN_ERR "level device exit\n");
 	misc_deregister(&level_device);
 }
 

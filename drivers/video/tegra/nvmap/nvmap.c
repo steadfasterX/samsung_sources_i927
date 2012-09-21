@@ -1,9 +1,9 @@
 /*
- * drivers/video/tegra/nvmap.c
+ * drivers/video/tegra/nvmap/nvmap.c
  *
  * Memory manager for Tegra GPU
  *
- * Copyright (c) 2009-2010, NVIDIA Corporation.
+ * Copyright (c) 2009-2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,6 @@
 #include <linux/highmem.h>
 #include <linux/io.h>
 #include <linux/rbtree.h>
-#include <linux/smp_lock.h>
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
 #include <linux/slab.h>
@@ -337,9 +336,9 @@ out:
 	return ret;
 }
 
-static unsigned long handle_phys(struct nvmap_handle *h)
+static phys_addr_t handle_phys(struct nvmap_handle *h)
 {
-	u32 addr;
+	phys_addr_t addr;
 
 	if (h->heap_pgalloc && h->pgalloc.contig) {
 		addr = page_to_phys(h->pgalloc.pages[0]);
@@ -382,8 +381,8 @@ static int nvmap_reloc_pin_array(struct nvmap_client *client,
 	for (i = 0; i < nr; i++) {
 		struct nvmap_handle *patch;
 		struct nvmap_handle *pin;
-		unsigned long reloc_addr;
-		unsigned long phys;
+		phys_addr_t reloc_addr;
+		phys_addr_t phys;
 		unsigned int pfn;
 
 		/* all of the handles are validated and get'ted prior to
@@ -417,13 +416,14 @@ static int nvmap_reloc_pin_array(struct nvmap_client *client,
 		pfn = __phys_to_pfn(phys);
 		if (pfn != last_pfn) {
 			pgprot_t prot = nvmap_pgprot(patch, pgprot_kernel);
-			unsigned long kaddr = (unsigned long)addr;
+			phys_addr_t kaddr = (phys_addr_t)addr;
 			set_pte_at(&init_mm, kaddr, *pte, pfn_pte(pfn, prot));
 			flush_tlb_kernel_page(kaddr);
 			last_pfn = pfn;
 		}
 
 		reloc_addr = handle_phys(pin) + arr[i].pin_offset;
+		reloc_addr >>= arr[i].reloc_shift;
 		__raw_writel(reloc_addr, addr + (phys & ~PAGE_MASK));
 	}
 
@@ -571,11 +571,11 @@ int nvmap_pin_array(struct nvmap_client *client, struct nvmap_handle *gather,
 	return count;
 }
 
-unsigned long nvmap_pin(struct nvmap_client *client,
+phys_addr_t nvmap_pin(struct nvmap_client *client,
 			struct nvmap_handle_ref *ref)
 {
 	struct nvmap_handle *h;
-	unsigned long phys;
+	phys_addr_t phys;
 	int ret = 0;
 
 	h = nvmap_handle_get(ref->handle);
@@ -603,10 +603,10 @@ unsigned long nvmap_pin(struct nvmap_client *client,
 	return ret ?: phys;
 }
 
-unsigned long nvmap_handle_address(struct nvmap_client *c, unsigned long id)
+phys_addr_t nvmap_handle_address(struct nvmap_client *c, unsigned long id)
 {
 	struct nvmap_handle *h;
-	unsigned long phys;
+	phys_addr_t phys;
 
 	h = nvmap_get_handle_id(c, id);
 	if (!h)
@@ -621,6 +621,9 @@ unsigned long nvmap_handle_address(struct nvmap_client *c, unsigned long id)
 
 void nvmap_unpin(struct nvmap_client *client, struct nvmap_handle_ref *ref)
 {
+	if (!ref)
+		return;
+
 	atomic_dec(&ref->pin);
 	if (handle_unpin(client, ref->handle, false))
 		wake_up(&client->share->pin_wait);
@@ -737,19 +740,23 @@ void nvmap_munmap(struct nvmap_handle_ref *ref, void *addr)
 }
 
 struct nvmap_handle_ref *nvmap_alloc(struct nvmap_client *client, size_t size,
-				     size_t align, unsigned int flags)
+				     size_t align, unsigned int flags,
+				     unsigned int heap_mask)
 {
 	const unsigned int default_heap = (NVMAP_HEAP_SYSMEM |
 					   NVMAP_HEAP_CARVEOUT_GENERIC);
 	struct nvmap_handle_ref *r = NULL;
 	int err;
 
+	if (heap_mask == 0)
+		heap_mask = default_heap;
+
 	r = nvmap_create_handle(client, size);
 	if (IS_ERR(r))
 		return r;
 
 	err = nvmap_alloc_handle_id(client, nvmap_ref_to_id(r),
-				    default_heap, align, flags);
+				    heap_mask, align, flags);
 
 	if (err) {
 		nvmap_free_handle_id(client, nvmap_ref_to_id(r));
@@ -759,8 +766,58 @@ struct nvmap_handle_ref *nvmap_alloc(struct nvmap_client *client, size_t size,
 	return r;
 }
 
+/* allocates memory with specifed iovm_start address. */
+struct nvmap_handle_ref *nvmap_alloc_iovm(struct nvmap_client *client,
+	size_t size, size_t align, unsigned int flags, unsigned int iovm_start)
+{
+	int err;
+	struct nvmap_handle *h;
+	struct nvmap_handle_ref *r;
+	const unsigned int default_heap = NVMAP_HEAP_IOVMM;
+
+	/* size need to be more than one page.
+	 * otherwise heap preference would change to system heap.
+	 */
+	if (size <= PAGE_SIZE)
+		size = PAGE_SIZE << 1;
+	r = nvmap_create_handle(client, size);
+	if (IS_ERR_OR_NULL(r))
+		return r;
+
+	h = r->handle;
+	h->pgalloc.iovm_addr = iovm_start;
+	err = nvmap_alloc_handle_id(client, nvmap_ref_to_id(r),
+			default_heap, align, flags);
+	if (err)
+		goto fail;
+
+	err = mutex_lock_interruptible(&client->share->pin_lock);
+	if (WARN_ON(err))
+		goto fail;
+	err = pin_locked(client, h);
+	mutex_unlock(&client->share->pin_lock);
+	if (err)
+		goto fail;
+	return r;
+
+fail:
+	nvmap_free_handle_id(client, nvmap_ref_to_id(r));
+	return ERR_PTR(err);
+}
+
+void nvmap_free_iovm(struct nvmap_client *client, struct nvmap_handle_ref *r)
+{
+	unsigned long ref_id = nvmap_ref_to_id(r);
+
+	nvmap_unpin_ids(client, 1, &ref_id);
+	nvmap_free_handle_id(client, ref_id);
+}
+
 void nvmap_free(struct nvmap_client *client, struct nvmap_handle_ref *r)
 {
+	if (!r)
+		return;
+
 	nvmap_free_handle_id(client, nvmap_ref_to_id(r));
 }
 
@@ -768,14 +825,16 @@ void nvmap_free(struct nvmap_client *client, struct nvmap_handle_ref *r)
  * create a mapping to the user's buffer and write it
  * (uses similar logic from nvmap_reloc_pin_array to map the cmdbuf)
  */
-int nvmap_patch_wait(struct nvmap_client *client,
+int nvmap_patch_word(struct nvmap_client *client,
 				struct nvmap_handle *patch,
 				u32 patch_offset, u32 patch_value)
 {
-	unsigned long phys;
-	unsigned int pfn, last_pfn = 0;
+	phys_addr_t phys;
+	unsigned long kaddr;
+	unsigned int pfn;
 	void *addr;
 	pte_t **pte;
+	pgprot_t prot;
 
 	if (patch_offset >= patch->size) {
 		nvmap_warn(client, "read/write outside of handle\n");
@@ -796,15 +855,12 @@ int nvmap_patch_wait(struct nvmap_client *client,
 	}
 
 	pfn = __phys_to_pfn(phys);
+	prot = nvmap_pgprot(patch, pgprot_kernel);
+	kaddr = (unsigned long)addr;
 
 	/* write PTE, so addr points to cmdbuf PFN */
-	if (pfn != last_pfn) {
-		pgprot_t prot = nvmap_pgprot(patch, pgprot_kernel);
-		unsigned long kaddr = (unsigned long)addr;
-		set_pte_at(&init_mm, kaddr, *pte, pfn_pte(pfn, prot));
-		flush_tlb_kernel_page(kaddr);
-		last_pfn = pfn;
-	}
+	set_pte_at(&init_mm, kaddr, *pte, pfn_pte(pfn, prot));
+	flush_tlb_kernel_page(kaddr);
 
 	/* write patch_value to addr + page offset */
 	__raw_writel(patch_value, addr + (phys & ~PAGE_MASK));

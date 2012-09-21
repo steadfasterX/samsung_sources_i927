@@ -37,7 +37,6 @@
 #include "drmP.h"
 #include <linux/poll.h>
 #include <linux/slab.h>
-#include <linux/smp_lock.h>
 
 /* from BKL pushdown: note that nothing else serializes idr_find() */
 DEFINE_MUTEX(drm_global_mutex);
@@ -236,6 +235,8 @@ static int drm_open_helper(struct inode *inode, struct file *filp,
 	if (filp->f_flags & O_EXCL)
 		return -EBUSY;	/* No exclusive opens */
 	if (!drm_cpu_valid())
+		return -EINVAL;
+	if (dev->switch_power_state != DRM_SWITCH_POWER_ON)
 		return -EINVAL;
 
 	DRM_DEBUG("pid = %d, minor = %d\n", task_pid_nr(current), minor_id);
@@ -484,6 +485,11 @@ int drm_release(struct inode *inode, struct file *filp)
 		  task_pid_nr(current),
 		  (long)old_encode_dev(file_priv->minor->device),
 		  dev->open_count);
+
+	/* Release any auth tokens that might point to this file_priv,
+	   (do that under the drm_global_mutex) */
+	if (file_priv->magic)
+		(void) drm_remove_magic(file_priv->master, file_priv->magic);
 
 	/* if the master has gone away we can't do anything with the lock */
 	if (file_priv->minor->master)

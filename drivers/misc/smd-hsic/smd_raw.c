@@ -645,7 +645,7 @@ static int smdraw_tx_submit(const char __user *data, struct str_smdraw *smdraw,
 #if 0
 	add_tail_txurb(hsic->txq, urb);
 	queue_tx_work();
-	
+
 	return 0;
 #else
 	usb_mark_last_busy(smdraw->hsic.usb);
@@ -781,7 +781,7 @@ static ssize_t smdraw_write(struct file *file, const char __user * buf,
 	/* max packet size : 1500 byte */
 	while (count > byte_sent) {
 		send_byte = (count - byte_sent > 1500) ? 1500 : count - byte_sent;
-	
+
 		r = smdraw_tx_submit(buf + byte_sent , smdraw, rawdev->cid, send_byte);
 		if (r) {
 			pr_err("%s:smdraw_tx_submit() failed\n", __func__);
@@ -1092,7 +1092,7 @@ static void pdp_workqueue_handler(struct work_struct *work)
 			spin_unlock_irqrestore(&smdraw->lock, flags);
 			return;
 		}
-		
+
 		usb_mark_last_busy(smdraw->hsic.usb);
 		pdp_priv = netdev_priv(skb->dev);
 		/* skb destroy done by next function call */
@@ -1247,7 +1247,7 @@ err_cdev_add:
 	unregister_chrdev_region(devid, 1);
 err_alloc_chrdev_region:
 	class_destroy(smdraw->class);
-	
+
 	return -ENOMEM;
 }
 
@@ -1401,7 +1401,7 @@ void *connect_smdraw(void *smd_device, struct str_hsic *hsic)
 		if (netdev)
 			netif_wake_queue(netdev);
 	}
-	
+
 	return smd_device;
 	}
 

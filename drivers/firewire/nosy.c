@@ -37,7 +37,7 @@
 #include <linux/uaccess.h>
 #include <linux/wait.h>
 
-#include <asm/atomic.h>
+#include <linux/atomic.h>
 #include <asm/byteorder.h>
 
 #include "nosy.h"
@@ -302,7 +302,7 @@ nosy_open(struct inode *inode, struct file *file)
 
 	file->private_data = client;
 
-	return 0;
+	return nonseekable_open(inode, file);
 fail:
 	kfree(client);
 	lynx_put(lynx);

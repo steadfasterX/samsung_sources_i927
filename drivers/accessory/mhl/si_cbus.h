@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -32,7 +32,7 @@
 
 
 #if	!defined(_CBUS_H)
-#define	_CBUS_H				
+#define	_CBUS_H
 
 extern void CpCbusHandler ( void );
 extern void CpCbusInitialize ( void );

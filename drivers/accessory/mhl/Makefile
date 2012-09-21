@@ -12,5 +12,4 @@ obj-$(CONFIG_MHL_SII9234) +=	sii9234.o \
 				SiI9234_I2C_master.o \
 				sii9234_driver.o \
 				si_apiCbus.o \
-				si_cpCbus.o 
-
+				si_cpCbus.o

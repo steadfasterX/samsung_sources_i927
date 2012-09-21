@@ -67,15 +67,15 @@ static struct Cmc623RegisterSet Cmc623_TuneSeq[CMC623_MAX_SETTINGS];
 #define DELIMITER 0xff
 
 static const u8 all_regs_bank0[] = {
-	0xb4, 0xb3, 0x10, 0x24, 0x0b, 0x12, 0x13, 0x14, 0x15, 
-	0x16, 0x17, 0x18, 0x19, 0x0f, 0x0d, 0x0e, 0x22, 0x23, 0x49, 0x4a, 
-	0x4b, 0x4d, 0xc8, 0xc9, 0x42, 0x6e, 0x6f, 0x70, 0x71, 
+	0xb4, 0xb3, 0x10, 0x24, 0x0b, 0x12, 0x13, 0x14, 0x15,
+	0x16, 0x17, 0x18, 0x19, 0x0f, 0x0d, 0x0e, 0x22, 0x23, 0x49, 0x4a,
+	0x4b, 0x4d, 0xc8, 0xc9, 0x42, 0x6e, 0x6f, 0x70, 0x71,
 	0x76, 0x77, 0x78, 0x79, 0x7a, 0x28, 0x09, 0x26,
 	DELIMITER,
 	0x01,
-	0x2c, 0x2d, 0x2e, 0x2f, 0x3a, 0x3b, 0x3c, 0x3f, 0x42, 
+	0x2c, 0x2d, 0x2e, 0x2f, 0x3a, 0x3b, 0x3c, 0x3f, 0x42,
 	DELIMITER,
-	0x72, 0x73, 0x74, 0x75, 0x7c, 
+	0x72, 0x73, 0x74, 0x75, 0x7c,
 	DELIMITER,
 	0xc8, 0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xcf, 0xd0, 0xd1, 0xd2, 0xd3,
 	DELIMITER,
@@ -83,7 +83,7 @@ static const u8 all_regs_bank0[] = {
 
 static const u8 all_regs_bank1[] = {
 	0x09, 0x0a, 0x0b, 0x0c, 0x01, 0x06, 0x07, 0x65, 0x68, 0x6c,
-	0x6d, 0x6e, 
+	0x6d, 0x6e,
 	DELIMITER,
 	0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
 	0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31,
@@ -129,7 +129,7 @@ struct cmc623_state_type{
 
 extern int lcdonoff;
 
-static struct cmc623_state_type cmc623_state = { 
+static struct cmc623_state_type cmc623_state = {
 #ifdef CMC623_TUNING
 	.cabc_enabled = false,	//for tuning mode
 #else
@@ -200,7 +200,7 @@ static mDNIe_mode_CABC_type cmc623_cabc_mode[]=
 	mode_type_CABC_none,		// Navi
 };*/
 
-#include "cmc623_tune_value.h"	
+#include "cmc623_tune_value.h"
 
 typedef enum
 {
@@ -208,10 +208,10 @@ typedef enum
 	LCD_TYPE_PLS,
 	LCD_TYPE_VA50,
 	LCD_TYPE_TN,
-	LCD_TYPE_FFS,	
-	LCD_TYPE_LCDPLS,	
-	LCD_TYPE_T7,	
-	LCD_TYPE_T8,	
+	LCD_TYPE_FFS,
+	LCD_TYPE_LCDPLS,
+	LCD_TYPE_T7,
+	LCD_TYPE_T8,
 	LCD_TYPE_MAX,
 }Lcd_Type;
 Lcd_Type lcd_type = 0;
@@ -257,7 +257,7 @@ static void cmc623_Color_White_Change(int value, int finalize)
 
 	cmc623_I2cWrite16(0x0000, 0x0000);		//bank
 	cmc623_I2cWrite16(mode->addr, mode->data);
-	
+
 	if(finalize == TRUE)
 	{
 		cmc623_reg_unmask();
@@ -279,7 +279,7 @@ static void cmc623_Color_Black_Change(int value, int finalize)
 		cmc623_I2cWrite16(mode->addr, mode->data);
 		mode++;
 	}
-	
+
 	if(finalize == TRUE)
 	{
 		cmc623_reg_unmask();
@@ -299,7 +299,7 @@ static void cmc623_Color_Saturation_Change(int value, int finalize)
 
 	cmc623_I2cWrite16(0x0000, 0x0000);		//bank
 	cmc623_I2cWrite16(mode->addr, mode->data);
-	
+
 	if(finalize == TRUE)
 	{
 		cmc623_reg_unmask();
@@ -324,12 +324,12 @@ static void cmc623_UserSelect_Mode_Change(mDNIe_data_type *mode)
 		printk(KERN_WARNING "%s ignore for bypass mode\n", __func__);
 		return;
 		}
-	mutex_lock(&cmc623_Set_Mode_mutex);	
+	mutex_lock(&cmc623_Set_Mode_mutex);
 	set_mode = mode;
 	while ( set_mode->addr != END_SEQ)
 	{
 		cmc623_I2cWrite16(set_mode->addr, set_mode->data);
-		//printk(KERN_INFO "[cmc623_backgroud_mode] a(0x%x),d(0x%x)\n",set_mode->addr, set_mode->data);	
+		//printk(KERN_INFO "[cmc623_backgroud_mode] a(0x%x),d(0x%x)\n",set_mode->addr, set_mode->data);
 		set_mode++;
 	}
 	mutex_unlock(&cmc623_Set_Mode_mutex);
@@ -349,7 +349,7 @@ static void cmc623_Set_UserSelect_Mode(enum Lcd_CMC623_USERSELECT_mode mode, int
 			case CMC623_USERSELECT_DYNAMIC_MODE:
 				cmc623_UserSelect_Mode_Change((mDNIe_data_type*)cmc623_values[CMC_USERSELECT_DYNAMIC]);
 			break;
-			
+
 			case CMC623_USERSELECT_STANDARD_MODE:
 				cmc623_UserSelect_Mode_Change((mDNIe_data_type*)cmc623_values[CMC_USERSELECT_STANDARD]);
 			break;
@@ -359,7 +359,13 @@ static void cmc623_Set_UserSelect_Mode(enum Lcd_CMC623_USERSELECT_mode mode, int
 			break;
 		}
 		current_cmc623_Userselect = mode;
-		printk("[cmc623] cmc623_Userselect_Mode: current_cmc623_Userselect(%d), current_cmc623_CABC_OnOff(%d)->(%d) / OVE : %d \n",current_cmc623_Userselect, current_cmc623_CABC_OnOff, cabc_enable,current_cmc623_OutDoor_OnOff);	
+
+		printk(KERN_INFO "[cmc623] cmc623_Userselect_Mode: "
+				"current_cmc623_Userselect(%d), "
+				"current_cmc623_CABC_OnOff(%d)->(%d) "
+				"/ OVE : %d\n", current_cmc623_Userselect,
+				current_cmc623_CABC_OnOff, cabc_enable,
+				current_cmc623_OutDoor_OnOff);
 }
 //EXPORT_SYMBOL(cmc623_Set_Mode);
 
@@ -396,13 +402,13 @@ static void cmc623_Mode_Change(mDNIe_data_type *mode, int cabc_enable, int flag,
 	while ( set_mode->addr != END_SEQ)
 	{
 		cmc623_I2cWrite16(set_mode->addr, set_mode->data);
-		//printk(KERN_INFO "[cmc623_UImoe] a(0x%x),d(0x%x)\n",set_mode->addr, set_mode->data);	
+		//printk(KERN_INFO "[cmc623_UImoe] a(0x%x),d(0x%x)\n",set_mode->addr, set_mode->data);
 		set_mode++;
 	}
 	mutex_unlock(&cmc623_Set_Mode_mutex);
 
-	
-	// brightness setting 
+
+	// brightness setting
 	check = ((flag&CMC_FLAG_SETTING_FIRST) || cabc_enable != cmc623_state.cabc_enabled);
 	if(check || lut != cmc623_state.power_lut_num)
 	{
@@ -411,7 +417,7 @@ static void cmc623_Mode_Change(mDNIe_data_type *mode, int cabc_enable, int flag,
 			//CABC brightness setting
 
 			//printk(KERN_ERR "%s [cmc623]  cmc623_Mode_Change => cmc623_cabc_pwm_brightness_reg \n", __func__);
-			
+
 			cmc623_cabc_pwm_brightness_reg(cmc623_state.brightness, flag, lut);
 
 			cmc623_state.cabc_enabled = TRUE;
@@ -440,9 +446,9 @@ static void cmc623_Mode_Change(mDNIe_data_type *mode, int cabc_enable, int flag,
 	{
 		cmc623_Color_White_Change(cmc623_state.white,FALSE);
 		cmc623_Color_Saturation_Change(cmc623_state.saturation,FALSE);
-		cmc623_Color_Black_Change(cmc623_state.black,FALSE);	
+		cmc623_Color_Black_Change(cmc623_state.black,FALSE);
 	}
-#endif	
+#endif
 	if(!cmc623_OutDoor_Enable(current_cmc623_OutDoor_OnOff))
 	{
 		cmc623_reg_unmask();
@@ -455,11 +461,11 @@ static void cmc623_Set_Mode(enum Lcd_CMC623_UI_mode mode, int cmc623_CABC_OnOff,
 	int lut_num;
 	int mdnie_userselect ;
 	current_cmc623_UI = mode;
-	
+
 	if(cmc623_CABC_OnOff)
 	{
 		cabc_enable = 1;
-		
+
 		switch(mode)
 		{
 			case CMC623_UI_MODE:
@@ -481,7 +487,7 @@ static void cmc623_Set_Mode(enum Lcd_CMC623_UI_mode mode, int cmc623_CABC_OnOff,
 				lut_num = 0;
 				cmc623_Mode_Change((mDNIe_data_type*)cmc623_values[CMC_Video_Cold_CABC], TRUE, flag, lut_num);
 			break;
-			
+
 			case CMC623_CAMERA_MODE:
 				lut_num = 0;
 				cabc_enable = 0;
@@ -535,7 +541,7 @@ static void cmc623_Set_Mode(enum Lcd_CMC623_UI_mode mode, int cmc623_CABC_OnOff,
 				cabc_enable = 0;
 				cmc623_Mode_Change((mDNIe_data_type*)cmc623_values[CMC_Video_Cold], FALSE, flag, lut_num);
 			break;
-			
+
 			case CMC623_CAMERA_MODE:
 				lut_num = 0;
 				cmc623_Mode_Change((mDNIe_data_type*)cmc623_values[CMC_Camera], FALSE, flag, lut_num);
@@ -556,11 +562,11 @@ static void cmc623_Set_Mode(enum Lcd_CMC623_UI_mode mode, int cmc623_CABC_OnOff,
 				cmc623_Mode_Change((mDNIe_data_type*)cmc623_values[CMC_VT], FALSE, flag, lut_num);
 			break;
 		}
-		
+
 		//current_cmc623_UI = mode;
 		current_cmc623_CABC_OnOff = FALSE;
-	}	
-	printk("[cmc623] cmc623_Set_Mode: current_cmc623_UI(%d), current_cmc623_CABC_OnOff(%d)->(%d) / OVE : %d \n",current_cmc623_UI, current_cmc623_CABC_OnOff, cabc_enable,current_cmc623_OutDoor_OnOff);	
+	}
+	printk(KERN_INFO "[cmc623] cmc623_Set_Mode: current_cmc623_UI(%d), current_cmc623_CABC_OnOff(%d)->(%d) / OVE : %d \n",current_cmc623_UI, current_cmc623_CABC_OnOff, cabc_enable,current_cmc623_OutDoor_OnOff);
 }
 //EXPORT_SYMBOL(cmc623_Set_Mode);
 
@@ -578,8 +584,8 @@ void cmc623_Set_Mode_Ext(enum Lcd_CMC623_UI_mode mode, u8 mDNIe_Outdoor_OnOff)
 		cmc623_Set_Mode(mode, current_cmc623_CABC_OnOff,0);
 	}
 	mutex_unlock(&cmc623_state_transaction_lock);
-	
-	dprintk("[cmc623] cmc623_Set_Mode_Ext: current_cmc623_UI(%d), current_cmc623_OutDoor_OnOff(%d)  \n",current_cmc623_UI, current_cmc623_OutDoor_OnOff);	
+
+	dprintk("[cmc623] cmc623_Set_Mode_Ext: current_cmc623_UI(%d), current_cmc623_OutDoor_OnOff(%d)  \n",current_cmc623_UI, current_cmc623_OutDoor_OnOff);
 }
 EXPORT_SYMBOL(cmc623_Set_Mode_Ext);
 
@@ -595,15 +601,15 @@ static bool cmc623_I2cWrite16( unsigned char Addr, unsigned long Data)
 		printk(KERN_ERR "p_cmc623_data is NULL\n");
 		return -ENODEV;
 		}
-	p_client = p_cmc623_data->client;		
+	p_client = p_cmc623_data->client;
 
-	if((p_client == NULL))  
+	if((p_client == NULL))
 		{
 		printk("cmc623_I2cWrite16 p_client is NULL\n");
 		return -ENODEV;
 		}
 
-	if (!p_client->adapter) 
+	if (!p_client->adapter)
 		{
 		printk("cmc623_I2cWrite16 p_client->adapter is NULL\n");
 		return -ENODEV;
@@ -638,14 +644,14 @@ static bool cmc623_I2cWrite16( unsigned char Addr, unsigned long Data)
 
 	err = i2c_transfer(p_client->adapter, msg, 1);
 
-	if (err >= 0) 
+	if (err >= 0)
 		{
 		//printk("%s %d i2c transfer OK\n", __func__, __LINE__);/* add by inter.park */
 		return 0;
 		}
 
 	printk("%s i2c transfer error:%d(a:%x)\n", __func__, err, Addr);/* add by inter.park */
-	return err;    
+	return err;
 }
 
 static int cmc623_I2cRead16_direct(u8 reg, u16 *val, int isDirect)
@@ -661,15 +667,15 @@ static int cmc623_I2cRead16_direct(u8 reg, u16 *val, int isDirect)
 		printk(KERN_ERR "%s p_cmc623_data is NULL\n", __func__);
 		return -ENODEV;
 		}
-	p_client = p_cmc623_data->client;		
+	p_client = p_cmc623_data->client;
 
-	if( (p_client == NULL))  
+	if( (p_client == NULL))
 		{
 		printk("%s p_client is NULL\n", __func__);
 		return -ENODEV;
 		}
 
-	if (!p_client->adapter) 
+	if (!p_client->adapter)
 		{
 		printk("%s p_client->adapter is NULL\n", __func__);
 		return -ENODEV;
@@ -691,7 +697,7 @@ static int cmc623_I2cRead16_direct(u8 reg, u16 *val, int isDirect)
 	msg[1].buf   = &data[0];
 	err = i2c_transfer(p_client->adapter, &msg[0], 2);
 
-	if (err >= 0) 
+	if (err >= 0)
 		{
 		*val = (data[0]<<8) | data[1];
 		return 0;
@@ -718,7 +724,7 @@ void cmc623_Set_Region(int enable, int hStart, int hEnd, int vStart, int vEnd)
 	if(enable)
 	{
 		cmc623_I2cWrite16(0x0001,0x0300 | data);
-	
+
 		cmc623_I2cWrite16(0x0002,hStart);
 		cmc623_I2cWrite16(0x0003,hEnd);
 		cmc623_I2cWrite16(0x0004,vStart);
@@ -730,7 +736,7 @@ void cmc623_Set_Region(int enable, int hStart, int hEnd, int vStart, int vEnd)
 	}
 	cmc623_I2cWrite16(0x0028,0x0000);
 	mutex_unlock(&cmc623_state_transaction_lock);
-	
+
 	cmc623_current_region_enable = enable;
 }
 EXPORT_SYMBOL(cmc623_Set_Region);
@@ -785,21 +791,21 @@ bool cmc623_tune(unsigned long num) // P1_LSJ : DE08
 
 	printk("========== Start of tuning CMC623 Jun  ==========\n");
 
-	for (i=0; i<num; i++) 
+	for (i=0; i<num; i++)
 	{
 		printk("[%2d] Writing => reg: 0x%2x, data: 0x%4lx\n", i+1, Cmc623_TuneSeq[i].RegAddr, Cmc623_TuneSeq[i].Data);
 
-		if (0 > cmc623_I2cWrite16(Cmc623_TuneSeq[i].RegAddr, Cmc623_TuneSeq[i].Data)) 
+		if (0 > cmc623_I2cWrite16(Cmc623_TuneSeq[i].RegAddr, Cmc623_TuneSeq[i].Data))
 		{
 			printk("I2cWrite16 failed\n");
 			return 0;
 		}
-		else 
+		else
 		{
 			printk("I2cWrite16 succeed\n");
 		}
 
-		if ( Cmc623_TuneSeq[i].RegAddr == CMC623_REG_SWRESET && Cmc623_TuneSeq[i].Data == 0xffff ) 
+		if ( Cmc623_TuneSeq[i].RegAddr == CMC623_REG_SWRESET && Cmc623_TuneSeq[i].Data == 0xffff )
 		{
 			mdelay(3);
 		}
@@ -822,12 +828,12 @@ static int parse_text(char * src, int len)
 	count = 0;
 	sstart = c;
 
-	for(i=0; i<len; i++,c++) 
+	for(i=0; i<len; i++,c++)
 	{
 		char a = *c;
-		if(a=='\r' || a=='\n') 
+		if(a=='\r' || a=='\n')
 		{
-			if(c > sstart) 
+			if(c > sstart)
 			{
 				str_line[count] = sstart;
 				count++;
@@ -837,7 +843,7 @@ static int parse_text(char * src, int len)
 		}
 	}
 
-	if(c > sstart) 
+	if(c > sstart)
 	{
 		str_line[count] = sstart;
 		count++;
@@ -845,13 +851,13 @@ static int parse_text(char * src, int len)
 
 	printk("----------------------------- Total number of lines:%d\n", count);
 
-	for(i=0; i<count; i++) 
+	for(i=0; i<count; i++)
 	{
 		printk("line:%d, [start]%s[end]\n", i, str_line[i]);
 		ret = sscanf(str_line[i], "0x%x,0x%x\n", &data1, &data2);
 		printk("Result => [0x%2x 0x%4x] %s\n", data1, data2, (ret==2)?"Ok":"Not available");
-		if(ret == 2) 
-		{   
+		if(ret == 2)
+		{
 			Cmc623_TuneSeq[index].RegAddr = (unsigned char)data1;
 			Cmc623_TuneSeq[index++].Data  = (unsigned long)data2;
 		}
@@ -874,20 +880,20 @@ static int cmc623_load_data(void)
 	set_fs(get_ds());
 
 	filp = filp_open(CMC623_PATH_TUNING_DATA, O_RDONLY, 0);
-	if(IS_ERR(filp)) 
+	if(IS_ERR(filp))
 	{
 		kloge("file open error:%d", (s32)filp);
 
 		return -1;
 
-		/*		
+		/*
 		filp = filp_open(CMC623_PATH_TUNING_DATA2, O_RDONLY, 0);
-		if(IS_ERR(filp)) 
+		if(IS_ERR(filp))
 		{
 		kloge("file open error2");
 
 		filp = filp_open(CMC623_PATH_TUNING_DATA3, O_RDONLY, 0);
-		if(IS_ERR(filp)) 
+		if(IS_ERR(filp))
 		{
 		kloge("file open error3");
 		return -1;
@@ -901,7 +907,7 @@ static int cmc623_load_data(void)
 
 	//dp = kmalloc(l, GFP_KERNEL);
 	dp = kmalloc(l+10, GFP_KERNEL);		// add cushion
-	if(dp == NULL) 
+	if(dp == NULL)
 	{
 		kloge("Out of Memory!");
 		filp_close(filp, current->files);
@@ -910,10 +916,10 @@ static int cmc623_load_data(void)
 	pos = 0;
 	memset(dp, 0, l);
 	kloge("== Before vfs_read ======");
-	ret = vfs_read(filp, (char __user *)dp, l, &pos);   // P1_LSJ : DE08 : ¿©±â¼­ Á×À½ 
+	ret = vfs_read(filp, (char __user *)dp, l, &pos);   // P1_LSJ : DE08 : ¿©±â¼­ Á×À½
 	kloge("== After vfs_read ======");
 
-	if(ret != l) 
+	if(ret != l)
 	{
 		kloge("<CMC623> Failed to read file (ret = %d)", ret);
 		kfree(dp);
@@ -926,14 +932,14 @@ static int cmc623_load_data(void)
 	set_fs(fs);
 
 	for(i=0; i<l; i++)
-	{   
+	{
 		printk("%x ", dp[i]);
 	}
 	printk("\n");
 
 	num = parse_text(dp, l);
 
-	if(!num) 
+	if(!num)
 	{
 		kloge("Nothing to parse!");
 		kfree(dp);
@@ -981,7 +987,7 @@ static void cmc623_cabc_pwm_brightness_reg(int value, int flag, int lut)
 		if(value == 0)
 			reg = 0x4000;
 		else
-			reg = 0x4000 | ((max(1,(value*p_plut[3]/100)))<<4);		
+			reg = 0x4000 | ((max(1,(value*p_plut[3]/100)))<<4);
 		}
 	else
 		{
@@ -993,7 +999,7 @@ static void cmc623_cabc_pwm_brightness_reg(int value, int flag, int lut)
 
 		reg = 0x5000 | (value<<4);
 		}
-	
+
 	if(flag&CMC_FLAG_SETTING_FIRST)
 		{
 		reg |= 0x8000;
@@ -1064,7 +1070,7 @@ static void cmc623_manual_pwm_brightness(int value)
 		printk(KERN_ERR "%s cmc623 is not initialized\n", __func__);
 		return;
 		}
-	mutex_lock(&cmc623_Set_Mode_mutex); 
+	mutex_lock(&cmc623_Set_Mode_mutex);
 
 	reg = 0x4000 | (value<<4);
 
@@ -1091,7 +1097,7 @@ static void ove_workqueue_func(struct work_struct *data)
 		cmc623_I2cWrite16(0x0054, (((ove_target_value >> 8) * i / 8) << 8) | ((ove_target_value & 0x00ff) * i / 8));
 		cmc623_reg_unmask();
 		mutex_unlock(&cmc623_state_transaction_lock);
-		
+
 		msleep(15);
 	}
 }
@@ -1111,7 +1117,7 @@ static int cmc623_OutDoor_Enable(int enable)
 			case CMC623_VIDEO_MODE:
 			ove_target_value = OVE_values[2 + cmc623_state.cabc_enabled];
 			break;
-			
+
 			case CMC623_CAMERA_MODE:
 			ove_target_value = OVE_values[4 + cmc623_state.cabc_enabled];
 			break;
@@ -1123,12 +1129,12 @@ static int cmc623_OutDoor_Enable(int enable)
 			case CMC623_VT_MODE:
 			ove_target_value = OVE_values[8 + cmc623_state.cabc_enabled];
 			break;
-			
+
 			default:
 			ove_target_value = OVE_values[0];
 			break;
 		}
-		
+
 		if(ove_target_value == 0x00)
 		{
 			return 0;
@@ -1149,7 +1155,7 @@ static int cmc623_OutDoor_Enable(int enable)
 			cmc623_reg_unmask();
 		}
 	}
-	else 
+	else
 	{//outdoor mode off
 		cmc623_I2cWrite16(0x0000, 0x0000);
 		cmc623_I2cRead16(0x0001, &i2cdata);
@@ -1182,7 +1188,7 @@ void tune_cmc623_pwm_brightness(int value)
 		data = value;
 
 	mutex_lock(&cmc623_state_transaction_lock);
-#if 0	// yd.seo check later	
+#if 0	// yd.seo check later
 	if(data == 1280 && current_autobrightness_enable)
 	{//outdoor mode on
 		cmc623_OutDoor_Enable(TRUE);
@@ -1199,7 +1205,7 @@ void tune_cmc623_pwm_brightness(int value)
 		data = 1;
 
 	cmc623_state.brightness = data;
-	
+
 	if(cmc623_state.cabc_enabled == TRUE)
 	{
 		cmc623_cabc_pwm_brightness(data);
@@ -1222,7 +1228,7 @@ static ssize_t mdnieset_ui_file_cmd_show(struct device *dev,
 	switch(current_cmc623_UI)
 	{
 		case mDNIe_UI_MODE:
-		default:	
+		default:
 			mdnie_ui = 0;
 			break;
 
@@ -1237,7 +1243,7 @@ static ssize_t mdnieset_ui_file_cmd_show(struct device *dev,
 		case mDNIe_VIDEO_COLD_MODE:
 			mdnie_ui = 3;
 			break;
-		
+
 		case mDNIe_CAMERA_MODE:
 			mdnie_ui = 4;
 			break;
@@ -1262,13 +1268,13 @@ static ssize_t mdnieset_ui_file_cmd_store(struct device *dev,
 {
 	int value;
 	int mdnie;
-	
-    	sscanf(buf, "%d", &value);
+
+	sscanf(buf, "%d", &value);
 
 	printk(KERN_INFO "[mdnie set] in mdnieset_ui_file_cmd_store, input value = %d \n",value);
 
 	mdnie = 0;
-	
+
 	switch(value)
 	{
 		case SIG_MDNIE_UI_MODE:
@@ -1286,7 +1292,7 @@ static ssize_t mdnieset_ui_file_cmd_store(struct device *dev,
 		case SIG_MDNIE_VIDEO_COLD_MODE:
 			mdnie = mDNIe_VIDEO_COLD_MODE;
 			break;
-		
+
 		case SIG_MDNIE_CAMERA_MODE:
 			mdnie = mDNIe_CAMERA_MODE;
 			break;
@@ -1302,13 +1308,13 @@ static ssize_t mdnieset_ui_file_cmd_store(struct device *dev,
 		case SIG_MDNIE_VT_MODE:
 			mdnie = mDNIe_VT_MODE;
 			break;
-			
+
 		default:
 			printk("\nmdnieset_ui_file_cmd_store value is wrong : value(%d)\n",value);
 			break;
 	}
-	
-	//if(cmc623_state.suspended == TRUE) 
+
+	//if(cmc623_state.suspended == TRUE)
 	if(lcdonoff == FALSE)
 	{
 		current_cmc623_UI = mdnie;
@@ -1321,7 +1327,7 @@ static ssize_t mdnieset_ui_file_cmd_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(mdnieset_ui_file_cmd,0666, mdnieset_ui_file_cmd_show, mdnieset_ui_file_cmd_store);
+static DEVICE_ATTR(scenario,0666, mdnieset_ui_file_cmd_show, mdnieset_ui_file_cmd_store);
 
 static ssize_t mdnieset_user_select_file_cmd_show(struct device *dev,
         struct device_attribute *attr, char *buf)
@@ -1336,9 +1342,9 @@ static ssize_t mdnieset_user_select_file_cmd_show(struct device *dev,
 		case mDNIe_USERSELECT_DYNAMIC_MODE:
 			mdnie_userselect = 0;
 		break;
-			
+
 		case mDNIe_USERSELECT_STANDARD_MODE:
-		default:	
+		default:
 			mdnie_userselect = 1;
 			break;
 
@@ -1354,20 +1360,20 @@ static ssize_t mdnieset_user_select_file_cmd_store(struct device *dev,
 {
 	int value;
 	int mdnie_userselect;
-	
-    	sscanf(buf, "%d", &value);
+
+	sscanf(buf, "%d", &value);
 
 	printk(KERN_INFO "[mdnie set] in mdnieset_user_select_file_cmd_store, input value = %d \n",value);
 
 	mdnie_userselect = 0;
-	
+
 	switch(value)
 	{
 
 		case SIG_MDNIE_USERSELECT_DYNAMIC_MODE:
 			mdnie_userselect = mDNIe_USERSELECT_DYNAMIC_MODE;
 		break;
-			
+
 		case SIG_MDNIE_USERSELECT_STANDARD_MODE:
 			mdnie_userselect = mDNIe_USERSELECT_STANDARD_MODE;
 			break;
@@ -1386,7 +1392,7 @@ static ssize_t mdnieset_user_select_file_cmd_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(mdnieset_user_select_file_cmd,0666, mdnieset_user_select_file_cmd_show, mdnieset_user_select_file_cmd_store);
+static DEVICE_ATTR(mode,0666, mdnieset_user_select_file_cmd_show, mdnieset_user_select_file_cmd_store);
 
 
 static ssize_t mdnieset_outdoor_file_cmd_show(struct device *dev,
@@ -1402,8 +1408,8 @@ static ssize_t mdnieset_outdoor_file_cmd_store(struct device *dev,
 {
 	int value;
 	int outdoor;
-	
-    	sscanf(buf, "%d", &value);
+
+	sscanf(buf, "%d", &value);
 
 	printk(KERN_INFO "[mdnie set] in mdnieset_outdoor_file_cmd_store, input value = %d \n",value);
 
@@ -1417,11 +1423,11 @@ static ssize_t mdnieset_outdoor_file_cmd_store(struct device *dev,
 	}
 
 	cmc623_Set_Mode_Ext((enum Lcd_CMC623_UI_mode)current_cmc623_UI, outdoor);
-			
+
 	return size;
 }
 
-static DEVICE_ATTR(mdnieset_outdoor_file_cmd,0666, mdnieset_outdoor_file_cmd_show, mdnieset_outdoor_file_cmd_store);
+static DEVICE_ATTR(outdoor,0666, mdnieset_outdoor_file_cmd_show, mdnieset_outdoor_file_cmd_store);
 
 static ssize_t cabcset_file_cmd_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -1446,7 +1452,7 @@ static ssize_t cabcset_file_cmd_store(struct device *dev, struct device_attribut
 	return size;
 }
 
-static DEVICE_ATTR(cabcset_file_cmd,0666, cabcset_file_cmd_show, cabcset_file_cmd_store);
+static DEVICE_ATTR(cabc,0666, cabcset_file_cmd_show, cabcset_file_cmd_store);
 
 static ssize_t lightsensor_file_state_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -1461,7 +1467,7 @@ static ssize_t lightsensor_file_state_store(struct device *dev,
 	char *endp;
 	int enable = simple_strtoul(buf, &endp, 0);
 	printk(KERN_NOTICE "%s:%d\n", __func__, enable);
-	
+
 	cmc623_autobrightness_enable(enable);
 
 	return size;
@@ -1480,11 +1486,11 @@ static ssize_t tune_cmc623_show(struct device *dev, struct device_attribute *att
 #endif
 
 	if(ret<0)
-	{   
+	{
 		return sprintf(buf, "FAIL\n");
 	}
 	else
-	{   
+	{
 		return sprintf(buf, "OK\n");
 	}
 }
@@ -1505,7 +1511,7 @@ static ssize_t set_reg_store(struct device *dev, struct device_attribute *attr,c
 {
 	int ret;
 	u32 data1, data2;
-	
+
 	printk("[cmc623] %s : %s\n", __func__, buf);
 	ret = sscanf(buf, "0x%x 0x%x\n", &data1, &data2);
 	if(ret == 2)
@@ -1529,7 +1535,7 @@ static ssize_t read_reg_show(struct device *dev, struct device_attribute *attr, 
 {
 	int ret=0;
 	u16 data2;
-	
+
 	printk("[cmc623] %s\n", __func__);
 	printk("addr:0x%04x\n", read_reg_address);
 	if(read_reg_address >= 0x100)
@@ -1547,7 +1553,7 @@ static ssize_t read_reg_store(struct device *dev, struct device_attribute *attr,
 	int ret;
 	u32 data1;
 	u16 data2;
-	
+
 	printk("[cmc623] %s : %s\n", __func__, buf);
 	ret = sscanf(buf, "0x%x\n", &data1);
 	if(ret == 1)
@@ -1582,7 +1588,7 @@ static ssize_t show_regs_store(struct device *dev, struct device_attribute *attr
 	int ret;
 	u32 data1;
 	u16 data2;
-	
+
 	printk("[cmc623] %s : %s\n", __func__, buf);
 	ret = sscanf(buf, "%d\n", &data1);
 	if(ret == 1 && data1 == 1)
@@ -1631,11 +1637,11 @@ static DEVICE_ATTR(show_regs, 0666, show_regs_show, show_regs_store);
 static ssize_t set_bypass_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	if(cmc623_bypass_mode)
-	{   
+	{
 		return sprintf(buf, "bypass\n");
 	}
 	else
-	{   
+	{
 		return sprintf(buf, "normal\n");
 	}
 }
@@ -1647,7 +1653,7 @@ static ssize_t set_bypass_store(struct device *dev, struct device_attribute *att
 	u32 data1;
 	//u16 data2;
 	mDNIe_data_type *mode = (mDNIe_data_type *)cmc623_values[CMC_Bypass*LCD_TYPE_MAX+lcd_type];
-	
+
 	printk("[cmc623] %s : %s\n", __func__, buf);
 	ret = sscanf(buf, "%d\n", &data1);
 
@@ -1658,10 +1664,10 @@ static ssize_t set_bypass_store(struct device *dev, struct device_attribute *att
 		while ( mode->addr != END_SEQ)
 			{
 			cmc623_I2cWrite16(mode->addr, mode->data);
-			printk(KERN_INFO "[cmc623] a(0x%x),d(0x%x)\n",mode->addr, mode->data);	
+			printk(KERN_INFO "[cmc623] a(0x%x),d(0x%x)\n",mode->addr, mode->data);
 			mode++;
 			}
-		
+
 			// brightness setting
 		{
 		//Manual brightness setting
@@ -1669,9 +1675,9 @@ static ssize_t set_bypass_store(struct device *dev, struct device_attribute *att
 
 		cmc623_state.cabc_enabled = FALSE;
 		}
-		
+
 		cmc623_reg_unmask();
-		
+
 		}
 	else
 		{
@@ -1684,7 +1690,7 @@ static ssize_t set_bypass_store(struct device *dev, struct device_attribute *att
 			cmc623_manual_pwm_brightness(cmc623_state.brightness);
 		}
 	mutex_unlock(&cmc623_state_transaction_lock);
-	
+
 	printk("end %s\n", __func__);
 
 	return size;
@@ -1731,7 +1737,7 @@ static ssize_t color_black_store(struct device *dev, struct device_attribute *at
 
 	sscanf(buf, "%d", &black);
 	printk(KERN_NOTICE "%s:%d\n", __func__, black);
-	
+
 	mutex_lock(&cmc623_state_transaction_lock);
 	cmc623_state.black = black;
 
@@ -1760,7 +1766,7 @@ static ssize_t color_saturation_store(struct device *dev, struct device_attribut
 
 	sscanf(buf, "%d", &saturation);
 	printk(KERN_NOTICE "%s:%d\n", __func__, saturation);
-	
+
 	mutex_lock(&cmc623_state_transaction_lock);
 	cmc623_state.saturation = saturation;
 #if 0
@@ -1779,7 +1785,7 @@ static struct device *cmc623_dev;
 
 static void init_mdnie_class(void)
 {
-	mdnieset_class = class_create(THIS_MODULE, "mdnieset");
+	mdnieset_class = class_create(THIS_MODULE, "mdnie");
 	if (IS_ERR(mdnieset_class))
 		pr_err("Failed to create class(mdnie_class)!\n");
 
@@ -1787,17 +1793,17 @@ static void init_mdnie_class(void)
 	if (IS_ERR(mdnie_dev))
 		pr_err("Failed to create device(mdnieset_dev)!\n");
 
-	if (device_create_file(mdnie_dev, &dev_attr_mdnieset_ui_file_cmd) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_mdnieset_ui_file_cmd.attr.name);
+	if (device_create_file(mdnie_dev, &dev_attr_scenario) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_scenario.attr.name);
 
-	if (device_create_file(mdnie_dev, &dev_attr_mdnieset_user_select_file_cmd) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_mdnieset_ui_file_cmd.attr.name);
+	if (device_create_file(mdnie_dev, &dev_attr_mode) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_mode.attr.name);
 
-	if (device_create_file(mdnie_dev, &dev_attr_mdnieset_outdoor_file_cmd) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_mdnieset_user_select_file_cmd.attr.name);
+	if (device_create_file(mdnie_dev, &dev_attr_outdoor) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_outdoor.attr.name);
 
-	if (device_create_file(mdnie_dev, &dev_attr_cabcset_file_cmd) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_cabcset_file_cmd.attr.name);
+	if (device_create_file(mdnie_dev, &dev_attr_cabc) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_cabc.attr.name);
 
 	if (device_create_file(mdnie_dev, &dev_attr_lightsensor_file_state) < 0)
 		pr_err("Failed to create device file(%s)!\n", dev_attr_lightsensor_file_state.attr.name);
@@ -1847,7 +1853,7 @@ int cmc623_service_suspend(void)
 int cmc623_service_resume(void)
 {
 	printk(KERN_INFO "%s called\n", __func__);
-		
+
 	mutex_lock(&cmc623_state_transaction_lock);
 	last_cmc623_Algorithm = 0xffff;
 	last_cmc623_Bank = 0xffff;
@@ -1855,13 +1861,14 @@ int cmc623_service_resume(void)
 
 	// restore mode & cabc status
 	/*cmc623_state.brightness = 0;*/
+	current_cmc623_Userselect = CMC623_USERSELECT_DYNAMIC_MODE;
 	cmc623_Set_UserSelect_Mode((enum Lcd_CMC623_USERSELECT_mode)current_cmc623_Userselect,current_cmc623_CABC_OnOff,0);
 	cmc623_cabc_enable_flag(cmc623_state.cabc_enabled, 0/*CMC_FLAG_SETTING_FIRST*/);
 	if(cmc623_state.cabc_enabled)
 		cmc623_cabc_pwm_brightness(cmc623_state.brightness);
 	else
 		cmc623_manual_pwm_brightness(cmc623_state.brightness);
-	
+
 #ifdef CMC623_TUNING
 	{
 		mDNIe_data_type *bypass_mode;
@@ -1871,7 +1878,7 @@ int cmc623_service_resume(void)
 			bypass_mode = &cmc623_Bypass[0];
 		while (bypass_mode->addr != END_SEQ) {
 			cmc623_I2cWrite16(bypass_mode->addr, bypass_mode->data);
-			pr_notice("[cmc623] a(0x%x),d(0x%x)\n",bypass_mode->addr, bypass_mode->data);	
+			pr_notice("[cmc623] a(0x%x),d(0x%x)\n",bypass_mode->addr, bypass_mode->data);
 			bypass_mode++;
 		}
 		cmc623_reg_unmask();
@@ -1901,7 +1908,7 @@ void init_cmc623_service(struct cmc623_data *pdata)
 			bypass_mode = &cmc623_Bypass[0];
 		while (bypass_mode->addr != END_SEQ) {
 			cmc623_I2cWrite16(bypass_mode->addr, bypass_mode->data);
-			pr_notice("[cmc623] a(0x%x),d(0x%x)\n",bypass_mode->addr, bypass_mode->data);	
+			pr_notice("[cmc623] a(0x%x),d(0x%x)\n",bypass_mode->addr, bypass_mode->data);
 			bypass_mode++;
 		}
 		cmc623_reg_unmask();

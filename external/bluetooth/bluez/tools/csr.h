@@ -22,6 +22,7 @@
  */
 
 #include <stdint.h>
+#include <termios.h>
 
 #define CSR_VARID_PS_CLR_ALL			0x000b	/* valueless */
 #define CSR_VARID_PS_FACTORY_SET		0x000c	/* valueless */
@@ -70,6 +71,7 @@
 #define CSR_VARID_FAULT_ARG			0x6806	/* uint16 */
 #define CSR_VARID_MAX_TX_POWER			0x6827	/* int8 */
 #define CSR_VARID_DEFAULT_TX_POWER		0x682b	/* int8 */
+#define CSR_VARID_INQ_PRI			0x685c  /* inquiry priority */
 #define CSR_VARID_PS				0x7003	/* complex */
 
 #define CSR_PSKEY_BDADDR					0x0001	/* bdaddr / uint16[] = { 0x00A5A5, 0x5b, 0x0002 } */
@@ -519,7 +521,7 @@ int csr_read_usb(uint16_t varid, uint8_t *value, uint16_t length);
 int csr_write_usb(uint16_t varid, uint8_t *value, uint16_t length);
 void csr_close_usb(void);
 
-int csr_open_bcsp(char *device);
+int csr_open_bcsp(char *device, speed_t bcsp_rate);
 int csr_read_bcsp(uint16_t varid, uint8_t *value, uint16_t length);
 int csr_write_bcsp(uint16_t varid, uint8_t *value, uint16_t length);
 void csr_close_bcsp(void);

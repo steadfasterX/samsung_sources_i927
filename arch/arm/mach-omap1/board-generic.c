@@ -31,7 +31,7 @@
 static void __init omap_generic_init_irq(void)
 {
 	omap1_init_common_hw();
-	omap_init_irq();
+	omap1_init_irq();
 }
 
 /* assume no Mini-AB port */
@@ -94,12 +94,10 @@ static void __init omap_generic_map_io(void)
 
 MACHINE_START(OMAP_GENERIC, "Generic OMAP1510/1610/1710")
 	/* Maintainer: Tony Lindgren <tony@atomide.com> */
-	.phys_io	= 0xfff00000,
-	.io_pg_offst	= ((0xfef00000) >> 18) & 0xfffc,
 	.boot_params	= 0x10000100,
 	.map_io		= omap_generic_map_io,
 	.reserve	= omap_reserve,
 	.init_irq	= omap_generic_init_irq,
 	.init_machine	= omap_generic_init,
-	.timer		= &omap_timer,
+	.timer		= &omap1_timer,
 MACHINE_END

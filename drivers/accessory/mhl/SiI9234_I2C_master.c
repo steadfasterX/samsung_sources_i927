@@ -4,12 +4,12 @@
 
 when              who                         what, where, why
 --------        ---                        ----------------------------------------------------------
-2010/10/25    Daniel Lee(Philju)      Initial version of file, SIMG Korea 
+2010/10/25    Daniel Lee(Philju)      Initial version of file, SIMG Korea
 ===========================================================================*/
 
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -47,9 +47,9 @@ when              who                         what, where, why
 #include <linux/irq.h>
 #include <linux/delay.h>
 
-#include <linux/syscalls.h> 
-#include <linux/fcntl.h> 
-#include <linux/uaccess.h> 
+#include <linux/syscalls.h>
+#include <linux/fcntl.h>
+#include <linux/uaccess.h>
 #include <linux/types.h>
 
 
@@ -86,10 +86,10 @@ void I2C_WriteByte(byte deviceID, byte offset, byte value)
 	struct i2c_client* client_ptr = get_sii9234_client(deviceID);
 	if(!client_ptr)
 	{
-		printk(KERN_ERR	"[MHL]I2C_WriteByte error %x\n",deviceID); 
-		return;	
+		printk(KERN_ERR	"[MHL]I2C_WriteByte error %x\n",deviceID);
+		return;
 	}
-	
+
 	if(deviceID == 0x72)
 		ret = sii9234_i2c_write(client_ptr,offset,value);
 	else if(deviceID == 0x7A)
@@ -107,16 +107,16 @@ void I2C_WriteByte(byte deviceID, byte offset, byte value)
 
 byte I2C_ReadByte(byte deviceID, byte offset)
 {
-    	byte number = 0;
+	byte number = 0;
 	struct i2c_client* client_ptr = get_sii9234_client(deviceID);
 	if(!client_ptr)
 	{
-		printk(KERN_ERR	"[MHL]I2C_ReadByte error %x\n",deviceID); 
-		return -ENXIO;	
+		printk(KERN_ERR	"[MHL]I2C_ReadByte error %x\n",deviceID);
+		return -ENXIO;
 	}
 
-  
-  	if(deviceID == 0x72)
+
+	if(deviceID == 0x72)
 		number = sii9234_i2c_read(client_ptr,offset);
 	else if(deviceID == 0x7A)
 		number = sii9234_i2c_read(client_ptr,offset);
@@ -124,24 +124,24 @@ byte I2C_ReadByte(byte deviceID, byte offset)
 		number = sii9234_i2c_read(client_ptr,offset);
 	else if(deviceID == 0xC8)
 		number = sii9234_i2c_read(client_ptr,offset);
-	
+
     return (number);
 
 }
 
-byte ReadByteTPI (byte Offset) 
+byte ReadByteTPI (byte Offset)
 {
 	return I2C_ReadByte(SA_TX_Page0_Primary, Offset);
 }
 
-void WriteByteTPI (byte Offset, byte Data) 
+void WriteByteTPI (byte Offset, byte Data)
 {
 	I2C_WriteByte(SA_TX_Page0_Primary, Offset, Data);
 }
 
 
 
-void ReadModifyWriteTPI(byte Offset, byte Mask, byte Data) 
+void ReadModifyWriteTPI(byte Offset, byte Mask, byte Data)
 {
 
 	byte Temp;
@@ -152,17 +152,17 @@ void ReadModifyWriteTPI(byte Offset, byte Mask, byte Data)
 	WriteByteTPI(Offset, Temp);		// Write new value back to register.
 }
 
-byte ReadByteCBUS (byte Offset) 
+byte ReadByteCBUS (byte Offset)
 {
 	return I2C_ReadByte(SA_TX_CBUS_Primary, Offset);
 }
 
-void WriteByteCBUS(byte Offset, byte Data) 
+void WriteByteCBUS(byte Offset, byte Data)
 {
 	I2C_WriteByte(SA_TX_CBUS_Primary, Offset, Data);
 }
 
-void ReadModifyWriteCBUS(byte Offset, byte Mask, byte Value) 
+void ReadModifyWriteCBUS(byte Offset, byte Mask, byte Value)
 {
   byte Temp;
 
@@ -197,7 +197,7 @@ void ReadModifyWriteCBUS(byte Offset, byte Mask, byte Value)
 //
 //////////////////////////////////////////////////////////////////////////////
 
-byte ReadIndexedRegister (byte PageNum, byte Offset) 
+byte ReadIndexedRegister (byte PageNum, byte Offset)
 {
 	WriteByteTPI(TPI_INDEXED_PAGE_REG, PageNum);		// Indexed page
 	WriteByteTPI(TPI_INDEXED_OFFSET_REG, Offset);		// Indexed register
@@ -228,7 +228,7 @@ byte ReadIndexedRegister (byte PageNum, byte Offset)
 //
 //////////////////////////////////////////////////////////////////////////////
 
-void WriteIndexedRegister (byte PageNum, byte Offset, byte Data) 
+void WriteIndexedRegister (byte PageNum, byte Offset, byte Data)
 {
 	WriteByteTPI(TPI_INDEXED_PAGE_REG, PageNum);		// Indexed page
 	WriteByteTPI(TPI_INDEXED_OFFSET_REG, Offset);		// Indexed register
@@ -257,7 +257,7 @@ void WriteIndexedRegister (byte PageNum, byte Offset, byte Data)
 //
 //////////////////////////////////////////////////////////////////////////////
 
-void ReadModifyWriteIndexedRegister (byte PageNum, byte Offset, byte Mask, byte Data) 
+void ReadModifyWriteIndexedRegister (byte PageNum, byte Offset, byte Mask, byte Data)
 {
 
 	byte Temp;
@@ -267,4 +267,3 @@ void ReadModifyWriteIndexedRegister (byte PageNum, byte Offset, byte Mask, byte 
 	Temp |= (Data & Mask);							// OR in new value. Apply Mask to Value for safety.
 	WriteByteTPI(TPI_INDEXED_VALUE_REG, Temp);		// Write new value back to register.
 }
-

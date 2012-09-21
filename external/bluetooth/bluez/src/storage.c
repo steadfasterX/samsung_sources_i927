@@ -44,9 +44,21 @@
 #include <bluetooth/sdp.h>
 #include <bluetooth/sdp_lib.h>
 
+#include "error.h"
 #include "textfile.h"
+#include "glib-compat.h"
+#include "adapter.h"
+#include "device.h"
 #include "glib-helper.h"
 #include "storage.h"
+
+// SSBT :: KJH +
+#include "log.h"
+
+struct match {
+	GSList *keys;
+	char *pattern;
+};
 
 static inline int create_filename(char *buf, size_t size,
 				const bdaddr_t *bdaddr, const char *name)
@@ -234,8 +246,8 @@ int read_local_name(bdaddr_t *bdaddr, char *name)
 		return -ENOENT;
 
 	len = strlen(str);
-	if (len > 248)
-		str[248] = '\0';
+	if (len > HCI_MAX_NAME_LENGTH)
+		str[HCI_MAX_NAME_LENGTH] = '\0';
 	strcpy(name, str);
 
 	free(str);
@@ -316,11 +328,11 @@ int read_remote_class(bdaddr_t *local, bdaddr_t *peer, uint32_t *class)
 
 int write_device_name(bdaddr_t *local, bdaddr_t *peer, char *name)
 {
-	char filename[PATH_MAX + 1], addr[18], str[249];
+	char filename[PATH_MAX + 1], addr[18], str[HCI_MAX_NAME_LENGTH + 1];
 	int i;
 
 	memset(str, 0, sizeof(str));
-	for (i = 0; i < 248 && name[i]; i++)
+	for (i = 0; i < HCI_MAX_NAME_LENGTH && name[i]; i++)
 		if ((unsigned char) name[i] < 32 || name[i] == 127)
 			str[i] = '.';
 		else
@@ -346,8 +358,8 @@ int read_device_name(const char *src, const char *dst, char *name)
 		return -ENOENT;
 
 	len = strlen(str);
-	if (len > 248)
-		str[248] = '\0';
+	if (len > HCI_MAX_NAME_LENGTH)
+		str[HCI_MAX_NAME_LENGTH] = '\0';
 	strcpy(name, str);
 
 	free(str);
@@ -355,13 +367,14 @@ int read_device_name(const char *src, const char *dst, char *name)
 	return 0;
 }
 
-int write_remote_eir(bdaddr_t *local, bdaddr_t *peer, uint8_t *data)
+int write_remote_eir(bdaddr_t *local, bdaddr_t *peer, uint8_t *data,
+							uint8_t data_len)
 {
 	char filename[PATH_MAX + 1], addr[18], str[481];
 	int i;
 
 	memset(str, 0, sizeof(str));
-	for (i = 0; i < 240; i++)
+	for (i = 0; i < data_len; i++)
 		sprintf(str + (i * 2), "%2.2X", data[i]);
 
 	create_filename(filename, PATH_MAX, local, "eir");
@@ -395,7 +408,7 @@ int read_remote_eir(bdaddr_t *local, bdaddr_t *peer, uint8_t *data)
 		return -EIO;
 	}
 
-	for (i = 0; i < 240; i++)
+	for (i = 0; i < HCI_MAX_EIR_LENGTH; i++)
 		sscanf(str + (i * 2), "%02hhX", &data[i]);
 
 	free(str);
@@ -403,67 +416,50 @@ int read_remote_eir(bdaddr_t *local, bdaddr_t *peer, uint8_t *data)
 	return 0;
 }
 
-int write_l2cap_info(bdaddr_t *local, bdaddr_t *peer,
-			uint16_t mtu_result, uint16_t mtu,
-			uint16_t mask_result, uint32_t mask)
+int read_version_info(bdaddr_t *local, bdaddr_t *peer, uint16_t *lmp_ver)
 {
-	char filename[PATH_MAX + 1], addr[18], str[18];
+	char filename[PATH_MAX + 1], addr[18], *str, *ver_str, *subver_str, *ver;
+	int len;
 
-	if (mask_result)
-		snprintf(str, sizeof(str), "%d -1", mtu_result ? -1 : mtu);
-	else
-		snprintf(str, sizeof(str), "%d 0x%08x", mtu_result ? -1 : mtu, mask);
-
-	create_filename(filename, PATH_MAX, local, "l2cap");
-
-	create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	create_filename(filename, PATH_MAX, local, "manufacturers");
 
 	ba2str(peer, addr);
-	return textfile_put(filename, addr, str);
-}
 
-int read_l2cap_info(bdaddr_t *local, bdaddr_t *peer,
-			uint16_t *mtu_result, uint16_t *mtu,
-			uint16_t *mask_result, uint32_t *mask)
-{
-	char filename[PATH_MAX + 1], addr[18], *str, *space, *msk;
-
-	create_filename(filename, PATH_MAX, local, "l2cap");
-
-	ba2str(peer, addr);
 	str = textfile_get(filename, addr);
 	if (!str)
 		return -ENOENT;
 
-	space = strchr(str, ' ');
-	if (!space) {
+	if (!lmp_ver) {
 		free(str);
 		return -ENOENT;
 	}
 
-	msk = space + 1;
-	*space = '\0';
-
-	if (mtu_result && mtu) {
-		if (str[0] == '-')
-			*mtu_result = 0x0001;
-		else {
-			*mtu_result = 0;
-			*mtu = (uint16_t) strtol(str, NULL, 0);
-		}
+	ver_str = strchr(str, ' ');
+	if (!ver_str) {
+		free(str);
+		return -ENOENT;
 	}
+	*(ver_str++) = 0;
 
-	if (mask_result && mask) {
-		if (msk[0] == '-')
-			*mask_result = 0x0001;
-		else {
-			*mask_result = 0;
-			*mask = (uint32_t) strtol(msk, NULL, 16);
-		}
+	subver_str = strchr(ver_str, ' ');
+	if (!subver_str) {
+		free(str);
+		return -ENOENT;
 	}
+	*(subver_str++) = 0;
 
-	free(str);
+	len = subver_str-ver_str+1;
 
+	ver = g_malloc(len);
+
+	memcpy(ver, ver_str, len-1);
+	ver[len-1] = '\0';
+
+
+	if (lmp_ver)
+		*lmp_ver = (uint16_t) strtol(ver, NULL, 10);
+
+	free(ver);
 	return 0;
 }
 
@@ -593,7 +589,7 @@ int write_lastused_info(bdaddr_t *local, bdaddr_t *peer, struct tm *tm)
 int write_link_key(bdaddr_t *local, bdaddr_t *peer, unsigned char *key, uint8_t type, int length)
 {
 	char filename[PATH_MAX + 1], addr[18], str[38];
-	int i;
+	int i, createfile_result, textfileput_result;
 
 	memset(str, 0, sizeof(str));
 	for (i = 0; i < 16; i++)
@@ -602,7 +598,9 @@ int write_link_key(bdaddr_t *local, bdaddr_t *peer, unsigned char *key, uint8_t 
 
 	create_filename(filename, PATH_MAX, local, "linkkeys");
 
-	create_file(filename, S_IRUSR | S_IWUSR);
+	createfile_result=create_file(filename, S_IRUSR | S_IWUSR);
+
+	DBG("createfile_result [%d]", createfile_result);
 
 	ba2str(peer, addr);
 
@@ -615,7 +613,10 @@ int write_link_key(bdaddr_t *local, bdaddr_t *peer, unsigned char *key, uint8_t 
 		}
 	}
 
-	return textfile_put(filename, addr, str);
+	textfileput_result=textfile_put(filename, addr, str);
+	DBG("textfileput_result [%d]", textfileput_result);
+		
+	return textfileput_result;
 }
 
 int read_link_key(bdaddr_t *local, bdaddr_t *peer, unsigned char *key, uint8_t *type)
@@ -651,34 +652,10 @@ int read_link_key(bdaddr_t *local, bdaddr_t *peer, unsigned char *key, uint8_t *
 	return 0;
 }
 
-int read_pin_length(bdaddr_t *local, bdaddr_t *peer)
+ssize_t read_pin_code(bdaddr_t *local, bdaddr_t *peer, char *pin)
 {
 	char filename[PATH_MAX + 1], addr[18], *str;
-	int len;
-
-	create_filename(filename, PATH_MAX, local, "linkkeys");
-
-	ba2str(peer, addr);
-	str = textfile_get(filename, addr);
-	if (!str)
-		return -ENOENT;
-
-	if (strlen(str) < 36) {
-		free(str);
-		return -ENOENT;
-	}
-
-	len = atoi(str + 35);
-
-	free(str);
-
-	return len;
-}
-
-int read_pin_code(bdaddr_t *local, bdaddr_t *peer, char *pin)
-{
-	char filename[PATH_MAX + 1], addr[18], *str;
-	int len;
+	ssize_t len;
 
 	create_filename(filename, PATH_MAX, local, "pincodes");
 
@@ -1238,33 +1215,284 @@ int write_blocked(const bdaddr_t *local, const bdaddr_t *remote,
 	return textfile_caseput(filename, addr, "");
 }
 
-#ifdef BT_ALT_STACK
-int write_hid_info(bdaddr_t *local, bdaddr_t *peer, char *hid_info)
+int write_device_services(const bdaddr_t *sba, const bdaddr_t *dba,
+							const char *services)
 {
-    char filename[PATH_MAX + 1], addr[18];
+	char filename[PATH_MAX + 1], addr[18];
 
-    create_filename(filename, PATH_MAX, local, "hidinfo");
+	create_filename(filename, PATH_MAX, sba, "primary");
 
-    create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
-    ba2str(peer, addr);
-    return textfile_put(filename, addr, hid_info);
+	ba2str(dba, addr);
+
+	return textfile_put(filename, addr, services);
 }
 
-int read_hid_info(const char *src, const char *dst, char *hid_info)
+static void filter_keys(char *key, char *value, void *data)
+{
+	struct match *match = data;
+
+	if (strncasecmp(key, match->pattern, strlen(match->pattern)) == 0)
+		match->keys = g_slist_append(match->keys, g_strdup(key));
+}
+
+static void delete_by_pattern(const char *filename, char *pattern)
+{
+	struct match match;
+	GSList *l;
+	int err;
+
+	memset(&match, 0, sizeof(match));
+	match.pattern = pattern;
+
+	err = textfile_foreach(filename, filter_keys, &match);
+	if (err < 0)
+		goto done;
+
+	for (l = match.keys; l; l = l->next) {
+		const char *key = l->data;
+		textfile_del(filename, key);
+	}
+
+done:
+	g_slist_free_full(match.keys, g_free);
+}
+
+int delete_device_service(const bdaddr_t *sba, const bdaddr_t *dba)
+{
+	char filename[PATH_MAX + 1], address[18];
+
+	memset(address, 0, sizeof(address));
+	ba2str(dba, address);
+
+	/* Deleting all characteristics of a given address */
+	create_filename(filename, PATH_MAX, sba, "characteristic");
+	delete_by_pattern(filename, address);
+
+	/* Deleting all attributes values of a given address */
+	create_filename(filename, PATH_MAX, sba, "attributes");
+	delete_by_pattern(filename, address);
+
+	/* Deleting all CCC values of a given address */
+	create_filename(filename, PATH_MAX, sba, "ccc");
+	delete_by_pattern(filename, address);
+
+	create_filename(filename, PATH_MAX, sba, "primary");
+	return textfile_del(filename, address);
+}
+
+char *read_device_services(const bdaddr_t *sba, const bdaddr_t *dba)
+{
+	char filename[PATH_MAX + 1], addr[18];
+
+	create_filename(filename, PATH_MAX, sba, "primary");
+
+	create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+	ba2str(dba, addr);
+
+	return textfile_caseget(filename, addr);
+}
+
+int write_device_characteristics(const bdaddr_t *sba, const bdaddr_t *dba,
+					uint16_t handle, const char *chars)
+{
+	char filename[PATH_MAX + 1], addr[18], key[23];
+
+	create_filename(filename, PATH_MAX, sba, "characteristic");
+
+	create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+	ba2str(dba, addr);
+
+	snprintf(key, sizeof(key), "%17s#%04X", addr, handle);
+
+	return textfile_put(filename, key, chars);
+}
+
+char *read_device_characteristics(const bdaddr_t *sba, const bdaddr_t *dba,
+							uint16_t handle)
+{
+	char filename[PATH_MAX + 1], addr[18], key[23];
+
+	create_filename(filename, PATH_MAX, sba, "characteristic");
+
+	create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+	ba2str(dba, addr);
+
+	snprintf(key, sizeof(key), "%17s#%04X", addr, handle);
+
+	return textfile_caseget(filename, key);
+}
+
+int write_device_attribute(const bdaddr_t *sba, const bdaddr_t *dba,
+					uint16_t handle, const char *chars)
+{
+	char filename[PATH_MAX + 1], addr[18], key[23];
+
+	create_filename(filename, PATH_MAX, sba, "attributes");
+
+	create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+	ba2str(dba, addr);
+
+	snprintf(key, sizeof(key), "%17s#%04X", addr, handle);
+
+	return textfile_put(filename, key, chars);
+}
+
+int read_device_attributes(const bdaddr_t *sba, textfile_cb func, void *data)
+{
+	char filename[PATH_MAX + 1];
+
+	create_filename(filename, PATH_MAX, sba, "attributes");
+
+	create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+	return textfile_foreach(filename, func, data);
+}
+
+int read_device_ccc(bdaddr_t *local, bdaddr_t *peer, uint16_t handle,
+							uint16_t *value)
+{
+	char filename[PATH_MAX + 1], addr[18], key[23];
+	char *str;
+	unsigned int config;
+	int err = 0;
+
+	create_filename(filename, PATH_MAX, local, "ccc");
+
+	ba2str(peer, addr);
+	snprintf(key, sizeof(key), "%17s#%04X", addr, handle);
+
+	str = textfile_caseget(filename, key);
+	if (str == NULL)
+		return -ENOENT;
+
+	if (sscanf(str, "%04X", &config) != 1)
+		err = -ENOENT;
+	else
+		*value = config;
+
+	free(str);
+
+	return err;
+}
+
+int write_device_ccc(bdaddr_t *local, bdaddr_t *peer, uint16_t handle,
+							uint16_t value)
+{
+	char filename[PATH_MAX + 1], addr[18], key[23], config[5];
+
+	create_filename(filename, PATH_MAX, local, "ccc");
+
+	create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+	ba2str(peer, addr);
+
+	snprintf(key, sizeof(key), "%17s#%04X", addr, handle);
+	snprintf(config, sizeof(config), "%04X", value);
+
+	return textfile_put(filename, key, config);
+}
+
+void delete_device_ccc(bdaddr_t *local, bdaddr_t *peer)
+{
+	char filename[PATH_MAX + 1], addr[18];
+
+	ba2str(peer, addr);
+
+	/* Deleting all CCC values of a given address */
+	create_filename(filename, PATH_MAX, local, "ccc");
+	delete_by_pattern(filename, addr);
+}
+
+int write_device_type(const bdaddr_t *sba, const bdaddr_t *dba,
+						addr_type_t type)
+{
+	char filename[PATH_MAX + 1], addr[18], chars[3];
+
+	create_filename(filename, PATH_MAX, sba, "types");
+
+	create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+	ba2str(dba, addr);
+
+	snprintf(chars, sizeof(chars), "%2.2X", type);
+
+	return textfile_put(filename, addr, chars);
+}
+
+int write_longtermkeys(bdaddr_t *local, bdaddr_t *peer, const char *key)
+{
+	char filename[PATH_MAX + 1], addr[18];
+
+	DBG("");
+
+	if (!key)
+		return -EINVAL;
+
+	create_filename(filename, PATH_MAX, local, "longtermkeys");
+
+	create_file(filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+	ba2str(peer, addr);
+	return textfile_put(filename, addr, key);
+}
+
+gboolean has_longtermkeys(bdaddr_t *local, bdaddr_t *peer)
+{
+	char filename[PATH_MAX + 1], addr[18], *str;
+
+	create_filename(filename, PATH_MAX, local, "longtermkeys");
+
+	ba2str(peer, addr);
+
+	str = textfile_caseget(filename, addr);
+	if (str) {
+		free(str);
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+gboolean sap_check_weak_linkkey(char *srcaddr, char *dstaddr)
 {
     char filename[PATH_MAX + 1], *str;
+    char tmp[3];
+    gboolean ret = FALSE;
+    uint8_t  key_type = 0, pin_code_len = 0;
 
-    create_name(filename, PATH_MAX, STORAGEDIR, src, "hidinfo");
+    create_name(filename, PATH_MAX, STORAGEDIR,
+            srcaddr, "linkkeys");
 
-    str = textfile_get(filename, dst);
-    if (!str)
-        return -ENOENT;
+    DBG("filename : %s", filename);
+    DBG("srcaddr : %s", srcaddr);
+    DBG("destaddr : %s", dstaddr);
 
-    strcpy(hid_info, str);
+    str = textfile_caseget(filename, dstaddr);
+    if (str)
+    {
+        DBG("device_is_weak_linkkey: %s", str);
+
+        memset(tmp, 0, sizeof(tmp));
+        memcpy(tmp, str + 33, 2);
+        key_type = (uint8_t) strtol(tmp, NULL, 10);
+
+        memcpy(tmp, str + 35, 2);
+        pin_code_len = (uint8_t) strtol(tmp, NULL, 10);
+
+        /* authenticated combination (5) or pin code len is 16 -> link key is strong  */
+        if ( !((key_type == 5) || (pin_code_len == 16)) )
+            ret = TRUE;
+    }
+
+    DBG("sap_check_weak_linkkey returning: %d", ret);
 
     free(str);
 
-    return 0;
+    return ret;
 }
-#endif

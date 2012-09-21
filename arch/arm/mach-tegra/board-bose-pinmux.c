@@ -16,7 +16,12 @@
 
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/gpio.h>
 #include <mach/pinmux.h>
+#include <mach/gpio-bose.h>
+
+#include "board-bose.h"
+#include "gpio-names.h"
 
 #define DEFAULT_DRIVE(_name)					\
 	{							\
@@ -54,10 +59,10 @@ static __initdata struct tegra_drive_pingroup_config n1_drive_pinmux[] = {
 	SET_DRIVE(DTF,		DISABLE, ENABLE, DIV_1, 31, 31, FASTEST, FASTEST),
 	SET_DRIVE(I2CP,		DISABLE, ENABLE, DIV_1, 31, 31, FASTEST, FASTEST),
 	SET_DRIVE(RM,		DISABLE, ENABLE, DIV_1, 31, 31, FASTEST, FASTEST),
-#if defined (CONFIG_MACH_BOSE_ATT)	
-	SET_DRIVE(DAP2,		ENABLE, ENABLE, DIV_1, 31, 31, SLOWEST, SLOWEST), 
-	SET_DRIVE(DAP3,		ENABLE, ENABLE, DIV_1, 31, 31, SLOWEST, SLOWEST), 
-#endif	
+#if defined (CONFIG_MACH_BOSE_ATT)
+	SET_DRIVE(DAP2,		ENABLE, ENABLE, DIV_1, 31, 31, SLOWEST, SLOWEST),
+	SET_DRIVE(DAP3,		ENABLE, ENABLE, DIV_1, 31, 31, SLOWEST, SLOWEST),
+#endif
 };
 
 static __initdata struct tegra_pingroup_config n1_pinmux[] = {
@@ -184,9 +189,15 @@ static __initdata struct tegra_pingroup_config n1_pinmux[] = {
 	{TEGRA_PINGROUP_XM2D,  TEGRA_MUX_NONE,          TEGRA_PUPD_NORMAL,    TEGRA_TRI_NORMAL},
 };
 
-void __init n1_pinmux_init(void)
+static struct tegra_gpio_table gpio_table[] = {
+	{ .gpio = GPIO_DET_3_5,        .enable = true  },
+};
+
+int __init n1_pinmux_init(void)
 {
 	tegra_pinmux_config_table(n1_pinmux, ARRAY_SIZE(n1_pinmux));
 	tegra_drive_pinmux_config_table(n1_drive_pinmux,
 					ARRAY_SIZE(n1_drive_pinmux));
+	tegra_gpio_config(gpio_table, ARRAY_SIZE(gpio_table));
+	return 0;
 }

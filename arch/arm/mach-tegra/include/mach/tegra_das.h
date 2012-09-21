@@ -25,24 +25,6 @@
 
 #include <linux/kernel.h>
 
-/*
-                            -----------------
-                            |               |
-                            |               |<----> DAP1
-                DAC1 <----> |    Digital    |
-    ---------               |               |<----> DAP2
-    |       |               |     Audio     |
-    | Tegra |   DAC2 <----> |               |<----> DAP3
-    |  SoC  |               |    Switch     |
-    |       |               |               |<----> DAP4
-    ---------               |     (DAS)     |
-                DAC3 <----> |               |<----> DAP5
-                            |               |
-                            |               |
-                            -----------------
-
-*/
-
 #define APB_MISC_DAS_DAP_CTRL_SEL_0			(0xc00)
 #define APB_MISC_DAS_DAP_CTRL_SEL_1			(0xc04)
 #define APB_MISC_DAS_DAP_CTRL_SEL_2			(0xc08)
@@ -108,7 +90,7 @@
 
 #define MAX_CONNECTIONLINES 8
 
-typedef enum tegra_das_port_t {
+enum tegra_das_port_type {
 	tegra_das_port_none = 0,
 	tegra_das_port_dap1,
 	tegra_das_port_dap2,
@@ -118,7 +100,7 @@ typedef enum tegra_das_port_t {
 	tegra_das_port_i2s1,
 	tegra_das_port_i2s2,
 	tegra_das_port_ac97
-} tegra_das_port;
+};
 
 #define MAX_DAP_PORTS	(tegra_das_port_dap5 + 1)
 
@@ -194,15 +176,15 @@ struct audio_dev_property {
  * codec_type contains possible codec which can be connected to dap port
  */
 struct tegra_dap_property {
-	tegra_das_port dac_port;
-	tegra_das_port dap_port;
+	enum tegra_das_port_type dac_port;
+	enum tegra_das_port_type dap_port;
 	enum  tegra_audio_codec_type codec_type;
 	struct audio_dev_property device_property;
 };
 
 struct tegra_das_con_line {
-	tegra_das_port src;
-	tegra_das_port dest;
+	enum tegra_das_port_type src;
+	enum tegra_das_port_type dest;
 	bool src_master;
 };
 
@@ -215,12 +197,13 @@ struct tegra_das_con {
 struct tegra_das_platform_data {
 	void *driver_data;
 	const char *dap_clk;
-	const struct tegra_dap_property tegra_dap_port_info_table[MAX_DAP_PORTS];
+	const struct tegra_dap_property
+			tegra_dap_port_info_table[MAX_DAP_PORTS];
 	const struct tegra_das_con tegra_das_con_table[MAX_DAP_PORTS];
 };
 
 struct tegra_das_mux_select {
-	tegra_das_port port_type;
+	enum tegra_das_port_type port_type;
 	u32 reg_offset;
 	u32 mux_mask;
 	u32 mux_shift;
@@ -244,7 +227,7 @@ struct das_regs_cache {
 	u32 das_dac_input_data_clk_2;
 };
 
-enum  dap_connection_status{
+enum dap_connection_status {
 	dap_connection_codec_slave,
 	dap_connection_codec_master,
 	dap_connection_bt_call,
@@ -283,7 +266,7 @@ int tegra_das_get_codec_data_fmt(enum tegra_audio_codec_type codec_type);
 /*
  * Function to get dap Mclk handle
  */
-struct clk* tegra_das_get_dap_mclk(void);
+struct clk *tegra_das_get_dap_mclk(void);
 
 /*
  * Function to set power state on das's dap port
@@ -294,11 +277,11 @@ int tegra_das_power_mode(bool is_normal);
 /*
  * Function to get the content of all the das registers
  */
-void tegra_das_get_all_regs(struct das_regs_cache* regs);
+void tegra_das_get_all_regs(struct das_regs_cache *regs);
 
 /*
  * Function to set values in all the das registers
  */
-void tegra_das_set_all_regs(struct das_regs_cache* regs);
+void tegra_das_set_all_regs(struct das_regs_cache *regs);
 
 #endif

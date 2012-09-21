@@ -40,6 +40,7 @@
 #define RTC_ALARM1_HI	0xc1
 #define RTC_COUNT4	0xc6
 #define RTC_COUNT4_DUMMYREAD 0xc5  /* start a PMU RTC access by reading the register prior to the RTC_COUNT4 */
+#define ALM1_VALID_RANGE_IN_SEC 0x3FFF /*only 14-bits width in second*/
 
 struct tps6586x_rtc {
 	unsigned long		epoch_start;
@@ -133,8 +134,12 @@ static int tps6586x_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	struct device *tps_dev = to_tps6586x_dev(dev);
 	unsigned long seconds;
 	unsigned long ticks;
+	unsigned long rtc_current_time;
+	unsigned long long rticks = 0;
 	u8 buff[3];
+	u8 rbuff[6];
 	int err;
+	int i;
 
 	if (rtc->irq == -1)
 		return -EIO;
@@ -155,6 +160,22 @@ static int tps6586x_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	}
 
 	seconds -= rtc->epoch_start;
+
+	err = tps6586x_reads(tps_dev, RTC_COUNT4_DUMMYREAD, sizeof(rbuff), rbuff);
+	if (err < 0) {
+		dev_err(dev, "failed to read counter\n");
+		return err;
+	}
+
+	for (i = 1; i < sizeof(rbuff); i++) {
+		rticks <<= 8;
+		rticks |= rbuff[i];
+	}
+
+	rtc_current_time = rticks >> 10;
+	if ((seconds - rtc_current_time) > ALM1_VALID_RANGE_IN_SEC)
+		seconds = rtc_current_time - 1;
+
 	ticks = (unsigned long long)seconds << 10;
 
 	buff[0] = (ticks >> 16) & 0xff;
@@ -263,6 +284,11 @@ static int __devinit tps6586x_rtc_probe(struct platform_device *pdev)
 	int err;
 	struct tps6586x_epoch_start *epoch;
 
+	if (!pdata) {
+		dev_err(&pdev->dev, "no platform_data specified\n");
+		return -EINVAL;
+	}
+
 	rtc = kzalloc(sizeof(*rtc), GFP_KERNEL);
 
 	if (!rtc)
@@ -270,17 +296,16 @@ static int __devinit tps6586x_rtc_probe(struct platform_device *pdev)
 
 	rtc->irq = -1;
 
-	if (!pdata) {
-		dev_err(&pdev->dev, "no platform_data specified\n");
-		return -EINVAL;
-	}
-
 	if (pdata->irq < 0)
 		dev_warn(&pdev->dev, "no IRQ specified, wakeup is disabled\n");
 
 	epoch = &pdata->start;
 	rtc->epoch_start = mktime(epoch->year, epoch->month, epoch->day,
 				  epoch->hour, epoch->min, epoch->sec);
+
+	dev_set_drvdata(&pdev->dev, rtc);
+
+	device_init_wakeup(&pdev->dev, 1);
 
 	rtc->rtc = rtc_device_register("tps6586x-rtc", &pdev->dev,
 				       &tps6586x_rtc_ops, THIS_MODULE);
@@ -300,7 +325,6 @@ static int __devinit tps6586x_rtc_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
-	dev_set_drvdata(&pdev->dev, rtc);
 	if (pdata && (pdata->irq >= 0)) {
 		rtc->irq = pdata->irq;
 		err = request_threaded_irq(pdata->irq, NULL, tps6586x_rtc_irq,
@@ -310,7 +334,6 @@ static int __devinit tps6586x_rtc_probe(struct platform_device *pdev)
 			dev_warn(&pdev->dev, "unable to request IRQ(%d)\n", rtc->irq);
 			rtc->irq = -1;
 		} else {
-			device_init_wakeup(&pdev->dev, 1);
 			enable_irq_wake(rtc->irq);
 			disable_irq(rtc->irq);
 		}
@@ -321,6 +344,7 @@ static int __devinit tps6586x_rtc_probe(struct platform_device *pdev)
 fail:
 	if (!IS_ERR_OR_NULL(rtc->rtc))
 		rtc_device_unregister(rtc->rtc);
+	device_init_wakeup(&pdev->dev, 0);
 	kfree(rtc);
 	return err;
 }
@@ -360,4 +384,4 @@ module_exit(tps6586x_rtc_exit);
 MODULE_DESCRIPTION("TI TPS6586x RTC driver");
 MODULE_AUTHOR("NVIDIA Corporation");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("platform:rtc-tps6586x")
+MODULE_ALIAS("platform:rtc-tps6586x");

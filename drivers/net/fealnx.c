@@ -566,7 +566,7 @@ static int __devinit fealnx_init_one(struct pci_dev *pdev,
 		err = -ENOMEM;
 		goto err_out_free_dev;
 	}
-	np->rx_ring = (struct fealnx_desc *)ring_space;
+	np->rx_ring = ring_space;
 	np->rx_ring_dma = ring_dma;
 
 	ring_space = pci_alloc_consistent(pdev, TX_TOTAL_SIZE, &ring_dma);
@@ -574,7 +574,7 @@ static int __devinit fealnx_init_one(struct pci_dev *pdev,
 		err = -ENOMEM;
 		goto err_out_free_rx;
 	}
-	np->tx_ring = (struct fealnx_desc *)ring_space;
+	np->tx_ring = ring_space;
 	np->tx_ring_dma = ring_dma;
 
 	/* find the connected MII xcvrs */
@@ -915,14 +915,14 @@ static int netdev_open(struct net_device *dev)
 	init_timer(&np->timer);
 	np->timer.expires = RUN_AT(3 * HZ);
 	np->timer.data = (unsigned long) dev;
-	np->timer.function = &netdev_timer;
+	np->timer.function = netdev_timer;
 
 	/* timer handler */
 	add_timer(&np->timer);
 
 	init_timer(&np->reset_timer);
 	np->reset_timer.data = (unsigned long) dev;
-	np->reset_timer.function = &reset_timer;
+	np->reset_timer.function = reset_timer;
 	np->reset_timer_armed = 0;
 
 	return 0;

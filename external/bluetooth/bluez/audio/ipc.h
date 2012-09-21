@@ -138,13 +138,33 @@ struct bt_get_capabilities_req {
 #define BT_A2DP_MPEG24_SINK			0x05
 #define BT_A2DP_ATRAC_SOURCE			0x06
 #define BT_A2DP_ATRAC_SINK			0x07
+
+/* SS_BLUETOOTH(changeon.park) 2012.02.07 */
+#ifdef GLOBALCONFIG_BLUETOOTH_APT_X_SUPPORT
+#define BT_A2DP_APTX_SOURCE			0x08
+#define BT_A2DP_APTX_SINK			0x09
+#define BT_A2DP_UNKNOWN_SOURCE			0x10
+#define BT_A2DP_UNKNOWN_SINK			0x11
+#else
 #define BT_A2DP_UNKNOWN_SOURCE			0x08
 #define BT_A2DP_UNKNOWN_SINK			0x09
+#endif
+/* SS_BLUETOOTH(changeon.park) End */
 
 #define BT_SBC_SAMPLING_FREQ_16000		(1 << 3)
 #define BT_SBC_SAMPLING_FREQ_32000		(1 << 2)
 #define BT_SBC_SAMPLING_FREQ_44100		(1 << 1)
 #define BT_SBC_SAMPLING_FREQ_48000		1
+
+/* SS_BLUETOOTH(changeon.park) 2012.02.07 */
+#ifdef GLOBALCONFIG_BLUETOOTH_APT_X_SUPPORT
+#define BT_APTX_SAMPLING_FREQ_16000		(1 << 3)
+#define BT_APTX_SAMPLING_FREQ_32000		(1 << 2)
+#define BT_APTX_SAMPLING_FREQ_44100		(1 << 1)
+#define BT_APTX_SAMPLING_FREQ_48000		1
+#define BTAPTX_CHANNEL_MODE_STEREO	2
+#endif
+/* SS_BLUETOOTH(changeon.park) End */
 
 #define BT_A2DP_CHANNEL_MODE_MONO		(1 << 3)
 #define BT_A2DP_CHANNEL_MODE_DUAL_CHANNEL	(1 << 2)
@@ -155,6 +175,17 @@ struct bt_get_capabilities_req {
 #define BT_A2DP_BLOCK_LENGTH_8			(1 << 2)
 #define BT_A2DP_BLOCK_LENGTH_12			(1 << 1)
 #define BT_A2DP_BLOCK_LENGTH_16			1
+
+/* SS_BLUETOOTH(changeon.park) 2012.02.07 */
+#ifdef GLOBALCONFIG_BLUETOOTH_APT_X_SUPPORT
+#define	 BT_A2DP_VENDOR_ID0 	0x4F
+#define  BT_A2DP_VENDOR_ID1 	0x0
+#define  BT_A2DP_VENDOR_ID2 	0x0
+#define  BT_A2DP_VENDOR_ID3 	0x0
+#define  BT_A2DP_CODEC_ID0 		0x1
+#define  BT_A2DP_CODEC_ID1		0x0
+#endif
+/* SS_BLUETOOTH(changeon.park) End */
 
 #define BT_A2DP_SUBBANDS_4			(1 << 1)
 #define BT_A2DP_SUBBANDS_8			1
@@ -202,6 +233,26 @@ typedef struct {
 	uint8_t max_bitpool;
 } __attribute__ ((packed)) sbc_capabilities_t;
 
+/* SS_BLUETOOTH(changeon.park) 2012.02.07 */
+#ifdef GLOBALCONFIG_BLUETOOTH_APT_X_SUPPORT
+/* 
+First added on APTX code 02-12-2010
+*/
+typedef struct {
+	codec_capabilities_t capability;
+	uint8_t vender_id0; 
+	uint8_t vender_id1; 
+	uint8_t vender_id2; 
+	uint8_t vender_id3; 
+	uint8_t codec_id0;	
+	uint8_t codec_id1;	
+	uint8_t channel_mode;
+	uint8_t frequency;
+} __attribute__ ((packed)) aptx_capabilities_t;
+
+#endif
+/* SS_BLUETOOTH(changeon.park) End */
+
 typedef struct {
 	codec_capabilities_t capability;
 	uint8_t channel_mode;
@@ -223,6 +274,7 @@ struct bt_get_capabilities_rsp {
 	char			source[18];	/* Address of the local Device */
 	char			destination[18];/* Address of the remote Device */
 	char			object[128];	/* DBus object path */
+	uint8_t			isEdrCapable;	/* EDR capable */
 	uint8_t			data[0];	/* First codec_capabilities_t */
 } __attribute__ ((packed));
 
@@ -250,6 +302,9 @@ struct bt_set_configuration_req {
 struct bt_set_configuration_rsp {
 	bt_audio_msg_header_t	h;
 	uint16_t		link_mtu;	/* Max length that transport supports */
+        #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+	uint16_t		content_protection;	/* Content protection supported*/
+        #endif
 } __attribute__ ((packed));
 
 #define BT_STREAM_ACCESS_READ		0

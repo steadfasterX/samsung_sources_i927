@@ -42,7 +42,7 @@ static void usage(void)
 "Usage: ip [ OPTIONS ] OBJECT { COMMAND | help }\n"
 "       ip [ -force ] -batch filename\n"
 "where  OBJECT := { link | addr | addrlabel | route | rule | neigh | ntable |\n"
-"                   tunnel | maddr | mroute | monitor | xfrm }\n"
+"                   tunnel | tuntap | maddr | mroute | mrule | monitor | xfrm }\n"
 "       OPTIONS := { -V[ersion] | -s[tatistics] | -d[etails] | -r[esolve] |\n"
 "                    -f[amily] { inet | inet6 | ipx | dnet | link } |\n"
 "                    -o[neline] | -t[imestamp] | -b[atch] [filename] |\n"
@@ -55,7 +55,6 @@ static int do_help(int argc, char **argv)
 	usage();
 }
 
-#if 0
 static const struct cmd {
 	const char *cmd;
 	int (*func)(int argc, char **argv);
@@ -72,22 +71,15 @@ static const struct cmd {
 	{ "link",	do_iplink },
 	{ "tunnel",	do_iptunnel },
 	{ "tunl",	do_iptunnel },
+	{ "tuntap",	do_iptuntap },
+	{ "tap",	do_iptuntap },
 	{ "monitor",	do_ipmonitor },
 	{ "xfrm",	do_xfrm },
 	{ "mroute",	do_multiroute },
+	{ "mrule",	do_multirule },
 	{ "help",	do_help },
-	{ 0 }
+	{ 0,		0 }
 };
-#else
-static const struct cmd {
-	const char *cmd;
-	int (*func)(int argc, char **argv);
-} cmds[] = {
-	{ "route",	do_iproute },
-	{ "rule",	do_iprule },
-	{ 0 }
-};
-#endif
 
 static int do_cmd(const char *argv0, int argc, char **argv)
 {
@@ -103,13 +95,11 @@ static int do_cmd(const char *argv0, int argc, char **argv)
 }
 
 #ifndef ANDROID
-
 static int batch(const char *name)
 {
 	char *line = NULL;
 	size_t len = 0;
 	int ret = 0;
-	int lineno = 0;
 
 	if (name && strcmp(name, "-") != 0) {
 		if (freopen(name, "r", stdin) == NULL) {
@@ -124,6 +114,7 @@ static int batch(const char *name)
 		return -1;
 	}
 
+	cmdlineno = 0;
 	while (getcmdline(&line, &len, stdin) != -1) {
 		char *largv[100];
 		int largc;
@@ -133,7 +124,7 @@ static int batch(const char *name)
 			continue;	/* blank line */
 
 		if (do_cmd(largv[0], largc, largv)) {
-			fprintf(stderr, "Command failed %s:%d\n", name, lineno);
+			fprintf(stderr, "Command failed %s:%d\n", name, cmdlineno);
 			ret = 1;
 			if (!force)
 				break;
@@ -216,17 +207,15 @@ int main(int argc, char **argv)
 			exit(0);
 		} else if (matches(opt, "-force") == 0) {
 			++force;
-		} 
 #ifndef ANDROID
-        else if (matches(opt, "-batch") == 0) {
+		} else if (matches(opt, "-batch") == 0) {
 			argc--;
 			argv++;
 			if (argc <= 1)
 				usage();
 			batch_file = argv[1];
-		} 
 #endif
-            else if (matches(opt, "-rcvbuf") == 0) {
+		} else if (matches(opt, "-rcvbuf") == 0) {
 			unsigned int size;
 
 			argc--;

@@ -21,6 +21,7 @@
 
 #ifndef _FSA9480_H_
 #define _FSA9480_H_
+#include <linux/wakelock.h>
 
 struct fsa9480_usbsw {
 	struct i2c_client		*client;
@@ -29,6 +30,9 @@ struct fsa9480_usbsw {
 	int				dev2;
 	int				mansw;
 	struct mutex			lock;
+#if defined(CONFIG_MACH_BOSE_ATT)
+	struct wake_lock mhl_wake_lock;
+#endif
 };
 
 struct otg_id_open_data{
@@ -60,7 +64,7 @@ struct fsa9480_platform_data {
 	void (*jig_cb) (bool attached);
 	void (*dock_charger_cb) (bool attached);
 	void (*deskdock_cb) (bool attached);
-#if defined(CONFIG_MACH_BOSE_ATT)	//charging with MHL dock
+#if defined(CONFIG_MACH_BOSE_ATT)
 	 void (*mhldock_cb) (bool attached);
 #endif
 	void (*cardock_cb) (bool attached);

@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -38,9 +38,9 @@
 #include <linux/irq.h>
 #include <linux/delay.h>
 
-#include <linux/syscalls.h> 
-#include <linux/fcntl.h> 
-#include <linux/uaccess.h> 
+#include <linux/syscalls.h>
+#include <linux/fcntl.h>
+#include <linux/uaccess.h>
 #include <linux/types.h>
 
 #include "Common_Def.h"
@@ -75,7 +75,7 @@ SI_Rc5RcpConversion_t RcpSourceToSink[] =
 	//{ MHD_RCP_CMD_CONTENTS_MENU,	"Contents Menu"},
 	//{ MHD_RCP_CMD_FAVORITE_MENU,	"Favorite Menu"},
 	{ MHD_RCP_CMD_EXIT,				"Exit"},
-	// 0x0E - 0x1F Reserved 
+	// 0x0E - 0x1F Reserved
 	{ MHD_RCP_CMD_NUM_0,			"Num 0"},
 	{ MHD_RCP_CMD_NUM_1,			"Num 1"},
 	{ MHD_RCP_CMD_NUM_2,			"Num 2"},
@@ -89,7 +89,7 @@ SI_Rc5RcpConversion_t RcpSourceToSink[] =
 	//{ MHD_RCP_CMD_DOT,				"Dot"},
 	{ MHD_RCP_CMD_ENTER,			"Enter"},
 	{ MHD_RCP_CMD_CLEAR,			"Clear"},
-	// 0x2D - 0x2F Reserved 
+	// 0x2D - 0x2F Reserved
 	{ MHD_RCP_CMD_CH_UP,			"Channel Up"},
 	{ MHD_RCP_CMD_CH_DOWN,			"Channel Down"},
 	{ MHD_RCP_CMD_PRE_CH,			"Previous Channel"},
@@ -99,7 +99,7 @@ SI_Rc5RcpConversion_t RcpSourceToSink[] =
 	//{ MHD_RCP_CMD_HELP,			"Help"},
 	//{ MHD_RCP_CMD_PAGE_UP,		"Page Up"},
 	//{ MHD_RCP_CMD_PAGE_DOWN,		"Page Down"},
-	// 0x39 - 0x40 Reserved 
+	// 0x39 - 0x40 Reserved
 	{ MHD_RCP_CMD_VOL_UP,			"Volume Up"},
 	{ MHD_RCP_CMD_VOL_DOWN,			"Volume Down"},
 	{ MHD_RCP_CMD_MUTE,				"Mute"},
@@ -189,7 +189,7 @@ Bool CpCbusSendRcpMessage ( byte channel, byte keyCode )
 		if (channel == 0xFF) {
 			printk( "\n::::::: Bad channel -- " );
 			break;
-		}				      
+		}
 
 		keyCode = CbusRc5toRcpConvert( keyCode );
 		if (keyCode == 0xFF) {
@@ -294,21 +294,21 @@ static byte CpProcessRcpMessage ( byte channel, byte rcpData )
 		break;
 	case MHD_RCP_CMD_LEFT_DOWN:
 		printk("\n MHD_RCP_CMD_LEFT_DOWN\n\n");
-		break;      
+		break;
 	case MHD_RCP_CMD_ROOT_MENU:
 		printk("\nRoot Menu received\n\n");
 		break;
 	case MHD_RCP_CMD_SETUP_MENU:
 		printk("\n MHD_RCP_CMD_SETUP_MENU\n\n");
-		break;      
+		break;
 
 	case MHD_RCP_CMD_CONTENTS_MENU:
 		printk("\n MHD_RCP_CMD_CONTENTS_MENU\n\n");
-		break;      
+		break;
 
 	case MHD_RCP_CMD_FAVORITE_MENU:
 		printk("\n MHD_RCP_CMD_FAVORITE_MENU\n\n");
-		break;            
+		break;
 
 	case MHD_RCP_CMD_EXIT:
 		printk("\nExit received\n\n");
@@ -356,7 +356,7 @@ static byte CpProcessRcpMessage ( byte channel, byte rcpData )
 
 	case MHD_RCP_CMD_DOT:
 		printk("\n MHD_RCP_CMD_DOT\n\n");
-		break;          
+		break;
 
 	case MHD_RCP_CMD_ENTER:
 		printk("\nEnter received\n\n");
@@ -368,15 +368,15 @@ static byte CpProcessRcpMessage ( byte channel, byte rcpData )
 
 	case MHD_RCP_CMD_CH_UP:
 		printk("\n MHD_RCP_CMD_CH_UP\n\n");
-		break; 
+		break;
 
 	case MHD_RCP_CMD_CH_DOWN:
 		printk("\n MHD_RCP_CMD_CH_DOWN\n\n");
-		break;       
+		break;
 
 	case MHD_RCP_CMD_PRE_CH:
 		printk("\n MHD_RCP_CMD_PRE_CH\n\n");
-		break;           
+		break;
 
 	case MHD_RCP_CMD_SOUND_SELECT:
 		printk("\nSound Select received\n\n");
@@ -384,35 +384,35 @@ static byte CpProcessRcpMessage ( byte channel, byte rcpData )
 
 	case MHD_RCP_CMD_INPUT_SELECT:
 		printk("\n MHD_RCP_CMD_INPUT_SELECT\n\n");
-		break;    
+		break;
 
 	case MHD_RCP_CMD_SHOW_INFO:
 		printk("\n MHD_RCP_CMD_SHOW_INFO\n\n");
-		break;     
+		break;
 
 	case MHD_RCP_CMD_HELP:
 		printk("\n MHD_RCP_CMD_HELP\n\n");
-		break;   
+		break;
 
 	case MHD_RCP_CMD_PAGE_UP:
 		printk("\n MHD_RCP_CMD_PAGE_UP\n\n");
-		break;  
+		break;
 
 	case MHD_RCP_CMD_PAGE_DOWN:
 		printk("\n MHD_RCP_CMD_PAGE_DOWN\n\n");
-		break;             
+		break;
 
 	case MHD_RCP_CMD_VOL_UP:
 		printk("\n MHD_RCP_CMD_VOL_UP\n\n");
-		break;             
+		break;
 
 	case MHD_RCP_CMD_VOL_DOWN:
 		printk("\n MHD_RCP_CMD_VOL_DOWN\n\n");
-		break;             
+		break;
 
 	case MHD_RCP_CMD_MUTE:
 		printk("\n MHD_RCP_CMD_MUTE\n\n");
-		break;             
+		break;
 
 	case MHD_RCP_CMD_PLAY:
 		printk("\nPlay received\n\n");
@@ -420,7 +420,7 @@ static byte CpProcessRcpMessage ( byte channel, byte rcpData )
 
 	case MHD_RCP_CMD_STOP:
 		printk("\n MHD_RCP_CMD_STOP\n\n");
-		break;   
+		break;
 
 	case MHD_RCP_CMD_PAUSE:
 		printk("\nPause received\n\n");
@@ -428,7 +428,7 @@ static byte CpProcessRcpMessage ( byte channel, byte rcpData )
 
 	case MHD_RCP_CMD_RECORD:
 		printk("\n MHD_RCP_CMD_RECORD\n\n");
-		break;   
+		break;
 
 	case MHD_RCP_CMD_FAST_FWD:
 		printk("\nFastfwd received\n\n");
@@ -495,7 +495,7 @@ static byte CpProcessRapMessage ( byte channel, byte rcpData )
 	case MHD_RAP_CMD_CHG_ACTIVE_PWR:
 		printk( "\nCHANGE TO ACTIVE POWER STATE"
 				" received\n\n");
-		break;        
+		break;
 
 	case MHD_RAP_CMD_CHG_QUIET:
 		printk( "\nCHANGE TO QUIET STATE"
@@ -581,20 +581,20 @@ static void CpCbusProcessPrivateMessage(byte channel)
 		break;
 
 	case MHD_MSC_MSG_RCPK:
-		printk("MHD_MSC_MSG_RCPK 1\n");          
+		printk("MHD_MSC_MSG_RCPK 1\n");
 		break;
 
-	case MHD_MSC_MSG_RCPE:  
-		printk("MHD_MSC_MSG_RCPE 1\n");            
+	case MHD_MSC_MSG_RCPE:
+		printk("MHD_MSC_MSG_RCPE 1\n");
 		break;
 
 	case MHD_MSC_MSG_RAP:
-		printk("MHD_MSC_MSG_RAP 1\n");            
+		printk("MHD_MSC_MSG_RAP 1\n");
 		status = CpProcessRapMessage(channel, pCmdRequest->offsetData );
 			SI_CbusRapMessageAck(channel, status);
 		break;
 
-	case MHD_MSC_MSG_RAPK:  
+	case MHD_MSC_MSG_RAPK:
 		break;
 	}
 }
@@ -622,20 +622,20 @@ void CpCbusHandler(void)
 
 			status = SI_CbusRequestStatus( channel );
 			switch ( status ) {
-			case CBUS_REQ_IDLE: 
+			case CBUS_REQ_IDLE:
 				printk("CBUS_REQ_IDLE\n");
 				break;
 
 			case CBUS_REQ_PENDING:
-				printk("CBUS_REQ_PENDING\n");              
+				printk("CBUS_REQ_PENDING\n");
 				break;
 
 			case CBUS_REQ_SENT:
-				printk("CBUS_REQ_SENT\n");              
+				printk("CBUS_REQ_SENT\n");
 				break;
 
 			case CBUS_REQ_RECEIVED:
-				printk("CBUS_REQ_RECEIVED\n");  
+				printk("CBUS_REQ_RECEIVED\n");
 			/* Received a message or message response.  */
 			/* Go do what is appropriate.               */
 

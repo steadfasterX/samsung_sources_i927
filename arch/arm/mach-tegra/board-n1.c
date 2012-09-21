@@ -1,7 +1,7 @@
 /*
-/ * arch/arm/mach-tegra/board-n1.c
+ * arch/arm/mach-tegra/board-n1.c
  *
- * Copyright (c) 2010, NVIDIA Corporation.
+ * Copyright (c) 2010 - 2011, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
- 
 
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -34,18 +33,20 @@
 #include <linux/gpio.h>
 #include <linux/gpio_keys.h>
 #include <linux/input.h>
-#include <linux/platform_data/tegra_usb.h>
-#include <linux/usb/android_composite.h>
-#include <linux/memblock.h>
 #include <linux/i2c/mcs.h>
 #include <linux/power_supply.h>
-#include <linux/input/sain_touch.h>
+
 #include <linux/atmel_mxt224E.h>
-#include <linux/sec_jack.h>
+#include <linux/platform_data/tegra_usb.h>
+
 #include <linux/mfd/max8907c.h>
+#include <linux/memblock.h>
+#include <linux/tegra_uart.h>
+#include <linux/i2c/mcs.h>
+#include <linux/power_supply.h>
+#include <linux/sec_jack.h>
 #include <linux/fsa9480.h>
 #include <linux/regulator/consumer.h>
-#include <linux/mhl-sii9234.h>
 #include <linux/reboot.h>
 #include <linux/notifier.h>
 #include <linux/syscalls.h>
@@ -64,16 +65,16 @@
 #include <mach/audio.h>
 
 #include <media/tegra_camera.h>
-
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <mach/usb_phy.h>
-#include <mach/tegra_das.h>
 #include <mach/gpio-n1.h>
 #include <mach/sec_battery.h>
+#include <mach/otg_def.h>
 #include <linux/power/max8922-charger.h>
 #include <linux/mfd/max8907c.h>
 
+#include "pm.h"
 #include "board.h"
 #include "clock.h"
 #include "board-n1.h"
@@ -84,19 +85,22 @@
 #include <media/s5k6aafx.h>
 #include <media/s5k4ecgx.h>
 #include <linux/nct1008.h>
+#include <linux/kernel_sec_common.h>
+#ifdef CONFIG_SEC_MODEM
+#include <mach/sec_modem.h>
+#endif
+
 #ifdef CONFIG_SAMSUNG_LPM_MODE
 #include <linux/moduleparam.h>
 #endif
-#include <linux/kernel_sec_common.h>
 
 #define HWREV_FOR_EXTERNEL_CHARGER	7
 
 /* WLAN STATIC BUF Implementation */
 #define WLAN_STATIC_BUF	// this feature for using static buffer on wifi driver /Kernel/drivers/net/wireless/bcm4330
 #ifdef WLAN_STATIC_BUF
-
 #include <linux/skbuff.h>
-
+#define USB1_VBUS_GPIO TCA6416_GPIO_BASE
 #ifdef CONFIG_USB_ANDROID_ACCESSORY
 #include <linux/usb/f_accessory.h>
 #endif
@@ -108,7 +112,10 @@ int charging_mode_from_boot;
 __module_param_call("", lpm_boot,  &param_ops_int,
 		&charging_mode_from_boot, 0, 0644);
 MODULE_PARM_DESC(charging_mode_from_boot, "Charging mode parameter value.");
+#else
+int charging_mode_from_boot = 0;
 #endif
+
 
 #define PREALLOC_WLAN_SEC_NUM		4
 #define PREALLOC_WLAN_BUF_NUM		160
@@ -152,7 +159,7 @@ void *wlan_mem_prealloc(int section, unsigned long size)
 }
 EXPORT_SYMBOL(wlan_mem_prealloc);
 
-#define DHD_SKB_HDRSIZE 		336
+#define DHD_SKB_HDRSIZE			336
 #define DHD_SKB_1PAGE_BUFSIZE	((PAGE_SIZE*1)-DHD_SKB_HDRSIZE)
 #define DHD_SKB_2PAGE_BUFSIZE	((PAGE_SIZE*2)-DHD_SKB_HDRSIZE)
 #define DHD_SKB_4PAGE_BUFSIZE	((PAGE_SIZE*4)-DHD_SKB_HDRSIZE)
@@ -167,13 +174,13 @@ static int __init init_wifi_mem(void)
 		if (!wlan_static_skb[i])
 			goto err_skb_alloc;
 	}
-	
+
 	for (; i < 16; i++) {
 		wlan_static_skb[i] = dev_alloc_skb(DHD_SKB_2PAGE_BUFSIZE);
 		if (!wlan_static_skb[i])
 			goto err_skb_alloc;
 	}
-	
+
 	wlan_static_skb[i] = dev_alloc_skb(DHD_SKB_4PAGE_BUFSIZE);
 	if (!wlan_static_skb[i])
 		goto err_skb_alloc;
@@ -205,7 +212,6 @@ static int __init init_wifi_mem(void)
 
 #endif /* WLAN_STATIC_BUF */
 
-
 enum cable_type_t set_cable_status;
 EXPORT_SYMBOL(set_cable_status);
 
@@ -221,7 +227,6 @@ static struct board_usb_data usb_data;
 struct otg_id_open_data otg_open;
 struct otg_detect_data otg_clk_data;
 static unsigned int *sec_batt_level;
-
 extern int __init register_smd_resource(void);
 
 
@@ -229,7 +234,6 @@ struct bootloader_message {
 	char command[32];
 	char status[32];
 };
-
 /* REBOOT_MODE */
 #define REBOOT_MODE_NONE                0
 #define REBOOT_MODE_DOWNLOAD            1
@@ -256,7 +260,7 @@ static int write_bootloader_message(char *cmd, int mode)
 	if (mode == REBOOT_MODE_RECOVERY) {
 		strcpy(bootmsg.command, "boot-recovery");
 		kernel_sec_set_path(SEC_PORT_USB, SEC_PORT_PATH_AP);
-		kernel_sec_set_path(SEC_PORT_UART, SEC_PORT_PATH_CP);		
+		kernel_sec_set_path(SEC_PORT_UART, SEC_PORT_PATH_CP);
 	}
 	else if (mode == REBOOT_MODE_FASTBOOT)
 		strcpy(bootmsg.command, "boot-fastboot");
@@ -265,7 +269,7 @@ static int write_bootloader_message(char *cmd, int mode)
 	else if (mode == REBOOT_MODE_NONE)
 		strcpy(bootmsg.command, "boot-normal");
 	else if (mode == REBOOT_MODE_FOTA)
-		strcpy(bootmsg.command, "boot-fota");	
+		strcpy(bootmsg.command, "boot-fota");
 	else
 		strcpy(bootmsg.command, cmd);
 
@@ -283,11 +287,6 @@ static int write_bootloader_message(char *cmd, int mode)
 
 	filp = fget(fd);
 
-	if ( !filp ) {
-		printk(KERN_INFO "failed to fget(fd)\n");
-		return 0;
-	}
-
 	ret = vfs_write(filp, (const char *)&bootmsg, sizeof(struct bootloader_message), &pos);
 
 	if (ret < 0)
@@ -303,12 +302,31 @@ static int write_bootloader_message(char *cmd, int mode)
 	return ret;
 }
 
+/* Boot Mode Physical Addresses and Magic Token */
+#define BOOT_MODE_P_ADDR	(0x20000000 - 0x0C)
+#define BOOT_MAGIC_P_ADDR	(0x20000000 - 0x10)
+#define BOOT_MAGIC_TOKEN	0x626F6F74
+
+static void write_bootloader_mode(char boot_mode)
+{
+	void __iomem *to_io;
+
+	to_io = ioremap(BOOT_MODE_P_ADDR, 4);
+	writel((unsigned long)boot_mode, to_io);
+	iounmap(to_io);
+
+	/* Write a magic value to a 2nd memory location to distinguish between a
+	 * cold boot and a reboot.
+	 */
+	to_io = ioremap(BOOT_MAGIC_P_ADDR, 4);
+	writel(BOOT_MAGIC_TOKEN, to_io);
+	iounmap(to_io);
+}
+
 static int n1_notifier_call(struct notifier_block *this,
 					unsigned long code, void *_cmd)
 {
 	int mode;
-
-	pr_info("Current mode: %s\n", charging_mode_from_boot?"LPM":"Normal(Android)");
 
 	if (code == SYS_RESTART) {
 		mode = REBOOT_MODE_NORMAL;
@@ -316,7 +334,7 @@ static int n1_notifier_call(struct notifier_block *this,
 			if (!strcmp((char *)_cmd, "recovery"))
 				mode = REBOOT_MODE_RECOVERY;
 			else if (!strcmp((char *)_cmd, "arm11_fota"))
-				mode = REBOOT_MODE_FOTA;			
+				mode = REBOOT_MODE_FOTA;
 			else if (!strcmp((char *)_cmd, "bootloader"))
 				mode = REBOOT_MODE_FASTBOOT;
 			else if (!strcmp((char *)_cmd, "download"))
@@ -325,7 +343,15 @@ static int n1_notifier_call(struct notifier_block *this,
 	} else
 		mode = REBOOT_MODE_NONE;
 
-	printk(KERN_DEBUG "%s, Reboot Mode : %d \n", __func__, mode);
+	pr_info("%s, Reboot Mode : %d \n", __func__, mode);
+
+	switch( mode )
+	{
+		case REBOOT_MODE_FOTA:
+		case REBOOT_MODE_NORMAL:
+		case REBOOT_MODE_RECOVERY:
+			write_bootloader_mode(mode);
+	}
 
 	write_bootloader_message(_cmd, mode);
 
@@ -335,14 +361,13 @@ static int n1_notifier_call(struct notifier_block *this,
 static struct notifier_block n1_reboot_notifier = {
 	.notifier_call = n1_notifier_call,
 };
-
-static struct plat_serial8250_port debug_uart_platform_data[] = {
+static struct plat_serial8250_port debug_uartb_platform_data[] = {
 	{
 		.membase	= IO_ADDRESS(TEGRA_UARTB_BASE),
 		.mapbase	= TEGRA_UARTB_BASE,
 		.irq		= INT_UARTB,
 		.flags		= UPF_BOOT_AUTOCONF | UPF_FIXED_TYPE,
-		.type		= PORT_TEGRA,
+		.type           = PORT_TEGRA,
 		.iotype		= UPIO_MEM,
 		.regshift	= 2,
 		.uartclk	= 216000000,
@@ -351,64 +376,103 @@ static struct plat_serial8250_port debug_uart_platform_data[] = {
 	}
 };
 
-static struct platform_device debug_uart = {
+static struct platform_device debug_uartb = {
 	.name = "serial8250",
 	.id = PLAT8250_DEV_PLATFORM,
 	.dev = {
-		.platform_data = debug_uart_platform_data,
+		.platform_data = debug_uartb_platform_data,
 	},
 };
 
-static struct tegra_audio_platform_data tegra_spdif_pdata = {
-	.dma_on = true,  /* use dma by default */
-	.spdif_clk_rate = 5644800,
+static struct platform_device *n1_uart_devices[] __initdata = {
+	&tegra_uarta_device,
+	&tegra_uartb_device,
+	&tegra_uartc_device,
 };
 
-static struct tegra_utmip_config utmi_phy_config[] = {
-	[0] = {
-			.hssync_start_delay = 0,
-			.idle_wait_delay = 17,
-			.elastic_limit = 16,
-			.term_range_adj = 6,
-			.xcvr_setup = 15,
-			.xcvr_lsfslew = 2,
-			.xcvr_lsrslew = 2,
-	},
-	[1] = {
-			.hssync_start_delay = 0,
-			.idle_wait_delay = 17,
-			.elastic_limit = 16,
-			.term_range_adj = 6,
-			.xcvr_setup = 8,
-			.xcvr_lsfslew = 2,
-			.xcvr_lsrslew = 2,
-	},
-};
-static struct tegra_ulpi_config hsic_phy_config = {
-	.reset_gpio = TEGRA_GPIO_PG2,
-	.clk = "clk_dev2",
-	.inf_type = TEGRA_USB_UHSIC,
+struct uart_clk_parent uart_parent_clk[] = {
+	[0] = {.name = "pll_p"},
+	[1] = {.name = "pll_m"},
+	[2] = {.name = "clk_m"},
 };
 
-static struct resource ram_console_resource[] = {
-	{
-		.flags = IORESOURCE_MEM,
+static struct tegra_uart_platform_data n1_uart_pdata;
+
+static void __init uart_debug_init(void)
+{
+	unsigned long rate;
+	struct clk *debug_uart_clk;
+	struct clk *c;
+
+	/* UARTB is the debug port. */
+	pr_info("Selecting UARTB as the debug console\n");
+	n1_uart_devices[1] = &debug_uartb;
+	debug_uart_clk = clk_get_sys("serial8250.0", "uartb");
+
+	/* Clock enable for the debug channel */
+	if (!IS_ERR_OR_NULL(debug_uart_clk)) {
+		rate = debug_uartb_platform_data[0].uartclk;
+		pr_info("The debug console clock name is %s\n",
+					debug_uart_clk->name);
+		c = tegra_get_clock_by_name("pll_p");
+		if (IS_ERR_OR_NULL(c))
+			pr_err("Not getting the parent clock pll_p\n");
+		else
+			clk_set_parent(debug_uart_clk, c);
+			clk_enable(debug_uart_clk);
+		clk_set_rate(debug_uart_clk, rate);
+	} else {
+		pr_err("Not getting the clock %s for debug console\n",
+					debug_uart_clk->name);
 	}
-};
+}
 
-static struct platform_device ram_console_device = {
-	.name = "ram_console",
+#ifdef CONFIG_BT_BCM4330
+static struct platform_device bcm4330_bluetooth_device = {
+	.name = "bcm4330_bluetooth",
 	.id = -1,
-	.num_resources = ARRAY_SIZE(ram_console_resource),
-	.resource = ram_console_resource,
 };
 
-
-static struct tegra_ulpi_config ulpi_phy_config = {
-	.reset_gpio = TEGRA_GPIO_PG2,
-	.clk = "clk_dev2",
+/* UART Interface for Bluetooth */
+static struct tegra_uart_platform_data bt_uart_pdata = {
+	.wake_peer = bcm_bt_lpm_exit_lpm_locked,
 };
+#endif
 
+static void __init n1_uart_init(void)
+{
+	int i;
+	struct clk *c;
+
+	for (i = 0; i < ARRAY_SIZE(uart_parent_clk); ++i) {
+		c = tegra_get_clock_by_name(uart_parent_clk[i].name);
+		if (IS_ERR_OR_NULL(c)) {
+			pr_err("Not able to get the clock for %s\n",
+						uart_parent_clk[i].name);
+			continue;
+		}
+		uart_parent_clk[i].parent_clk = c;
+		uart_parent_clk[i].fixed_clk_rate = clk_get_rate(c);
+	}
+	n1_uart_pdata.parent_clk_list = uart_parent_clk;
+	n1_uart_pdata.parent_clk_count = ARRAY_SIZE(uart_parent_clk);
+
+	tegra_uarta_device.dev.platform_data = &n1_uart_pdata;
+	tegra_uartb_device.dev.platform_data = &n1_uart_pdata;
+#ifdef CONFIG_BT_BCM4330
+	tegra_uartc_device.dev.platform_data = &bt_uart_pdata;
+#else
+	tegra_uartc_device.dev.platform_data = &n1_uart_pdata;
+#endif
+
+	if (!is_tegra_debug_uartport_hs())
+		uart_debug_init();
+
+	platform_add_devices(n1_uart_devices,
+				ARRAY_SIZE(n1_uart_devices));
+}
+
+#ifdef CONFIG_BCM4330_RFKILL
 /* Bluetooth(BCM4330) rfkill */
 static struct resource n1_bcm4330_rfkill_resources[] = {
 	{
@@ -455,498 +519,192 @@ int __init n1_rfkill_init(void)
 
 	return 0;
 }
+#endif
 
+static struct tegra_utmip_config utmi_phy_config[] = {
+	[0] = {
+			.hssync_start_delay = 9,
+			.idle_wait_delay = 17,
+			.elastic_limit = 16,
+			.term_range_adj = 6,
+			.xcvr_setup = 11,
+			.xcvr_setup_offset = 0,
+			.xcvr_use_fuses = 1,
+			.xcvr_lsfslew = 2,
+			.xcvr_lsrslew = 2,
+		},
+	[1] = {
+			.hssync_start_delay = 9,
+			.idle_wait_delay = 17,
+			.elastic_limit = 16,
+			.term_range_adj = 6,
+			.xcvr_setup = 8,
+			.xcvr_setup_offset = 0,
+			.xcvr_use_fuses = 1,
+			.xcvr_lsfslew = 2,
+			.xcvr_lsrslew = 2,
+		},
+};
+
+#ifdef CONFIG_LINK_DEVICE_HSIC
+static int notify_hsic_host_ready(void)
+{
+	set_host_states(&tegra_ehci2_device, TEGRA_HOST_ON);
+	return 0;
+}
+static int notify_hsic_host_off(void)
+{
+	set_host_states(&tegra_ehci2_device, TEGRA_HOST_OFF);
+	return 0;
+}
+
+static struct tegra_uhsic_config hsic_phy_config = {
+	.enable_gpio = GPIO_HSIC_EN,
+	.reset_gpio = -1,
+	.sync_start_delay = 9,
+	.idle_wait_delay = 17,
+	.term_range_adj = 0,
+	.elastic_underrun_limit = 16,
+	.elastic_overrun_limit = 16,
+	.usb_phy_ready = notify_hsic_host_ready,
+	.post_phy_off = notify_hsic_host_off,
+	.device_wake = set_slave_wake,
+};
+#else
+static struct tegra_ulpi_config ulpi_phy_config = {
+	.reset_gpio = TEGRA_GPIO_PG2,
+	.clk = "cdev2",
+};
+#endif
+
+static struct resource ram_console_resource[] = {
+	{
+		.flags = IORESOURCE_MEM,
+	}
+};
+
+static struct platform_device ram_console_device = {
+	.name = "ram_console",
+	.id = -1,
+	.num_resources = ARRAY_SIZE(ram_console_resource),
+	.resource = ram_console_resource,
+};
 static __initdata struct tegra_clk_init_table n1_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "uartb",	"pll_p",	216000000,	true},
 	{ "uartc",	"pll_m",	600000000,	false},
-	{ "blink",	"clk_32k",	32768,		false},
+
 	{ "pll_p_out4",	"pll_p",	24000000,	true},
 	{ "pwm",	"clk_32k",	32768,		false},
-	{ "pll_a",	NULL,		11289600,	true},
-	{ "pll_a_out0",	NULL,		11289600,	true},
-	{ "i2s1",	"pll_a_out0",	11289600,	true},
-	{ "i2s2",	"pll_a_out0",	11289600,	true},
-	{ "audio",	"pll_a_out0",	11289600,	true},
-	{ "audio_2x",	"audio",	22579200,	true},
-	{ "spdif_out",	"pll_a_out0",	5644800,	false},
 	{ "kbc",	"clk_32k",	32768,		true},
-	{ "disp1",	"pll_p",	216000000,		true},
+	{ "sdmmc2",	"pll_p",	25000000,	false},
+	{ "i2s1",	"pll_a_out0",	0,		false},
+	{ "i2s2",	"pll_a_out0",	0,		false},
+	{ "spdif_out",	"pll_a_out0",	0,		false},
 	{ NULL,		NULL,		0,		0},
 };
-//#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* woojin80.kim : Define samsung product id and config string.
- *                Sources such as 'android.c' and 'devs.c' refered below define
- */
-#define SAMSUNG_VENDOR_ID		0x04e8
-
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_ESCAPE
-	/* USE DEVGURU HOST DRIVER */
-	/* 0x6860 : MTP(0) + MS Composite (UMS) */
-	/* 0x685E : UMS(0) + MS Composite (ADB) */
-
-	#ifdef CONFIG_USB_ANDROID_SAMSUNG_KIES_UMS
-		#define SAMSUNG_KIES_PRODUCT_ID	0x685e	/* ums(0) + acm(1,2) */
-	#else
-		#define SAMSUNG_KIES_PRODUCT_ID	0x6860	/* mtp(0) + acm(1,2) */
-	#endif
-
-
-	#define SAMSUNG_DEBUG_PRODUCT_ID	0x685e	/* ums(0) + acm(1,2) + adb(3) (with MS Composite) */
-	#define SAMSUNG_UMS_PRODUCT_ID	0x685B  /* UMS Only */
-	#define SAMSUNG_MTP_PRODUCT_ID	0x685C  /* MTP Only */
-
-
-	#ifdef CONFIG_USB_ANDROID_SAMSUNG_RNDIS_WITH_MS_COMPOSITE
-		#define SAMSUNG_RNDIS_PRODUCT_ID	0x6861  /* RNDIS(0,1) + UMS (2) + MS Composite */
-	#else
-		#define SAMSUNG_RNDIS_PRODUCT_ID	0x6863  /* RNDIS only */
-	#endif
-
-
-	#define ANDROID_DEBUG_CONFIG_STRING	 "UMS + ACM + ADB (Debugging mode)"
-
-
-	#ifdef CONFIG_USB_ANDROID_SAMSUNG_KIES_UMS
-		#define ANDROID_KIES_CONFIG_STRING	 "UMS + ACM (SAMSUNG KIES mode)"
-	#else
-		#define ANDROID_KIES_CONFIG_STRING	 "MTP + ACM (SAMSUNG KIES mode)"
-	#endif
-
-
-#else /* USE MCCI HOST DRIVER */
-	#define SAMSUNG_KIES_PRODUCT_ID	0x6877	/* Shrewbury ACM+MTP*/
-	#define SAMSUNG_DEBUG_PRODUCT_ID	0x681C	/* Shrewbury ACM+UMS+ADB*/
-	#define SAMSUNG_UMS_PRODUCT_ID	0x681D
-	#define SAMSUNG_MTP_PRODUCT_ID	0x68A9
-	#define SAMSUNG_RNDIS_PRODUCT_ID	0x6863
-	#define ANDROID_DEBUG_CONFIG_STRING	 "ACM + UMS + ADB (Debugging mode)"
-	#define ANDROID_KIES_CONFIG_STRING	 "ACM + MTP (SAMSUNG KIES mode)"
-
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_ESCAPE */
-
-
-
-#define       ANDROID_UMS_CONFIG_STRING	 "UMS Only (Not debugging mode)"
-#define       ANDROID_MTP_CONFIG_STRING	 "MTP Only (Not debugging mode)"
-
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_RNDIS_WITH_MS_COMPOSITE
-	#define       ANDROID_RNDIS_CONFIG_STRING	 "RNDIS + UMS (Not debugging mode)"
-#else
-	#define       ANDROID_RNDIS_CONFIG_STRING	 "RNDIS Only (Not debugging mode)"
-#endif
-
-
-
-/* Refered from S1, P1 */
-#define USBSTATUS_UMS				0x0
-#define USBSTATUS_SAMSUNG_KIES 		0x1
-#define USBSTATUS_MTPONLY			0x2
-#define USBSTATUS_ASKON				0x4
-#define USBSTATUS_VTP				0x8
-#define USBSTATUS_ADB				0x10
-#define USBSTATUS_DM				0x20
-#define USBSTATUS_ACM				0x40
-#define USBSTATUS_SAMSUNG_KIES_REAL	0x80
-
-
-/* Android USB OTG Gadget */
-#include <linux/usb/android_composite.h>
-#define S3C_VENDOR_ID		0x18d1
-#define S3C_PRODUCT_ID		0x0001
-#define S3C_ADB_PRODUCT_ID	0x0005
-
-static char *usb_functions_ums[] = {
-	"usb_mass_storage",
-};
-
-
-#ifdef CONFIG_USB_ANDROID_RNDIS
-	static char *usb_functions_rndis[] = {"rndis",};
-#endif
-
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-/* Do not use below compoiste */
-#else
-	static char *usb_functions_ums_adb[] = {"usb_mass_storage", "adb",};
-#endif
-
-
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	#ifdef CONFIG_USB_ANDROID_SAMSUNG_ESCAPE /* USE DEVGURU HOST DRIVER */
-/* kies mode : using MS Composite*/
-		#ifdef CONFIG_USB_ANDROID_SAMSUNG_KIES_UMS
-			static char *usb_functions_ums_acm[] = {"usb_mass_storage",	"acm",};
-		#else
-			static char *usb_functions_mtp_acm[] = {"mtp", "acm",};
-		#endif
-
-		/* debug mode : using MS Composite*/
-		static char *usb_functions_ums_acm_adb[] = {"usb_mass_storage", "acm", "adb",};
-
-	#else /* USE MCCI HOST DRIVER */
-		/* kies mode */
-		static char *usb_functions_acm_mtp[] = {"acm", "mtp",};
-		/* debug mode */
-		static char *usb_functions_acm_ums_adb[] = {"acm", "usb_mass_storage", "adb",};
-	#endif
-	
-	/* mtp only mode */
-	static char *usb_functions_mtp[] = {"mtp",};
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-/* accessory mode */
-static char *usb_functions_accessory[] = {
-	"accessory",
-};
-static char *usb_functions_accessory_adb[] = {
-	"accessory",
-	"adb",
-};
-#endif
-#endif
-
-static char *usb_functions_all[] = {
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	#ifdef CONFIG_USB_ANDROID_SAMSUNG_ESCAPE /* USE DEVGURU HOST DRIVER */
-#ifdef CONFIG_USB_ANDROID_ACCESSORY
-	"accessory",
-#endif	
-		"usb_mass_storage",	"acm", "adb",
-		#ifdef CONFIG_USB_ANDROID_RNDIS
-			"rndis",
-		#endif
-		#ifndef CONFIG_USB_ANDROID_SAMSUNG_KIES_UMS
-			"mtp",
-		#endif
-	#else /* USE MCCI HOST DRIVER */
-		"acm", "usb_mass_storage", "adb",
-		#ifdef CONFIG_USB_ANDROID_RNDIS
-			"rndis",
-		#endif
-
-		"mtp",
-	#endif
-
-#else /* original */
-	#ifdef CONFIG_USB_ANDROID_RNDIS
-		"rndis",
-	#endif
-	"usb_mass_storage",	"adb",
-	#ifdef CONFIG_USB_ANDROID_ACM
-		"acm",
-	#endif
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
-};
-
-
-static struct android_usb_product usb_products[] = {
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	#ifdef CONFIG_USB_ANDROID_SAMSUNG_ESCAPE /* USE DEVGURU HOST DRIVER */
-		#ifdef CONFIG_USB_ANDROID_SAMSUNG_KIES_UMS
-			{
-				.product_id	= SAMSUNG_DEBUG_PRODUCT_ID,
-				.num_functions	= ARRAY_SIZE(usb_functions_ums_acm_adb),
-				.functions	= usb_functions_ums_acm_adb,
-				.bDeviceClass	= 0xEF,
-				.bDeviceSubClass= 0x02,
-				.bDeviceProtocol= 0x01,
-				.s		= ANDROID_DEBUG_CONFIG_STRING,
-				.mode		= USBSTATUS_ADB,
-			},
-			{
-				.product_id	= SAMSUNG_KIES_PRODUCT_ID,
-				.num_functions	= ARRAY_SIZE(usb_functions_ums_acm),
-				.functions	= usb_functions_ums_acm,
-				.bDeviceClass	= 0xEF,
-				.bDeviceSubClass= 0x02,
-				.bDeviceProtocol= 0x01,
-				.s		= ANDROID_KIES_CONFIG_STRING,
-				.mode		= USBSTATUS_SAMSUNG_KIES,
-			},
-			{
-				.product_id	= SAMSUNG_UMS_PRODUCT_ID,
-				.num_functions	= ARRAY_SIZE(usb_functions_ums),
-				.functions	= usb_functions_ums,
-				.bDeviceClass	= USB_CLASS_PER_INTERFACE,
-				.bDeviceSubClass= 0,
-				.bDeviceProtocol= 0,
-				.s		= ANDROID_UMS_CONFIG_STRING,
-				.mode		= USBSTATUS_UMS,
-			},
-			
-			#ifdef CONFIG_USB_ANDROID_RNDIS
-				{
-					.product_id	= SAMSUNG_RNDIS_PRODUCT_ID,
-					.num_functions	= ARRAY_SIZE(usb_functions_rndis),
-					.functions	= usb_functions_rndis,
-					
-				#ifdef CONFIG_USB_ANDROID_SAMSUNG_RNDIS_WITH_MS_COMPOSITE
-					.bDeviceClass	= 0xEF,
-					.bDeviceSubClass= 0x02,
-					.bDeviceProtocol= 0x01,
-				#else
-					#ifdef CONFIG_USB_ANDROID_RNDIS_WCEIS
-						.bDeviceClass	= USB_CLASS_WIRELESS_CONTROLLER,
-					#else
-						.bDeviceClass	= USB_CLASS_COMM,
-					#endif
-					.bDeviceSubClass= 0,
-					.bDeviceProtocol= 0,
-				#endif
-					.s		= ANDROID_RNDIS_CONFIG_STRING,
-					.mode		= USBSTATUS_VTP,
-				},
-			#endif
-			
-		#else /* Not used KIES_UMS */
-			{
-				.product_id	= SAMSUNG_DEBUG_PRODUCT_ID,
-				.num_functions	= ARRAY_SIZE(usb_functions_ums_acm_adb),
-				.functions	= usb_functions_ums_acm_adb,
-				.bDeviceClass	= 0xEF,
-				.bDeviceSubClass= 0x02,
-				.bDeviceProtocol= 0x01,
-				.s		= ANDROID_DEBUG_CONFIG_STRING,
-				.mode		= USBSTATUS_ADB,
-			},
-			{
-				.product_id	= SAMSUNG_KIES_PRODUCT_ID,
-				.num_functions	= ARRAY_SIZE(usb_functions_mtp_acm),
-				.functions	= usb_functions_mtp_acm,
-				.bDeviceClass	= 0xEF,
-				.bDeviceSubClass= 0x02,
-				.bDeviceProtocol= 0x01,
-				.s		= ANDROID_KIES_CONFIG_STRING,
-				.mode		= USBSTATUS_SAMSUNG_KIES,
-				.multi_conf_functions[0] = usb_functions_mtp,
-				.multi_conf_functions[1] = usb_functions_mtp_acm,					
-			},
-			{
-				.product_id	= SAMSUNG_UMS_PRODUCT_ID,
-				.num_functions	= ARRAY_SIZE(usb_functions_ums),
-				.functions	= usb_functions_ums,
-				.bDeviceClass	= USB_CLASS_PER_INTERFACE,
-				.bDeviceSubClass= 0,
-				.bDeviceProtocol= 0,
-				.s		= ANDROID_UMS_CONFIG_STRING,
-				.mode		= USBSTATUS_UMS,
-			},
-#ifdef CONFIG_USB_ANDROID_ACCESSORY	
-	{
-		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
-		.product_id	= USB_ACCESSORY_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_accessory),
-		.functions	= usb_functions_accessory,
-		.bDeviceClass	= USB_CLASS_PER_INTERFACE,
-		.bDeviceSubClass= 0,
-		.bDeviceProtocol= 0,
-		.s		= ANDROID_ACCESSORY_CONFIG_STRING,
-		.mode		= USBSTATUS_ACCESSORY,
-	},	
-	{
-		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
-		.product_id	= USB_ACCESSORY_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_accessory_adb),
-		.functions	= usb_functions_accessory_adb,
-		.bDeviceClass	= USB_CLASS_PER_INTERFACE,
-		.bDeviceSubClass= 0,
-		.bDeviceProtocol= 0,
-		.s		= ANDROID_ACCESSORY_ADB_CONFIG_STRING,
-		.mode		= USBSTATUS_ACCESSORY,
-	},		
-#endif	
-
-			#ifdef CONFIG_USB_ANDROID_RNDIS
-			{
-				.product_id	= SAMSUNG_RNDIS_PRODUCT_ID,
-				.num_functions	= ARRAY_SIZE(usb_functions_rndis),
-				.functions	= usb_functions_rndis,
-				#ifdef CONFIG_USB_ANDROID_SAMSUNG_RNDIS_WITH_MS_COMPOSITE
-					.bDeviceClass	= 0xEF,
-					.bDeviceSubClass= 0x02,
-					.bDeviceProtocol= 0x01,
-				#else
-					#ifdef CONFIG_USB_ANDROID_RNDIS_WCEIS
-						.bDeviceClass	= USB_CLASS_WIRELESS_CONTROLLER,
-					#else
-						.bDeviceClass	= USB_CLASS_COMM,
-					#endif
-					.bDeviceSubClass= 0,
-					.bDeviceProtocol= 0,
-				#endif
-				.s		= ANDROID_RNDIS_CONFIG_STRING,
-				.mode		= USBSTATUS_VTP,
-			},
-			#endif
-			
-			{
-				.product_id	= SAMSUNG_MTP_PRODUCT_ID,
-				.num_functions	= ARRAY_SIZE(usb_functions_mtp),
-				.functions	= usb_functions_mtp,
-				.bDeviceClass	= USB_CLASS_PER_INTERFACE,
-				.bDeviceSubClass= 0,
-				.bDeviceProtocol= 0x01,
-				.s		= ANDROID_MTP_CONFIG_STRING,
-				.mode		= USBSTATUS_MTPONLY,
-			},
-		#endif
-		
-	#else  /* USE MCCI HOST DRIVER */
-		{
-			.product_id	= SAMSUNG_DEBUG_PRODUCT_ID, /* change sequence */
-			.num_functions	= ARRAY_SIZE(usb_functions_acm_ums_adb),
-			.functions	= usb_functions_acm_ums_adb,
-			.bDeviceClass	= USB_CLASS_COMM,
-			.bDeviceSubClass= 0,
-			.bDeviceProtocol= 0,
-			.s		= ANDROID_DEBUG_CONFIG_STRING,
-			.mode		= USBSTATUS_ADB,
-		},
-		{
-			.product_id	= SAMSUNG_KIES_PRODUCT_ID, /* change sequence */
-			.num_functions	= ARRAY_SIZE(usb_functions_acm_mtp),
-			.functions	= usb_functions_acm_mtp,
-			.bDeviceClass	= USB_CLASS_COMM,
-			.bDeviceSubClass= 0,
-			.bDeviceProtocol= 0,
-			.s		= ANDROID_KIES_CONFIG_STRING,
-			.mode		= USBSTATUS_SAMSUNG_KIES,
-
-		},
-		{
-			.product_id	= SAMSUNG_UMS_PRODUCT_ID,
-			.num_functions	= ARRAY_SIZE(usb_functions_ums),
-			.functions	= usb_functions_ums,
-			.bDeviceClass	= USB_CLASS_PER_INTERFACE,
-			.bDeviceSubClass= 0,
-			.bDeviceProtocol= 0,
-			.s		= ANDROID_UMS_CONFIG_STRING,
-			.mode		= USBSTATUS_UMS,
-		},
-			#ifdef CONFIG_USB_ANDROID_RNDIS
-			{
-				.product_id	= SAMSUNG_RNDIS_PRODUCT_ID,
-				.num_functions	= ARRAY_SIZE(usb_functions_rndis),
-				.functions	= usb_functions_rndis,
-				#ifdef CONFIG_USB_ANDROID_RNDIS_WCEIS
-					.bDeviceClass	= USB_CLASS_WIRELESS_CONTROLLER,
-				#else
-					.bDeviceClass	= USB_CLASS_COMM,
-				#endif
-				.bDeviceSubClass= 0,
-				.bDeviceProtocol= 0,
-				.s		= ANDROID_RNDIS_CONFIG_STRING,
-				.mode		= USBSTATUS_VTP,
-			},
-			#endif
-		{
-			.product_id	= SAMSUNG_MTP_PRODUCT_ID,
-			.num_functions	= ARRAY_SIZE(usb_functions_mtp),
-			.functions	= usb_functions_mtp,
-			.bDeviceClass	= USB_CLASS_PER_INTERFACE,
-			.bDeviceSubClass= 0,
-			.bDeviceProtocol= 0x01,
-			.s		= ANDROID_MTP_CONFIG_STRING,
-			.mode		= USBSTATUS_MTPONLY,
-		},
-	#endif
-#else /* original */
-	{
-		.product_id	= S3C_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_ums),
-		.functions	= usb_functions_ums,
-	},
-	{
-		.product_id	= S3C_ADB_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_ums_adb),
-		.functions	= usb_functions_ums_adb,
-	},
-#endif
-};
-
-
-/* standard android USB platform data */
-
-// Information should be changed as real product for commercial release
-static struct android_usb_platform_data android_usb_pdata = {
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	.vendor_id		= SAMSUNG_VENDOR_ID,
-	.product_id		= SAMSUNG_KIES_PRODUCT_ID,
-	.manufacturer_name	= "SAMSUNG",
-	.product_name		= "SAMSUNG_Android",
-#else
-	.vendor_id		= S3C_VENDOR_ID,
-	.product_id		= S3C_PRODUCT_ID,
-	.manufacturer_name	= "Android",//"Samsung",
-	.product_name		= "Android",//"Samsung SMDKV210",
-#endif
-	.serial_number		= NULL,
-	.num_products 		= ARRAY_SIZE(usb_products),
-	.products 		= usb_products,
-	.num_functions 		= ARRAY_SIZE(usb_functions_all),
-	.functions 		= usb_functions_all,
-};
-
-struct platform_device s3c_device_android_usb = {
-	.name	= "android_usb",
-	.id	= -1,
-	.dev	= {
-		.platform_data	= &android_usb_pdata,
-	},
-};
-
-
-static struct usb_mass_storage_platform_data ums_pdata = {
-#ifdef CONFIG_TARGET_LOCALE_KOR
-	.vendor			= "SAMSUNG",
-	.product		= "SHW-M250S",
-#else
-	.vendor			= "Android   ",//"Samsung",
-	.product		= "UMS Composite",//"SMDKV210",
-#endif
-	.release		= 1,
-	.nluns			= 2,
-};
-struct platform_device s3c_device_usb_mass_storage= {
-	.name	= "usb_mass_storage",
-	.id	= -1,
-	.dev	= {
-		.platform_data = &ums_pdata,
-	},
-};
-
-
-#ifdef CONFIG_USB_ANDROID_RNDIS
-static struct usb_ether_platform_data rndis_pdata = {
-/* ethaddr is filled by board_serialno_setup */
-	.vendorID       = SAMSUNG_VENDOR_ID,
-	.vendorDescr    = "Samsung",
-	.ethaddr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
-};
-struct platform_device s3c_device_rndis= {
-	.name   = "rndis",
-	.id     = -1,
-	.dev    = {
-		.platform_data = &rndis_pdata,
-	},
-};
-#endif
-
-
-//#endif /* CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
-
-
 
 static void sec_jack_set_micbias_state(bool on)
 {
-	printk(KERN_INFO "Board-n1 : %s (on %d)\n", __func__, on);
+	printk(KERN_INFO "Board N1 : %s (on %d)\n", __func__, on);
 	wm8994_set_sub_mic_bias(on);
-	/* to be developed */
 }
+
+static struct sec_jack_zone sec_jack_zones[] = {
+	{
+		/* adc == 0, 3 pole */
+		.adc_high = 0,
+		.delay_ms = 0,
+		.check_count = 0,
+		.jack_type = SEC_HEADSET_3POLE,
+	},
+	{
+		/* 0 < adc <= 737, unstable zone, default to 3pole if it stays
+		 * in this range for a 200ms (20ms delays, 10 samples)
+		 */
+		.adc_high = 737,
+		.delay_ms = 20,
+		.check_count = 10,
+		.jack_type = SEC_HEADSET_3POLE,
+	},
+	{
+		/* 737 < adc <= 2000, unstable zone, default to 3pole if it
+		 * stays in this range for a second (10ms delays, 100 samples)
+		 */
+		.adc_high = 2000,
+		.delay_ms = 0,
+		.check_count = 5,
+		.jack_type = SEC_HEADSET_4POLE,
+	},
+	{
+		/* 2000 < adc <= 3700, 4 pole zone */
+		.adc_high = 3700,
+		.delay_ms = 0,
+		.check_count = 10,
+		.jack_type = SEC_HEADSET_4POLE,
+	},
+	{
+		/* adc > 3700, unstable zone, default to 3pole if it stays
+		 * in this range for a second (10ms delays, 100 samples)
+		 */
+		.adc_high = 0x7fffffff,
+		.delay_ms = 10,
+		.check_count = 100,
+		.jack_type = SEC_HEADSET_3POLE,
+	},
+};
+
+
+/* To support 3-buttons earjack */
+static struct sec_jack_buttons_zone sec_jack_buttons_zones[] = {
+	{
+		/* 0 <= adc <=114, stable zone */
+		.code		= KEY_MEDIA,
+		.adc_low		= 0,
+		.adc_high		= 114,
+	},
+	{
+		/* 115 <= adc <= 254, stable zone */
+		.code		= KEY_VOLUMEUP,
+		.adc_low		= 115,
+		.adc_high		= 254,
+	},
+	{
+		/* 255 <= adc <= 520, stable zone */
+		.code		= KEY_VOLUMEDOWN,
+		.adc_low		= 255,
+		.adc_high		= 520,
+	},
+};
+
+static int sec_jack_get_adc_value(void)
+{
+	int mili_volt;
+	max8907c_adc_read_aux2(&mili_volt);
+	printk(KERN_DEBUG
+		"Board N1 : Enterring %s = %d\n", __func__, mili_volt);
+	return  mili_volt;
+}
+
+struct sec_jack_platform_data sec_jack_pdata = {
+	.set_micbias_state = sec_jack_set_micbias_state,
+	.get_adc_value = sec_jack_get_adc_value,
+	.zones = sec_jack_zones,
+	.num_zones = ARRAY_SIZE(sec_jack_zones),
+	.buttons_zones = sec_jack_buttons_zones,
+	.num_buttons_zones = ARRAY_SIZE(sec_jack_buttons_zones),
+	.det_gpio = GPIO_DET_3_5,
+	.send_end_gpio = GPIO_EAR_SEND_END,
+	.det_active_high = 0,
+	.send_end_active_high = 0,
+	.jack_status = SEC_JACK_NO_DEVICE,
+};
+
+static struct platform_device sec_device_jack = {
+	.name			= "sec_jack",
+	.id			= 1, /* will be used also for gpio_event id */
+	.dev.platform_data	= &sec_jack_pdata,
+};
 
 
 static struct tegra_ulpi_config n1_ehci2_ulpi_phy_config = {
@@ -964,6 +722,9 @@ static struct tegra_i2c_platform_data n1_i2c1_platform_data = {
 	.adapter_nr	= 0,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 400000, 0 },
+	.scl_gpio		= {TEGRA_GPIO_PC4, 0},
+	.sda_gpio		= {TEGRA_GPIO_PC5, 0},
+	.arb_recovery = arb_lost_recovery,
 };
 
 static const struct tegra_pingroup_config i2c2_ddc = {
@@ -982,12 +743,18 @@ static struct tegra_i2c_platform_data n1_i2c2_platform_data = {
 	.bus_clk_rate	= { 400000, 400000 },
 	.bus_mux	= { &i2c2_ddc, &i2c2_gen2 },
 	.bus_mux_len	= { 1, 1 },
+	.scl_gpio		= {0, TEGRA_GPIO_PT5},
+	.sda_gpio		= {0, TEGRA_GPIO_PT6},
+	.arb_recovery = arb_lost_recovery,
 };
 
 static struct tegra_i2c_platform_data n1_i2c3_platform_data = {
 	.adapter_nr	= 3,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 400000, 0 },
+	.scl_gpio		= {TEGRA_GPIO_PBB2, 0},
+	.sda_gpio		= {TEGRA_GPIO_PBB3, 0},
+	.arb_recovery = arb_lost_recovery,
 };
 
 static struct tegra_i2c_platform_data n1_dvc_platform_data = {
@@ -995,6 +762,9 @@ static struct tegra_i2c_platform_data n1_dvc_platform_data = {
 	.bus_count	= 1,
 	.bus_clk_rate	= { 100000, 0 },
 	.is_dvc		= true,
+	.scl_gpio		= {TEGRA_GPIO_PZ6, 0},
+	.sda_gpio		= {TEGRA_GPIO_PZ7, 0},
+	.arb_recovery = arb_lost_recovery,
 };
 
 static struct tegra_audio_platform_data tegra_audio_pdata[] = {
@@ -1029,6 +799,8 @@ static struct tegra_audio_platform_data tegra_audio_pdata[] = {
 	}
 };
 
+#if 0
+// N1_ICS
 static struct tegra_das_platform_data tegra_das_pdata = {
 	.tegra_dap_port_info_table = {
 		[0] = {
@@ -1097,130 +869,11 @@ static struct tegra_das_platform_data tegra_das_pdata = {
 		},
 	}
 };
-
-#ifdef CONFIG_MHL_SII9234
-#define GPIO_INPUT	0
-#define GPIO_OUTPUT	1
-#define GPIO_LEVEL_LOW	0
-#define GPIO_LEVEL_HIGH	1
-#define GPIO_LEVEL_NONE	2
-
-static unsigned int mhl_gpio_table[][3] = {
-	{GPIO_MHL_SEL, GPIO_OUTPUT, GPIO_LEVEL_LOW},
-	{GPIO_MHL_RST, GPIO_OUTPUT, GPIO_LEVEL_HIGH},
-	{GPIO_MHL_INT, GPIO_INPUT, GPIO_LEVEL_NONE},
-	{GPIO_MHL_WAKE_UP, GPIO_INPUT, GPIO_LEVEL_NONE},
-	{GPIO_HDMI_LDO_EN, GPIO_OUTPUT, GPIO_LEVEL_LOW},
-};
-
-const char *mhl_gpio_name[] = {
-	"mhl_sel",
-	"mhl_rst",
-	"mhl_int",
-	"mhl_wake_up",
-	"hdmi_ldo_en"
-};
-
-static void n1_mhl_gpio_init(void)
-{
-	int array_size = ARRAY_SIZE(mhl_gpio_table);
-	int i;
-	unsigned int gpio;
-	int ret;
-
-	for (i = 0; i < array_size; i++) {
-		gpio = mhl_gpio_table[i][0];
-		ret = gpio_request(gpio, mhl_gpio_name[i]);
-		if (ret){
-			printk(KERN_ERR "Failed to request gpio [%s]\n",
-						mhl_gpio_name[i]);
-			continue;
-		}
-		tegra_gpio_enable(gpio);
-		if (mhl_gpio_table[i][1] == GPIO_OUTPUT)
-			gpio_direction_output(gpio, mhl_gpio_table[i][2]);
-		else
-			gpio_direction_input(gpio);
-	}
-}
-
-
-static struct regulator *n1_mhl_33v_reg = NULL;
-static struct regulator *n1_mhl_18v_reg = NULL;
-
-static int sii9234_power_onoff(int onoff)
-{
-	if (onoff) {
-		printk("[mhl] power on\n");
-		gpio_set_value(GPIO_MHL_RST, 1);
-		if (!n1_mhl_33v_reg) { /* LDO5 */
-			n1_mhl_33v_reg = regulator_get(NULL, "VCC_3V3_MHL");
-			if (IS_ERR_OR_NULL(n1_mhl_33v_reg)) {
-				pr_err("mhl: failed to get reg VCC_3V3_MHL\n");
-				n1_mhl_33v_reg = NULL;
-				return PTR_ERR(n1_mhl_33v_reg);
-			}
-		}
-		regulator_enable(n1_mhl_33v_reg);
-		if (!n1_mhl_18v_reg) { /* LDO7 */
-			n1_mhl_18v_reg = regulator_get(NULL, "VCC_1V8_MHL");
-			if (IS_ERR_OR_NULL(n1_mhl_18v_reg)) {
-				pr_err("mhl: failed to get reg VCC_1V8_MHL\n");
-				n1_mhl_18v_reg = NULL;
-				regulator_disable(n1_mhl_33v_reg);
-				n1_mhl_33v_reg = NULL;
-				return PTR_ERR(n1_mhl_18v_reg);
-			}
-		}
-		regulator_enable(n1_mhl_18v_reg);
-		msleep(10);
-		gpio_set_value(GPIO_HDMI_LDO_EN, 1);
-		msleep(5);
-		gpio_set_value(GPIO_MHL_RST, 0);
-		msleep(10);
-		gpio_set_value(GPIO_MHL_RST, 1);
-	} else {
-		printk("[mhl] power off\n");
-		gpio_set_value(GPIO_HDMI_LDO_EN, 0);
-		if (n1_mhl_33v_reg != NULL)
-			regulator_disable(n1_mhl_33v_reg);
-		if (n1_mhl_18v_reg != NULL)
-			regulator_disable(n1_mhl_18v_reg);
-	}
-	return 0;
-}
-
-static int sii9234_switch_onoff(int onoff)
-{
-	if (onoff) {
-		gpio_set_value(GPIO_MHL_SEL, 1);
-		printk(KERN_ERR "mhl switch on\n");
-	} else {
-		gpio_set_value(GPIO_MHL_SEL, 0);
-		printk(KERN_ERR "mhl switch off\n");
-	}
-	return 0;
-}
-
-struct mhl_platform_data mhl_pdata = {
-	.mhl_sel	= GPIO_MHL_SEL,
-	.mhl_rst	= GPIO_MHL_RST,
-	.mhl_int	= GPIO_MHL_INT,
-	.mhl_wake_up	= GPIO_MHL_WAKE_UP,
-	.power_onoff	= sii9234_power_onoff,
-#ifdef CONFIG_MHL_SWITCH
-	.switch_onoff	= sii9234_switch_onoff,
 #endif
+static struct platform_device tegra_audio_device = {
+	.name	= "tegra-snd-wm8994",
+	.id	= 0,
 };
-
-struct platform_device n1_mhl_device = {
-		.name	= "mhl",
-		.id	= -1,
-		.dev	={
-			.platform_data = &mhl_pdata,
-		}
-};
-#endif
 
 static void n1_i2c_init(void)
 {
@@ -1251,6 +904,7 @@ static int n1_tegra_gpio_get(unsigned offset)
 	return (__raw_readl(GPIO_IN(offset)) >> GPIO_BIT(offset)) & 0x1;
 }
 
+#ifdef CONFIG_KEYBOARD_GPIO
 #define GPIO_KEY(_id, _gpio, _iswake, _act_low)		\
 	{					\
 		.code = _id,			\
@@ -1289,9 +943,9 @@ void n1_save_wakeup_key(int lp_state)
 
 	gpio_keys_wakeup = true;
 	gpio_keys_lp_state = lp_state;
-	
-	
-	if (lp_state == 2 || lp_state == 1) {
+
+
+	if (lp_state == TEGRA_SUSPEND_LP2 || lp_state == TEGRA_SUSPEND_LP1) {
 		/* save gpio state */
 		for (i = 0; i < ARRAY_SIZE(gpio_keys_wake_lp2); i++) {
 			idx = gpio_keys_wake_lp2[i];
@@ -1312,8 +966,9 @@ void n1_check_key_pressed(void)
 {
 	int i;
 	int state;
-	
-	if (gpio_keys_wakeup && (gpio_keys_lp_state == 2 || gpio_keys_lp_state == 1)) {
+
+	if (gpio_keys_wakeup && (gpio_keys_lp_state == TEGRA_SUSPEND_LP2 ||\
+			gpio_keys_lp_state == TEGRA_SUSPEND_LP1)) {
 		/* volume up key */
 		i = 2;
 		if (gpio_keys_wake_state[i] && !gpio_keys_wake_state2[i]) {
@@ -1340,11 +995,12 @@ static int n1_wakeup_key(void)
 	int i;
 	int idx;
 	int ret= KEY_RESERVED;
-	
+
 	if(!gpio_keys_wakeup)
 		ret = 0;
 	else {
-		if (gpio_keys_lp_state == 2 || gpio_keys_lp_state == 1) {
+		if (gpio_keys_lp_state == TEGRA_SUSPEND_LP2 ||\
+				gpio_keys_lp_state == TEGRA_SUSPEND_LP1) {
 			/* this function returns only one key code.
 			** if key is missed on wakeup, please review this code.
 			*/
@@ -1377,7 +1033,7 @@ static int n1_wakeup_key_twice(void)
 	int i;
 	int idx;
 	int ret= KEY_RESERVED;
-	
+
 	for (i = 0; i < ARRAY_SIZE(gpio_keys_wake_lp2); i++) {
 		idx = gpio_keys_wake_lp2[i];
 		if (gpio_keys_wake_state2[i]) {
@@ -1389,10 +1045,11 @@ static int n1_wakeup_key_twice(void)
 	return ret;
 }
 
-static bool n1_ckech_lpm(void)
+bool n1_check_lpm(void)
 {
 	return charging_mode_from_boot ? true : false;
 }
+EXPORT_SYMBOL(n1_check_lpm);
 
 static struct gpio_keys_platform_data n1_keys_platform_data = {
 	.buttons	= n1_keys,
@@ -1400,7 +1057,7 @@ static struct gpio_keys_platform_data n1_keys_platform_data = {
 	.wakeup_key	= n1_wakeup_key,
 	.wakeup_key_twice	= n1_wakeup_key_twice,
 #ifdef CONFIG_SAMSUNG_LPM_MODE
-	.check_lpm = n1_ckech_lpm,
+	.check_lpm = n1_check_lpm,
 #endif
 };
 
@@ -1412,167 +1069,56 @@ static struct platform_device n1_keys_device = {
 	},
 };
 
-#ifdef CONFIG_TEGRA_DYNAMIC_CAMERA_CLK_RATE
-#define NUM_OF_CAMERA_CLKS 7
-#define NUM_OF_CAMERA_CLKS_RESTORE 7
-#define NUM_OF_CAMERA_CLK_LEVELS 4
-static char *tegra_camera_clk_devs[] = {
-		"2d", "3d", 
-		"tegra-avp", "epp", "mpe",
-		"tegra-avp",
-		"tegra_grhost"
-};
-
-static char *tegra_camera_clk_cons[] = {
-		"2d", "3d", 
-		"vde", NULL, NULL,
-		"emc", 
-		"emc"
-};
-
-static unsigned long tegra_camera_clk_rates[NUM_OF_CAMERA_CLK_LEVELS][NUM_OF_CAMERA_CLKS] = {
-	/* 2d     3d      vde    epp     mpe     avp.emc gr.emc */
-	/* take still picture */
-	{300*MHZ,300*MHZ,120*MHZ,300*MHZ,240*MHZ,300*MHZ,300*MHZ},
-	/* camera preview */
-	{200*MHZ,200*MHZ,200*MHZ,200*MHZ,10*MHZ, 300*MHZ,300*MHZ},
-	/* low resolution video recording */
-	{200*MHZ,200*MHZ,200*MHZ,200*MHZ,200*MHZ,300*MHZ,300*MHZ},
-	/* high resolition video recording */
-	{300*MHZ,300*MHZ,240*MHZ,300*MHZ,240*MHZ,300*MHZ,600*MHZ}
-};
-
-static unsigned long* ventana_get_graphics_clk_freqs(int usecase, int width, int height, int framerate)
+static void n1_keys_init(void)
 {
-	int product = width*height*framerate;
+	int i;
 
-	if (usecase == CAMERA_USECASE_CAMERA_CAPTURE)
-		return &tegra_camera_clk_rates[0][0];
-	else if (usecase == CAMERA_USECASE_PREVIEW)
-		return &tegra_camera_clk_rates[1][0];
-	else if (usecase == CAMERA_USECASE_VIDEO_RECORD
-		&& (product < 1280*720*30))
-		return &tegra_camera_clk_rates[2][0];
-	return &tegra_camera_clk_rates[3][0];
+	for (i = 0; i < ARRAY_SIZE(n1_keys); i++)
+		tegra_gpio_enable(n1_keys[i].gpio);
+
 }
-
-static struct tegra_camera_clk_config tegra_camera_clks = {
-	.clk_devs = tegra_camera_clk_devs,
-	.clk_cons = tegra_camera_clk_cons,
-	.clk_restore_devs = tegra_camera_clk_devs,
-	.clk_restore_cons = tegra_camera_clk_cons,
-	.n_clks = NUM_OF_CAMERA_CLKS,
-	.n_restore_clks = NUM_OF_CAMERA_CLKS_RESTORE,
-	.get_graphics_clk_freqs = ventana_get_graphics_clk_freqs,
-};
-#endif
+#endif /* CONFIG_KEYBOARD_GPIO */
 
 static struct platform_device tegra_camera = {
 	.name = "tegra_camera",
 	.id = -1,
-	.dev = {
-#ifdef CONFIG_TEGRA_DYNAMIC_CAMERA_CLK_RATE
-		.platform_data = &tegra_camera_clks,
-#endif
-	}	
-
 };
 
-static struct sec_jack_zone sec_jack_zones[] = {
-	{
-		/* adc == 0, 3 pole */
-		.adc_high = 0,
-		.delay_ms = 0,
-		.check_count = 0,
-		.jack_type = SEC_HEADSET_3POLE,
-	},
-	{
-		/* 0 < adc <= 750, unstable zone, default to 3pole if it stays
-		 * in this range for a 200ms (20ms delays, 10 samples)
-		 */
-		.adc_high = 750,
-		.delay_ms = 20,
-		.check_count = 10,
-		.jack_type = SEC_HEADSET_3POLE,
-	},
-	{
-		/* 750 < adc <= 2000, unstable zone, default to 3pole if it
-		 * stays in this range for a second (10ms delays, 100 samples)
-		 */
-		.adc_high = 2000,
-		.delay_ms = 0,
-		.check_count = 0,
-		.jack_type = SEC_HEADSET_4POLE,
-	},
-	{
-		/* 2000 < adc <= 3700, 4 pole zone */
-		.adc_high = 3700,
-		.delay_ms = 0,
-		.check_count = 0,
-		.jack_type = SEC_HEADSET_4POLE,
-	},
-	{
-		/* adc > 3700, unstable zone, default to 3pole if it stays
-		 * in this range for a second (10ms delays, 100 samples)
-		 */
-		.adc_high = 0x7fffffff,
-		.delay_ms = 10,
-		.check_count = 100,
-		.jack_type = SEC_HEADSET_3POLE,
-	},
-};
 
-/* To support 3-buttons earjack */
-static struct sec_jack_buttons_zone sec_jack_buttons_zones[] = {
-	{
-		/* 0 <= adc <=127, stable zone */
-		.code		= KEY_MEDIA,
-		.adc_low		= 0,
-		.adc_high		= 127,
-	},
-	{
-		/* 128 <= adc <= 240, stable zone */
-		.code		= KEY_VOLUMEUP,
-		.adc_low		= 128,
-		.adc_high		= 240,
-	},
-	{
-		/* 241 <= adc <= 621, stable zone */
-		.code		= KEY_VOLUMEDOWN,
-		.adc_low		= 241,
-		.adc_high		= 621,
-	},
-};
 
-static int sec_jack_get_adc_value(void)
+#if defined (CONFIG_MACH_BOSE_ATT)
+static int adc_result;
+#define ADC_DATA_ARR_SIZE 6
+int sec_BAT_VF_get_adc_value(void)
 {
-	int mili_volt;
-	max8907c_adc_read_aux2(&mili_volt);
-	printk(KERN_DEBUG
-		"Board N1 : Enterring sec_jack_get_adc_value = %d\n", mili_volt);
-	return  mili_volt;
+	int adc_data;
+	int adc_max = 0;
+	int adc_min = 0;
+	int adc_total = 0;
+	int i;
+
+
+	for (i = 0; i < ADC_DATA_ARR_SIZE; i++)
+	{
+		max8907c_adc_read_aux1(&adc_data);
+
+		if (i != 0) {
+			if (adc_data > adc_max)
+				adc_max = adc_data;
+			else if (adc_data < adc_min)
+				adc_min = adc_data;
+		} else {
+			adc_max = adc_data;
+			adc_min = adc_data;
+		}
+		adc_total += adc_data;
+	}
+
+	        adc_result = (adc_total - adc_max - adc_min) / (ADC_DATA_ARR_SIZE - 2);
+
+	return adc_result;
 }
-
-struct sec_jack_platform_data sec_jack_pdata = {
-	.set_micbias_state = sec_jack_set_micbias_state,
-	.get_adc_value = sec_jack_get_adc_value,
-	.zones = sec_jack_zones,
-	.num_zones = ARRAY_SIZE(sec_jack_zones),
-	.buttons_zones = sec_jack_buttons_zones,
-	.num_buttons_zones = ARRAY_SIZE(sec_jack_buttons_zones),
-	.det_gpio = GPIO_DET_3_5,
-	.send_end_gpio = GPIO_EAR_SEND_END,
-	.det_active_high = 0,
-	.send_end_active_high = 0,
-	.jack_status = SEC_JACK_NO_DEVICE,
-};
-
-static struct platform_device sec_device_jack = {
-	.name			= "sec_jack",
-	.id			= 1, /* will be used also for gpio_event id */
-	.dev.platform_data	= &sec_jack_pdata,
-};
-
+#endif
 #ifdef CONFIG_BATTERY_SEC
 
 static void sec_bat_get_init_cable_state(struct power_supply *psy)
@@ -1606,7 +1152,9 @@ extern struct nct1008_temp_callbacks *callbacks;
 static int sec_bat_get_temperature(void)
 {
 	int batt_temp = 25;
-	batt_temp = callbacks->get_temperature(callbacks);
+
+	if (callbacks && callbacks->get_temperature)
+		batt_temp = callbacks->get_temperature(callbacks);
 	return batt_temp;
 }
 
@@ -1621,11 +1169,11 @@ static struct sec_bat_platform_data sec_bat_pdata = {
 #ifdef CONFIG_MAX8922_CHARGER
 	.sub_charger_name	= "max8922-charger",
 #endif
-	.adc_arr_size			= NULL,
+	.adc_arr_size		= NULL,
 	.adc_table			= NULL,
-	.adc_channel			= NULL,
+	.adc_channel		= NULL,
 	.get_init_cable_state	= sec_bat_get_init_cable_state,
-	.get_temperature		= sec_bat_get_temperature,
+	.get_temperature	= sec_bat_get_temperature,
 	.get_batt_level	        = sec_bat_get_level,
 };
 
@@ -1644,7 +1192,11 @@ static int max8922_cfg_gpio(struct max8922_platform_data *pdata)
 
 	tegra_gpio_enable(pdata->gpio_chg_en);
 	gpio_request(pdata->gpio_chg_en, "chg_en");
+//20110517_HDLNC_PMIC
+#if !defined (CONFIG_MACH_BOSE_ATT)
+
 	gpio_direction_output(pdata->gpio_chg_en, 0);
+#endif
 
 	tegra_gpio_enable(pdata->gpio_chg_ing);
 	gpio_request(pdata->gpio_chg_ing, "chg_ing");
@@ -1685,7 +1237,6 @@ static struct platform_device max8922_device_charger = {
 	.dev.platform_data = &max8922_pdata,
 };
 #endif /* CONFIG_MAX8922_CHARGER */
-
 static struct platform_device *n1_devices[] __initdata = {
 #ifdef CONFIG_USB_ANDROID_RNDIS
 	&s3c_device_rndis,
@@ -1694,85 +1245,33 @@ static struct platform_device *n1_devices[] __initdata = {
 	&s3c_device_android_usb,
 	&s3c_device_usb_mass_storage,
 #endif
-	&debug_uart,
-	&tegra_uarta_device,
-	&tegra_uartc_device,
-	&pmu_device,
+	&tegra_pmu_device,
 	&tegra_udc_device,
-	/* &tegra_ehci2_device, */
 	&tegra_gart_device,
+#ifdef CONFIG_KEYBOARD_GPIO
 	&n1_keys_device,
-#ifdef CONFIG_MHL_SII9234
-	&n1_mhl_device,
 #endif
 	/* &tegra_wdt_device, */
-	&tegra_i2s_device1,
-	&tegra_spdif_device,
 	&tegra_avp_device,
 	&tegra_camera,
 	&sec_device_jack,
+	&tegra_i2s_device1,
+	&tegra_i2s_device2,
+	&tegra_spdif_device,
 #ifdef CONFIG_BATTERY_SEC
 	&sec_device_battery,
 #endif
 	&tegra_das_device,
+	&spdif_dit_device,
+	&bluetooth_dit_device,
+#ifdef CONFIG_BT_BCM4330
+	&bcm4330_bluetooth_device,
+#endif
+	&baseband_dit_device,
 	&ram_console_device,
-};
 
-static void n1_keys_init(void)
-{
-	int i;
-
-	if (system_rev == 0)
-		n1_keys[0].gpio = TEGRA_GPIO_PX3;
-	else if (system_rev == 1) {
-		n1_keys[0].gpio = TEGRA_GPIO_PK6;
-		n1_keys[2].gpio = TEGRA_GPIO_PR0;
-		n1_keys[3].gpio = TEGRA_GPIO_PR1;
-	}
-	else if (system_rev == 2) {
-		n1_keys[0].gpio = TEGRA_GPIO_PX3;
-	}
-	else if (system_rev == 3 || system_rev == 4) {
-		n1_keys[0].gpio = TEGRA_GPIO_PK6;
-		n1_keys[0].wakeup = 0;
-	}
-	
-	if (system_rev == 0) {
-		for (i = 0; i < 2; i++)
-			tegra_gpio_enable(n1_keys[i].gpio);
-	} else {
-		for (i = 0; i < ARRAY_SIZE(n1_keys); i++)
-			tegra_gpio_enable(n1_keys[i].gpio);
-	}
-
-}
-
-/*n1 touch : Sain TSP*/
-static struct sain_touch_platform_data  n1_sain_platform_data= {
-	.platform_name = "SAIN TSP",
-	.irq_gpio = GPIO_TSP_INT,
-	.led_ldo_en1 = GPIO_LED_LDO_EN1,
-	.led_ldo_en2 = GPIO_LED_LDO_EN2,			
-	
-	.reg_vdd_name = "TSP_VDD_1V8",
-	.reg_vdd = NULL,
-	.reg_vdd_level = 1800000,
-	
-	.reg_avdd_name = "TSP_AVDD_3V3",
-	.reg_avdd = NULL,
-	.reg_avdd_level = 3300000,
-	
-	.reg_vdd_lvsio_name = "TSP_VDD_LVSIO",
-	.reg_vdd_lvsio = NULL,
-	.reg_vdd_lvsio_level = 2800000,		
-};
-
-static struct i2c_board_info sain_i2c_touch_info[] = {
-	{
-		I2C_BOARD_INFO("sain_touch", 0x20),
-		.irq		= TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PD7),
-		.platform_data = &n1_sain_platform_data,
-	},
+	&tegra_pcm_device,
+	&tegra_audio_device,
 };
 
 /*n1 touch : atmel_mxt224E*/
@@ -1801,7 +1300,7 @@ static void n1_touch_init_hw(struct mxt_platform_data *pdata)
 		} else {
 			pr_err("tsp_menu_key_led GPIO(%d) request FAIL error = %d", pdata->key_led_en1, error);
 	}
-		
+
 		error = gpio_request(pdata->key_led_en2, "tsp_key_led2");
 		if (error == 0) {
 		tegra_gpio_enable(pdata->key_led_en2);
@@ -1814,7 +1313,7 @@ static void n1_touch_init_hw(struct mxt_platform_data *pdata)
 		pdata->key_led_en2 = GPIO_LED_LDO_EN2;	/* Home */
 		pdata->key_led_en3 = GPIO_LED_LDO_EN3;	/* Back */
 		pdata->key_led_en4 = GPIO_LED_LDO_EN4;	/* Search */
-	
+
 		error = gpio_request(pdata->key_led_en1, "tsp_key_led1");
 		if (error == 0) {
 		tegra_gpio_enable(pdata->key_led_en1);
@@ -1935,20 +1434,20 @@ static struct mxt_platform_data n1_mxt224E_platform_data = {
 	.suspend_platform_hw = n1_touch_suspend_hw,
 	.resume_platform_hw = n1_touch_resume_hw,
 	.register_cb = n1_register_touch_callbacks,
-	
+
 	.key_led_en1 = NULL,
-	.key_led_en2 = NULL,	
+	.key_led_en2 = NULL,
 	.key_led_en3 = NULL,
 	.key_led_en4 = NULL,
-	
+
 	.reg_vdd_name = "TSP_VDD_1V8",
 	.reg_vdd = NULL,
 	.reg_vdd_level = 1800000,
-	
+
 	.reg_avdd_name = "TSP_AVDD_3V3",
 	.reg_avdd = NULL,
 	.reg_avdd_level = 3300000,
-	
+
 	.reg_vdd_lvsio_name = "TSP_VDD_LVSIO",
 	.reg_vdd_lvsio = NULL,
 	.reg_vdd_lvsio_level = 2800000,
@@ -1970,6 +1469,34 @@ static struct i2c_board_info atmel_i2c_touch_info[] = {
 
 static void n1_camera_init(void)
 {
+#if defined (CONFIG_MACH_BOSE_ATT)
+	tegra_gpio_enable(GPIO_CAM_PMIC_EN2);
+	tegra_gpio_enable(GPIO_CAM_MEGA_nRST);
+	tegra_gpio_enable(GPIO_CAM_VT_nRST);
+	tegra_gpio_enable(GPIO_CAM_VT_nSTBY);
+	tegra_gpio_enable(GPIO_CAM_MEGA_INT);
+	if (HWREV_FOR_CAMERA <= system_rev) {
+		tegra_gpio_enable(GPIO_CAM_MEGA_CORE_1P2_EN);
+	}
+
+	gpio_request(GPIO_CAM_PMIC_EN2, "CAMERA_PMIC_EN2");
+	gpio_request(GPIO_CAM_MEGA_nRST, "CAMERA_CAM_MEGA_nRST");
+	gpio_request(GPIO_CAM_VT_nRST, "CAMERA_CAM_VT_nRST");
+	gpio_request(GPIO_CAM_VT_nSTBY, "CAMERA_CAM_VT_nSTBY");
+	gpio_request(GPIO_CAM_MEGA_INT, "MEGA_INT");
+	if (HWREV_FOR_CAMERA <= system_rev) {
+		gpio_request(GPIO_CAM_MEGA_CORE_1P2_EN, "GPIO_CAM_MEGA_CORE_1P2_EN");
+	}
+
+	gpio_direction_output(GPIO_CAM_PMIC_EN2, 0);
+	gpio_direction_output(GPIO_CAM_MEGA_nRST, 0);
+	gpio_direction_output(GPIO_CAM_VT_nRST, 0);
+	gpio_direction_output(GPIO_CAM_VT_nSTBY, 0);
+	gpio_direction_input(GPIO_CAM_MEGA_INT);
+	if (HWREV_FOR_CAMERA <= system_rev) {
+		gpio_direction_output(GPIO_CAM_MEGA_CORE_1P2_EN, 0);
+	}
+#else
 	tegra_gpio_enable(GPIO_CAM_PMIC_EN2);	//CAM_SENSOR_A2.8V
 	tegra_gpio_enable(GPIO_CAM_MEGA_nRST);	//CAM_MEGA_nRST
 	tegra_gpio_enable(GPIO_CAM_VT_nRST);	//GPIO_PT4
@@ -1993,6 +1520,7 @@ static void n1_camera_init(void)
 	gpio_direction_output(GPIO_CAM_MEGA_STBY, 0);
 	gpio_direction_output(GPIO_CAM_FLASH_EN, 0);
 	gpio_direction_output(GPIO_CAM_FLASH_SET, 0);
+#endif
 }
 
 struct tegra_pingroup_config mclk = {
@@ -2026,17 +1554,38 @@ static struct s5k4ecgx_reg_8 s5k4ecgx_power_on_1[] = {
 	{0x00, 0x37},
 	{S5K4ECGX_TABLE_WAIT_MS_8, 0x01},
 
+	{0x07, 0x02},	// VT_CAM_1.8V - LDO3
+	{0x00, 0x3F},
+	{S5K4ECGX_TABLE_WAIT_MS_8, 0x01},
+
 	{S5K4ECGX_TABLE_END_8, 0x0},
 };
 
 static struct s5k4ecgx_reg_8 s5k4ecgx_power_on_2[] = {
 	{0x04, 0x04},	// CAM_CORE_1.2V - BUCK
-	{0x00, 0xB7},
+	{0x00, 0xBF},
 	{S5K4ECGX_TABLE_WAIT_MS_8, 0x01},
 	{S5K4ECGX_TABLE_END_8, 0x0},
 };
 
+static const struct s5k6aafx_reg s5k6aafx_stby_reg1[] = {
+	{0xFCFC, 0xD000},
+	{0x0010, 0x0001},
+	{0x1030, 0x0000},
+	{0x0014, 0x0001},
+};
+static const struct s5k6aafx_reg s5k6aafx_stby_reg2[] = {
+	{0x0028, 0xD000},
+	{0x002A, 0xB0B0},
+	{0x0F12, 0x0001},
+	{0x0028, 0x7000},
+	{0x002A, 0x022E},
+	{0x0F12, 0x0001},
+	{0x0F12, 0x0001},
+};
+
 struct i2c_client *i2c_client_pmic;
+struct i2c_client *i2c_client_camera;
 
 static void n1_s5k4ecgx_power_on()
 {
@@ -2062,6 +1611,13 @@ static void n1_s5k4ecgx_power_on()
 	usleep_range(1000, 2000);//1ms
 
 	gpio_set_value(GPIO_CAM_VT_nRST, 1);
+
+	usleep_range(1000, 2000);//1ms
+
+	s5k6aafx_write_table(i2c_client_camera, s5k6aafx_stby_reg1);
+	usleep_range(10000, 20000);//10ms
+	s5k6aafx_write_table(i2c_client_camera, s5k6aafx_stby_reg2);
+
 	//msleep(150);
 	usleep_range(150000, 250000);//150ms
 
@@ -2081,7 +1637,9 @@ static void n1_s5k4ecgx_power_on()
 }
 
 static struct s5k4ecgx_reg_8 s5k4ecgx_power_off_1[] = {
-	{0x00, 0xB3},				// 2.8V for VCM - LDO4
+	{0x00, 0xBB},				// 2.8V for VCM - LDO4
+	{S5K4ECGX_TABLE_WAIT_MS_8, 0x02},
+	{0x00, 0x9B},				// VT_CAM_1.8V - LDO3
 	{S5K4ECGX_TABLE_WAIT_MS_8, 0x02},
 	{0x00, 0x93},				// CAM_IO_1.8V - LDO1
 	{S5K4ECGX_TABLE_WAIT_MS_8, 0x02},
@@ -2225,6 +1783,30 @@ static struct s5k6aafx_reg_8 s5k6aafx_power_on_11[] = {
 	{S5K6AAFX_TABLE_END_8, 0x0},
 };
 
+static struct s5k6aafx_reg_8 s5k6aafx_power_on_21[] = {
+	{0x04, 0x04},	// CAM_CORE_1.2V - BUCK
+	{0x00, 0xB9},
+	{S5K6AAFX_TABLE_WAIT_MS_8, 0x01},
+	{S5K6AAFX_TABLE_END_8, 0x0},
+};
+static struct s5k6aafx_reg_8 s5k6aafx_power_off_21[] = {
+	{0x00, 0x39},				// CAM_CORE_1.2V - BUCK
+
+	{S5K6AAFX_TABLE_END, 0x0},
+};
+
+static struct s5k6aafx_reg_8 s5k6aafx_power_on_22[] = {
+	{0x04, 0x04},	// CAM_CORE_1.2V - BUCK
+	{0x00, 0x9B},
+	{S5K6AAFX_TABLE_WAIT_MS_8, 0x01},
+	{S5K6AAFX_TABLE_END_8, 0x0},
+};
+static struct s5k6aafx_reg_8 s5k6aafx_power_off_22[] = {
+	{0x00, 0x1B},				// CAM_CORE_1.2V - BUCK
+
+	{S5K6AAFX_TABLE_END, 0x0},
+};
+
 static void n1_s5k6aafx_power_on(void)
 {
 	pr_err("%s,\n", __func__);
@@ -2233,10 +1815,19 @@ static void n1_s5k6aafx_power_on(void)
 	//msleep(1);
 	usleep_range(1000, 2000);//1ms
 
-	if (system_rev >= 12)
+	if (system_rev >= 12) {
 		s5k6aafx_write_table_8(i2c_client_pmic, s5k6aafx_power_on_12);
-	else
+		s5k6aafx_write_table_8(i2c_client_pmic, s5k6aafx_power_on_22);
+		usleep_range(1000, 2000);//1ms
+		s5k6aafx_write_table_8(i2c_client_pmic, s5k6aafx_power_off_22);
+	} else {
 		s5k6aafx_write_table_8(i2c_client_pmic, s5k6aafx_power_on_11);
+		s5k6aafx_write_table_8(i2c_client_pmic, s5k6aafx_power_on_21);
+		usleep_range(1000, 2000);//1ms
+		s5k6aafx_write_table_8(i2c_client_pmic, s5k6aafx_power_off_21);
+	}
+
+	usleep_range(1000, 2000);//1ms
 
 	gpio_set_value(GPIO_CAM_VT_nSTBY, 1);
 	//msleep(1);
@@ -2321,9 +1912,29 @@ static const struct i2c_board_info sec_pmic_camera[] = {
 
 static int __init camera_init(void)
 {
+#ifdef CONFIG_TEGRA_CAMERA
 	int status;
+#endif
 	n1_camera_init();
 
+#ifdef CONFIG_TEGRA_CAMERA
+#if defined (CONFIG_MACH_BOSE_ATT)
+	if(system_rev >= 4) {
+		status = i2c_register_board_info(16, sec_pmic_camera,
+					ARRAY_SIZE(sec_pmic_camera));
+		status = i2c_register_board_info(3, sec_m5mo_camera,
+					ARRAY_SIZE(sec_m5mo_camera));
+		status = i2c_register_board_info(3, sec_s5k6aafx_camera,
+					ARRAY_SIZE(sec_s5k6aafx_camera));
+	} else {
+		status = i2c_register_board_info(3, sec_pmic_camera,
+					ARRAY_SIZE(sec_pmic_camera));
+		status = i2c_register_board_info(3, sec_m5mo_camera,
+					ARRAY_SIZE(sec_m5mo_camera));
+		status = i2c_register_board_info(3, sec_s5k6aafx_camera,
+					ARRAY_SIZE(sec_s5k6aafx_camera));
+	}
+#else
 	if(system_rev >= 4) {
 		status = i2c_register_board_info(16, sec_pmic_camera,
 					ARRAY_SIZE(sec_pmic_camera));
@@ -2339,17 +1950,15 @@ static int __init camera_init(void)
 		status = i2c_register_board_info(3, sec_s5k6aafx_camera,
 					ARRAY_SIZE(sec_s5k6aafx_camera));
 	}
+#endif
+#endif
 
 	return 0;
 }
-
-
 static int __init n1_touch_init(void)
 {
 	n1_touch_init_hw(&n1_mxt224E_platform_data);
-	
-	i2c_register_board_info(1, sain_i2c_touch_info,
-			ARRAY_SIZE(sain_i2c_touch_info));
+
 	i2c_register_board_info(1, atmel_i2c_touch_info,
 			ARRAY_SIZE(atmel_i2c_touch_info));
 	return 0;
@@ -2366,31 +1975,31 @@ void tegra_usb1_ldo_en(int active, int instance)
 							__func__);
 		return;
 	}
-	pr_info("Board N1 : %s=%d instance=%d present regulator=%d\n", 
-		__func__, active, instance, 
-			usb_data.usb_regulator_on[instance]);	
+	pr_info("Board N1 : %s=%d instance=%d present regulator=%d\n",
+		__func__, active, instance,
+			usb_data.usb_regulator_on[instance]);
 	mutex_lock(&usb_data.ldo_en_lock);
-	
+
 	if (active) {
 		if (!usb_data.usb_regulator_on[instance]) {
 			do {
 				ret = regulator_enable(reg);
-				if (ret == 0) 
+				if (ret == 0)
 					break;
-				msleep(3);
+				msleep(20);
 			} while (try_times--);
 			if (ret == 0)
 				usb_data.usb_regulator_on[instance] = 1;
 			else
-				pr_err("%s: failed to turn on \\
-				VAP_USB_3V3 regulator\n", __func__);
+				pr_err("%s: failed to turn on regulator\n"
+							, __func__);
 		}
 	} else {
 		regulator_disable(reg);
 		usb_data.usb_regulator_on[instance] = 0;
 	}
 	regulator_put(reg);
-	
+
 	mutex_unlock(&usb_data.ldo_en_lock);
 }
 
@@ -2407,166 +2016,86 @@ void tegra_usb1_power(int active)
 	pr_info("Board N1 : %s = %d\n", __func__, active);
 }
 
-static void tegra_set_otg_func(void (*check_detection)(int *, int), 
-				int * clk_cause)
+void tegra_set_clk_func(void (*check_detection)(int *, int),
+				unsigned int *clk_cause)
 {
 	otg_clk_data.check_detection = check_detection;
 	otg_clk_data.clk_cause = clk_cause;
 }
 
 static struct usb_phy_plat_data tegra_usb_phy_pdata[] = {
-       [0] = {
-                       .instance = 0,
-                       .vbus_irq = MAX8907C_INT_BASE + MAX8907C_IRQ_VCHG_DC_R,
-                       .vbus_gpio = -1,
-                       .usb_ldo_en = tegra_usb1_ldo_en,
-       },
-       [1] = {
-                       .instance = 1,
-                       .vbus_gpio = -1,
-       },
-       [2] = {
-                       .instance = 2,
-                       .vbus_gpio = -1,
-       },
+	[0] = {
+			.instance = 0,
+			.vbus_irq = MAX8907C_INT_BASE + MAX8907C_IRQ_VCHG_DC_R,
+			.vbus_gpio = -1,
+			.usb_ldo_en = tegra_usb1_ldo_en,
+			.vbus_en = tegra_usb1_power,
+			.otg_clk_data = &otg_clk_data,
+	},
+	[1] = {
+			.instance = 1,
+			.vbus_gpio = -1,
+	},
+	[2] = {
+			.instance = 2,
+			.vbus_gpio = -1,
+	},
 };
 
 static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 	[0] = {
+			.phy_type = TEGRA_USB_PHY_TYPE_UTMIP,
 			.phy_config = &utmi_phy_config[0],
 			.operating_mode = TEGRA_USB_OTG,
 			.power_down_on_bus_suspend = 0,
-			.host_notify = 1,
-			.sec_whlist_table_num = 1,
+			.default_enable = false,
 	},
+#ifdef CONFIG_LINK_DEVICE_HSIC
 	[1] = {
 			.phy_config = &hsic_phy_config,
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 1,
+			.phy_type = TEGRA_USB_PHY_TYPE_HSIC,
+			.default_enable = false,
 	},
+#else
+	[1] = {
+			.phy_config = &ulpi_phy_config,
+			.operating_mode = TEGRA_USB_HOST,
+			.power_down_on_bus_suspend = 1,
+			.default_enable = true,
+	},
+#endif
 	[2] = {
+			.phy_type = TEGRA_USB_PHY_TYPE_UTMIP,
 			.phy_config = &utmi_phy_config[1],
 			.operating_mode = TEGRA_USB_HOST,
 			.power_down_on_bus_suspend = 1,
+			.default_enable = true,
 	},
 };
 
-struct platform_device *tegra_usb_otg_host_register(void)
-{
-	struct platform_device *pdev;
-	void *platform_data;
-	int val;
 
-	pdev = platform_device_alloc(tegra_ehci1_device.name,
-					tegra_ehci1_device.id);
-	if (!pdev)
-		return NULL;
-
-	val = platform_device_add_resources(pdev, tegra_ehci1_device.resource,
-		tegra_ehci1_device.num_resources);
-	if (val)
-		goto error;
-
-	pdev->dev.dma_mask =  tegra_ehci1_device.dev.dma_mask;
-	pdev->dev.coherent_dma_mask = tegra_ehci1_device.dev.coherent_dma_mask;
-
-	platform_data = kmalloc(sizeof(struct tegra_ehci_platform_data),
-							GFP_KERNEL);
-	if (!platform_data)
-		goto error;
-
-	memcpy(platform_data, &tegra_ehci_pdata[0],
-				sizeof(struct tegra_ehci_platform_data));
-	pdev->dev.platform_data = platform_data;
-
-	val = platform_device_add(pdev);
-	if (val)
-		goto error_add;
-
-	return pdev;
-
-error_add:
-	kfree(platform_data);
-error:
-	pr_err("%s: failed to add the host contoller device\n", __func__);
-	platform_device_put(pdev);
-	return NULL;
-}
-
-void tegra_usb_otg_host_unregister(struct platform_device *pdev)
-{
-	platform_device_unregister(pdev);
-}
 
 static struct tegra_otg_platform_data tegra_otg_pdata = {
-	.host_register = &tegra_usb_otg_host_register,
-	.host_unregister = &tegra_usb_otg_host_unregister,
+	.ehci_device = &tegra_ehci1_device,
+	.ehci_pdata = &tegra_ehci_pdata[0],
 	.acc_power = tegra_usb1_power,
 	.usb_ldo_en = tegra_usb1_ldo_en,
-	.set_otg_func = tegra_set_otg_func,
+	.set_clk_func = tegra_set_clk_func,
 	.otg_id_open = &otg_open,
 	.batt_level = &sec_batt_level,
 };
 
-#define AHB_ARBITRATION_DISABLE		0x0
-#define   USB_ENB			(1 << 6)
-#define   USB2_ENB	`		(1 << 18)
-#define   USB3_ENB			(1 << 17)
-
-#define AHB_ARBITRATION_PRIORITY_CTRL   0x4
-#define   AHB_PRIORITY_WEIGHT(x)	(((x) & 0x7) << 29)
-#define   PRIORITY_SELEECT_USB		(1 << 6)
-#define   PRIORITY_SELEECT_USB2		(1 << 18)
-#define   PRIORITY_SELEECT_USB3		(1 << 17)
-
-#define AHB_GIZMO_AHB_MEM		0xc
-#define   ENB_FAST_REARBITRATE		(1 << 2)
-
-#define AHB_GIZMO_APB_DMA		0x10
-
-#define AHB_GIZMO_USB			0x1c
-#define AHB_GIZMO_USB2			0x78
-#define AHB_GIZMO_USB3			0x7c
-#define   IMMEDIATE			(1 << 18)
-#define   MAX_AHB_BURSTSIZE(x)		(((x) & 0x3) << 16)
-#define	  DMA_BURST_1WORDS		MAX_AHB_BURSTSIZE(0)
-#define	  DMA_BURST_4WORDS		MAX_AHB_BURSTSIZE(1)
-#define	  DMA_BURST_8WORDS		MAX_AHB_BURSTSIZE(2)
-#define	  DMA_BURST_16WORDS		MAX_AHB_BURSTSIZE(3)
-
-#define AHB_MEM_PREFETCH_CFG3		0xe0
-#define AHB_MEM_PREFETCH_CFG4		0xe4
-#define AHB_MEM_PREFETCH_CFG1		0xec
-#define AHB_MEM_PREFETCH_CFG2		0xf0
-#define   PREFETCH_ENB			(1 << 31)
-#define   MST_ID(x)			(((x) & 0x1f) << 26)
-#define   USB_MST_ID			MST_ID(6)
-#define   USB2_MST_ID			MST_ID(18)
-#define   USB3_MST_ID			MST_ID(17)
-#define   ADDR_BNDRY(x)			(((x) & 0x1f) << 21)
-#define		SPEC_THROTTLE(x)		(((x) & 0x1f) << 16)
-#define   INACTIVITY_TIMEOUT(x)		(((x) & 0xffff) << 0)
-
-
-static inline unsigned long gizmo_readl(unsigned long offset)
-{
-	return readl(IO_TO_VIRT(TEGRA_AHB_GIZMO_BASE + offset));
-}
-
-static inline void gizmo_writel(unsigned long value, unsigned long offset)
-{
-	writel(value, IO_TO_VIRT(TEGRA_AHB_GIZMO_BASE + offset));
-}
 static void n1_usb_init(void)
 {
-	unsigned long val; 
 	int ret;
 
 	mutex_init(&usb_data.ldo_en_lock);
 	usb_data.usb_regulator_on[0] = 0;
 	usb_data.usb_regulator_on[1] = 0;
 	usb_data.usb_regulator_on[2] = 0;
-	
+
 	tegra_gpio_enable(GPIO_USB_OTG_EN);
 	ret = gpio_request(GPIO_USB_OTG_EN, "GPIO_USB_OTG_EN");
 	if (ret) {
@@ -2577,62 +2106,33 @@ static void n1_usb_init(void)
 	ret = gpio_direction_output(GPIO_USB_OTG_EN, 0);
 
 	tegra_usb_phy_init(tegra_usb_phy_pdata, ARRAY_SIZE(tegra_usb_phy_pdata));
-
-	/*boost USB1 performance*/
-	val = gizmo_readl(AHB_GIZMO_AHB_MEM);
-	val |= ENB_FAST_REARBITRATE;
-	gizmo_writel(val, AHB_GIZMO_AHB_MEM);
-
-	val = gizmo_readl(AHB_GIZMO_USB);
-	val |= IMMEDIATE;
-	gizmo_writel(val, AHB_GIZMO_USB);
-
-	val = gizmo_readl(AHB_GIZMO_USB3);
-	val |= IMMEDIATE;
-	gizmo_writel(val, AHB_GIZMO_USB3);
-
-
-	val = gizmo_readl(AHB_ARBITRATION_PRIORITY_CTRL);
-	val |= PRIORITY_SELEECT_USB | AHB_PRIORITY_WEIGHT(7) | PRIORITY_SELEECT_USB3;	
-	gizmo_writel(val, AHB_ARBITRATION_PRIORITY_CTRL);
-
-	val = gizmo_readl(AHB_MEM_PREFETCH_CFG1);
-	val &= ~MST_ID(~0);
-	val |= PREFETCH_ENB | MST_ID(0x5) | ADDR_BNDRY(0xC) | SPEC_THROTTLE(0) | INACTIVITY_TIMEOUT(0x1000);
-	gizmo_writel(val, AHB_MEM_PREFETCH_CFG1);        
-
-	val = gizmo_readl(AHB_MEM_PREFETCH_CFG2);
-	val &= ~MST_ID(~0);
-	val |= PREFETCH_ENB | USB_MST_ID | ADDR_BNDRY(0xC) | SPEC_THROTTLE(0) | INACTIVITY_TIMEOUT(0x1000);
-	gizmo_writel(val, AHB_MEM_PREFETCH_CFG2);
-
-	val = gizmo_readl(AHB_MEM_PREFETCH_CFG3);
-	val &= ~MST_ID(~0);
-	val |= PREFETCH_ENB | USB3_MST_ID| ADDR_BNDRY(0xC) | SPEC_THROTTLE(0) | INACTIVITY_TIMEOUT(0x1000);
-	gizmo_writel(val, AHB_MEM_PREFETCH_CFG3);     
+	fsa9480_otg_data_init(&otg_open, &otg_clk_data, tegra_usb1_power);
 
 	tegra_otg_device.dev.platform_data = &tegra_otg_pdata;
 	platform_device_register(&tegra_otg_device);
 }
 
-static int __init n1_hsic_init(void)
+#if defined CONFIG_LINK_DEVICE_HSIC
+static int __init tegra_ehci2_hsic_init(void)
 {
 #ifdef CONFIG_SAMSUNG_LPM_MODE
 	int ret = 0;
-
 	if (!charging_mode_from_boot) {
-		register_smd_resource();
+		/* Uncomment when fully ported from HC.
+		register_smd_resource(); */
 		tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
 		ret = platform_device_register(&tegra_ehci2_device);
 	}
 	return ret;
 #else
-	register_smd_resource();
+	/* Uncomment when fully ported from HC.
+	register_smd_resource(); */
 	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
 	return platform_device_register(&tegra_ehci2_device);
 #endif
 }
-late_initcall(n1_hsic_init);
+late_initcall(tegra_ehci2_hsic_init);
+#endif
 
 static int n1_jack_init(void)
 {
@@ -2664,6 +2164,7 @@ static int n1_jack_init(void)
 	tegra_gpio_enable(GPIO_DET_3_5);
 	tegra_gpio_enable(GPIO_EAR_SEND_END);
 
+	return ret;
 cleanup:
 	gpio_free(GPIO_MICBIAS1_EN);
 	gpio_free(GPIO_MICBIAS2_EN);
@@ -2750,12 +2251,12 @@ static int __init n1_gps_init(void)
 
 	gpio_export_link(gps_dev, "GPS_nRST", GPIO_GPS_NRST);
 	gpio_export_link(gps_dev, "GPS_PWR_EN", GPIO_GPS_EN);
-
 	return 0;
 
 err:
 	return error;
 }
+
 
 static struct i2c_board_info isa1200_i2c_vibrator_info[] = {
 	{
@@ -2767,7 +2268,7 @@ static int __init n1_vibrator_init(void)
 {
 	i2c_register_board_info(17, isa1200_i2c_vibrator_info,
 			ARRAY_SIZE(isa1200_i2c_vibrator_info));
-	
+
 	return 0;
 
 }
@@ -2780,8 +2281,7 @@ static void n1_power_off(void)
 	if (ret)
 		pr_err("n1: failed to power off\n");
 
-	while (1)
-		;
+	while (1);
 }
 
 static void __init n1_power_off_init(void)
@@ -2832,23 +2332,21 @@ static DEVICE_ATTR(sec_debug_level, 0644, show_sec_debug_level, store_sec_debug_
 static void __init tegra_n1_init(void)
 {
 	char serial[20];
+#ifdef CONFIG_KERNEL_DEBUG_SEC
 	int ret = 0;
-
-	tegra_common_init();
+#endif
 	tegra_clk_init_from_table(n1_clk_init_table);
 	n1_pinmux_init();
-
 	pr_info("Board HW Revision: system_rev = %d\n", system_rev);
-
 	n1_i2c_init();
+	n1_uart_init();
 
 	snprintf(serial, sizeof(serial), "%llx", tegra_chip_uid());
-	android_usb_pdata.serial_number = kstrdup(serial, GFP_KERNEL);
 	tegra_i2s_device1.dev.platform_data = &tegra_audio_pdata[0];
 	tegra_i2s_device2.dev.platform_data = &tegra_audio_pdata[1];
-	tegra_spdif_device.dev.platform_data = &tegra_spdif_pdata;
-	tegra_das_device.dev.platform_data = &tegra_das_pdata;
+#if !defined CONFIG_LINK_DEVICE_HSIC
 	tegra_ehci2_device.dev.platform_data = &n1_ehci2_ulpi_platform_data;
+#endif
 	platform_add_devices(n1_devices, ARRAY_SIZE(n1_devices));
 
 #ifdef CONFIG_MAX8922_CHARGER
@@ -2867,31 +2365,31 @@ static void __init tegra_n1_init(void)
 #endif
 	n1_gpio_i2c_init(charging_mode_from_boot);
 	n1_regulator_init();
+
 	n1_touch_init();
+#ifdef CONFIG_KEYBOARD_GPIO
 	n1_keys_init();
+#endif
 	n1_usb_init();
 	n1_gps_init();
-	n1_panel_init();
+    n1_panel_init();
 	n1_power_off_init();
 	n1_emc_init();
+#ifdef CONFIG_BCM4330_RFKILL
 	n1_rfkill_init();
+#endif
 	n1_sensors_init();
 	tegra_n1_codec_init();
-	if (system_rev == 0)
-		n1_kbc_init();
+
+
 	n1_fsa9480_init();
-#ifdef CONFIG_PN544	
-	n1_nfc_init();
-#endif
 	camera_init();
 	init_wifi_mem();		// for wifi static buf
 	n1_vibrator_init();
-
+	tegra_release_bootloader_fb();
 	register_reboot_notifier(&n1_reboot_notifier);
-
 	/* console suspend disable */
 	console_suspend_enabled = 0;
-
 #ifdef CONFIG_KERNEL_DEBUG_SEC
 	/* Add debug level node */
 	struct device *platform = n1_devices[0]->dev.parent;
@@ -2935,13 +2433,13 @@ void __init tegra_n1_reserve(void)
 	}
 }
 
-MACHINE_START(TEGRA_GENERIC, "n1")
+MACHINE_START(SAMSUNG_N1, "n1")
 	.boot_params    = 0x00000100,
-	.phys_io        = IO_APB_PHYS,
-	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
-	.init_irq       = tegra_init_irq,
-	.init_machine   = tegra_n1_init,
 	.map_io         = tegra_map_common_io,
 	.reserve        = tegra_n1_reserve,
+	.init_early		= tegra_init_early,
+	.init_irq       = tegra_init_irq,
 	.timer          = &tegra_timer,
+	.init_machine   = tegra_n1_init,
 MACHINE_END
+

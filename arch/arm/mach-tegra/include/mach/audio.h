@@ -22,7 +22,6 @@
 
 #include <linux/kernel.h>
 #include <linux/types.h>
-#include <linux/regulator/consumer.h>
 #include <mach/i2s.h>
 
 #define FIFO1		0
@@ -35,9 +34,6 @@
 #define TEGRA_AUDIO_ENABLE_TX	1
 #define TEGRA_AUDIO_ENABLE_RX	2
 
-#define AUDIO_TX_MODE 1
-#define AUDIO_RX_MODE 2
-
 struct tegra_audio_platform_data {
 	bool i2s_master;
 	bool dsp_master;
@@ -45,7 +41,6 @@ struct tegra_audio_platform_data {
 	int dsp_master_clk; /* When DSP mode and master, the framesync rate. */
 	bool dma_on;
 	unsigned long i2s_clk_rate;
-	unsigned long spdif_clk_rate;
 	const char *dap_clk;
 	const char *audio_sync_clk;
 
@@ -57,16 +52,6 @@ struct tegra_audio_platform_data {
 	int mask; /* enable tx and rx? */
 	bool stereo_capture; /* True if hardware supports stereo */
 	void *driver_data;
-};
-
-struct tegra_wired_jack_conf {
-	int hp_det_n;   /* headphone jack detection gpio pin */
-	int en_mic_ext; /* external mic enable gpio pin */
-	int en_mic_int; /* internal mic enable gpio pin */
-	int cdc_irq;    /* mic jack detection pin(IRQ-mode or generic gpio) */
-	int en_spkr;    /* gpio pin to drive amplifier */
-	const char *spkr_amp_reg;    /* regulator name for speaker amp */
-	struct regulator *amp_reg;   /* regulator for speaker amp */
 };
 
 #endif /* __ARCH_ARM_MACH_TEGRA_AUDIO_H */

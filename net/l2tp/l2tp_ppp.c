@@ -97,7 +97,7 @@
 #include <net/xfrm.h>
 
 #include <asm/byteorder.h>
-#include <asm/atomic.h>
+#include <linux/atomic.h>
 
 #include "l2tp_core.h"
 
@@ -1768,7 +1768,7 @@ static const struct proto_ops pppol2tp_ops = {
 	.ioctl		= pppox_ioctl,
 };
 
-static struct pppox_proto pppol2tp_proto = {
+static const struct pppox_proto pppol2tp_proto = {
 	.create		= pppol2tp_create,
 	.ioctl		= pppol2tp_ioctl
 };

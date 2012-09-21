@@ -1,7 +1,7 @@
 #pragma once
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
-u16 cmc623_Video_LCD[]= 
+u16 cmc623_Video_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -17,7 +17,7 @@ u16 cmc623_Video_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_Video_CABC_LCD[]= 
+u16 cmc623_Video_CABC_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -72,7 +72,7 @@ u16 cmc623_Video_CABC_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_Video_Warm_LCD[]= 
+u16 cmc623_Video_Warm_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -91,7 +91,7 @@ u16 cmc623_Video_Warm_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_Video_Warm_CABC_LCD[]= 
+u16 cmc623_Video_Warm_CABC_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -148,7 +148,7 @@ u16 cmc623_Video_Warm_CABC_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_Video_Cold_LCD[]= 
+u16 cmc623_Video_Cold_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -167,7 +167,7 @@ u16 cmc623_Video_Cold_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_Video_Cold_CABC_LCD[]= 
+u16 cmc623_Video_Cold_CABC_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -226,7 +226,7 @@ END_SEQ,0x0000,
 
 
 
-u16 cmc623_Camera_LCD[]= 
+u16 cmc623_Camera_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -287,13 +287,13 @@ u16 cmc623_Camera_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_Camera_CABC_LCD[]= 
+u16 cmc623_Camera_CABC_LCD[]=
 {
 
 END_SEQ,0x0000,
 };
 
-u16 cmc623_UI_LCD[]= 
+u16 cmc623_UI_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -310,7 +310,7 @@ u16 cmc623_UI_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_UI_CABC_LCD[]= 
+u16 cmc623_UI_CABC_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -365,7 +365,7 @@ u16 cmc623_UI_CABC_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_VT_LCD[]= 
+u16 cmc623_VT_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -381,7 +381,7 @@ u16 cmc623_VT_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_VT_CABC_LCD[]= 
+u16 cmc623_VT_CABC_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -435,7 +435,7 @@ u16 cmc623_VT_CABC_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_DMB_LCD[]= 
+u16 cmc623_DMB_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -496,7 +496,7 @@ u16 cmc623_DMB_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_DMB_CABC_LCD[]= 
+u16 cmc623_DMB_CABC_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -567,7 +567,7 @@ u16 cmc623_DMB_CABC_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_GALLERY_LCD[]= 
+u16 cmc623_GALLERY_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -583,7 +583,7 @@ u16 cmc623_GALLERY_LCD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_GALLERY_CABC_LCD[]= 
+u16 cmc623_GALLERY_CABC_LCD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -638,7 +638,7 @@ END_SEQ,0x0000,
 };
 //////////////////////////////////////////////////
 
-u16 cmc623_USERSELECT_STANDARD[]= 
+u16 cmc623_USERSELECT_STANDARD[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -691,7 +691,7 @@ u16 cmc623_USERSELECT_STANDARD[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_USERSELECT_MOVIE[]= 
+u16 cmc623_USERSELECT_MOVIE[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -744,7 +744,7 @@ u16 cmc623_USERSELECT_MOVIE[]=
 END_SEQ,0x0000,
 };
 
-u16 cmc623_USERSELECT_DYNAMIC[]= 
+u16 cmc623_USERSELECT_DYNAMIC[]=
 {
 	//start
 	0x0000,0x0000,	//BANK 0
@@ -829,7 +829,7 @@ u16 cmc623_Black_Minus_4_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -863,7 +863,7 @@ u16 cmc623_Black_Minus_3_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -897,7 +897,7 @@ u16 cmc623_Black_Minus_2_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -931,7 +931,7 @@ u16 cmc623_Black_Minus_1_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -965,7 +965,7 @@ u16 cmc623_Black_0_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -999,7 +999,7 @@ u16 cmc623_Black_Plus_1_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1033,7 +1033,7 @@ u16 cmc623_Black_Plus_2_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1067,7 +1067,7 @@ u16 cmc623_Black_Plus_3_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1101,7 +1101,7 @@ u16 cmc623_Black_Plus_4_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1135,7 +1135,7 @@ u16 cmc623_Black_Minus_4_CABC_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1169,7 +1169,7 @@ u16 cmc623_Black_Minus_3_CABC_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1203,7 +1203,7 @@ u16 cmc623_Black_Minus_2_CABC_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1237,7 +1237,7 @@ u16 cmc623_Black_Minus_1_CABC_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1271,7 +1271,7 @@ u16 cmc623_Black_0_CABC_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1305,7 +1305,7 @@ u16 cmc623_Black_Plus_1_CABC_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1339,7 +1339,7 @@ u16 cmc623_Black_Plus_2_CABC_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1373,7 +1373,7 @@ u16 cmc623_Black_Plus_3_CABC_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
 
@@ -1407,9 +1407,6 @@ u16 cmc623_Black_Plus_4_CABC_LCD[]=
 	0x0038,0xFF00,
 	0x0020,0x0001,
 	0x0000,0x0000,
-	
+
 	END_SEQ,0x0000,
 };
-
-
-

@@ -11,7 +11,7 @@
 #ifndef __ATMEL_MXT224E_CFG_H
 #define __ATMEL_MXT224E_CFG_H
 
-typedef struct { 
+typedef struct {
 	uint8_t reset;       /*  Force chip reset             */
 	uint8_t backupnv;    /*  Force backup to eeprom/flash */
 	uint8_t calibrate;   /*  Force recalibration          */
@@ -20,14 +20,14 @@ typedef struct {
 	uint8_t diagnostic;  /*  Controls the diagnostic object */
 } __packed gen_commandprocessor_t6_config_t;
 
-typedef struct { 
+typedef struct {
 	uint8_t idleacqint;    /*  Idle power mode sleep length in ms           */
 	uint8_t actvacqint;    /*  Active power mode sleep length in ms         */
 	uint8_t actv2idleto;   /*  Active to idle power mode delay length in units of 0.2s*/
-	
+
 } __packed gen_powerconfig_t7_config_t;
 
-typedef struct { 
+typedef struct {
 	uint8_t chrgtime;          /*  Charge-transfer dwell time             */
 	uint8_t reserved;          /*  reserved                               */
 	uint8_t tchdrift;          /*  Touch drift compensation period        */
@@ -40,16 +40,16 @@ typedef struct {
 	uint8_t atchcalfrcratio;
 } __packed gen_acquisitionconfig_t8_config_t;
 
-typedef struct { 
+typedef struct {
 	/* Screen Configuration */
 	uint8_t ctrl;            /*  ACENABLE LCENABLE Main configuration field  */
-	
+
 	/* Physical Configuration */
 	uint8_t xorigin;         /*  LCMASK ACMASK Object x start position on matrix  */
 	uint8_t yorigin;         /*  LCMASK ACMASK Object y start position on matrix  */
 	uint8_t xsize;           /*  LCMASK ACMASK Object x size (i.e. width)         */
 	uint8_t ysize;           /*  LCMASK ACMASK Object y size (i.e. height)        */
-	
+
 	/* Detection Configuration */
 	uint8_t akscfg;          /*  Adjacent key suppression config     */
 	uint8_t blen;            /*  Sets the gain of the analog circuits in front of the ADC. The gain should be set in
@@ -58,19 +58,19 @@ typedef struct {
 				 has a maximum setting of 4; settings above 4 are capped at 4.*/
 	uint8_t tchthr;          /*  ACMASK Threshold for all object channels   */
 	uint8_t tchdi;           /*  Detect integration config           */
-		 
+
 	uint8_t orient;		/*  LCMASK Controls flipping and rotating of touchscreen
 				*   object */
 	uint8_t mrgtimeout;	/*  Timeout on how long a touch might ever stay
 				*   merged - units of 0.2s, used to tradeoff power
 				*   consumption against being able to detect a touch
 				*   de-merging early */
-							  
+
 				  /* Position Filter Configuration */
 	uint8_t movhysti;   /*  Movement hysteresis setting used after touchdown */
 	uint8_t movhystn;   /*  Movement hysteresis setting used once dragging   */
 	uint8_t movfilter;  /*  Position filter setting controlling the rate of  */
-					  
+
 			  /* Multitouch Configuration */
 	uint8_t numtouch;   /*  The number of touches that the screen will attempt
 			  *   to track */
@@ -78,9 +78,9 @@ typedef struct {
 			  *   to stop oscillation */
 	uint8_t mrgthr;     /*  The threshold for the point when two peaks are
 			  *   considered one touch */
-					  
+
 	uint8_t amphyst;          /*  TBD */
-						  
+
 			  /* Resolution Controls */
 	uint16_t xrange;       /*  LCMASK */
 	uint16_t yrange;       /*  LCMASK */
@@ -103,16 +103,16 @@ typedef struct {
 
 
 
-typedef struct { 
+typedef struct {
 	/* Key Array Configuration */
 	uint8_t ctrl;               /*  ACENABLE LCENABLE Main configuration field           */
-	
+
 	/* Physical Configuration */
 	uint8_t xorigin;           /*  ACMASK LCMASK Object x start position on matrix  */
 	uint8_t yorigin;           /*  ACMASK LCMASK Object y start position on matrix  */
 	uint8_t xsize;             /*  ACMASK LCMASK Object x size (i.e. width)         */
 	uint8_t ysize;             /*  ACMASK LCMASK Object y size (i.e. height)        */
-	
+
 	/* Detection Configuration */
 	uint8_t akscfg;             /*  Adjacent key suppression config     */
 	uint8_t blen;               /*  ACMASK Burst length for all object channels*/
@@ -122,13 +122,13 @@ typedef struct {
 } __packed touch_keyarray_t15_config_t;
 
 
-typedef struct { 
+typedef struct {
 	uint8_t  ctrl;
 	uint8_t  cmd;
 } __packed spt_comcconfig_t18_config_t;
 
 
-typedef struct { 
+typedef struct {
 	/* GPIOPWM Configuration */
 	uint8_t ctrl;             /*  Main configuration field           */
 	uint8_t reportmask;       /*  Event mask for generating messages to
@@ -144,7 +144,7 @@ typedef struct {
 } __packed spt_gpiopwm_t19_config_t;
 
 
-typedef struct { 
+typedef struct {
 	uint8_t ctrl;
 	uint8_t xlogrip;
 	uint8_t xhigrip;
@@ -160,7 +160,7 @@ typedef struct {
 } __packed proci_gripfacesuppression_t20_config_t;
 
 
-typedef struct { 
+typedef struct {
 	uint8_t ctrl;
 	uint8_t reserved;
 	uint8_t reserved1;
@@ -175,10 +175,10 @@ typedef struct {
 } __packed procg_noisesuppression_t22_config_t;
 
 
-typedef struct { 
+typedef struct {
 	/* Prox Configuration */
 	uint8_t ctrl;               /*  ACENABLE LCENABLE Main configuration field           */
-	
+
 	/* Physical Configuration */
 	uint8_t xorigin;           /*  ACMASK LCMASK Object x start position on matrix  */
 	uint8_t yorigin;           /*  ACMASK LCMASK Object y start position on matrix  */
@@ -195,7 +195,7 @@ typedef struct {
 } __packed touch_proximity_t23_config_t;
 
 
-typedef struct { 
+typedef struct {
 	uint8_t ctrl;
 	uint8_t numgest;
 	uint16_t gesten;
@@ -213,21 +213,21 @@ typedef struct {
 } __packed proci_onetouchgestureprocessor_t24_config_t;
 
 
-typedef struct { 
+typedef struct {
 	uint16_t upsiglim;              /* LCMASK */
 	uint16_t losiglim;              /* LCMASK */
 } siglim_t;
 
 /*! = Config Structure = */
 
-typedef struct { 
+typedef struct {
 	uint8_t  ctrl;                 /* LCENABLE */
 	uint8_t  cmd;
 	siglim_t siglim[3];            /* T9, T15, T23 */
 } __packed spt_selftest_t25_config_t;
 
 
-typedef struct { 
+typedef struct {
 	uint8_t ctrl;          /*  Ctrl field reserved for future expansion */
 	uint8_t cmd;           /*  Cmd field for sending CTE commands */
 	uint8_t mode;          /*  LCMASK CTE mode configuration field */
@@ -236,13 +236,13 @@ typedef struct {
 	int8_t  voltage;
 } __packed spt_cteconfig_t28_config_t;
 
-typedef struct { 
+typedef struct {
 	uint8_t data[8];
 } __packed spt_userdata_t38_t;
 
 /* MXT224E Added */
 
-typedef struct { 
+typedef struct {
 	uint8_t ctrl;          /*  Reserved/ GRIPMODE/ Reserved/ ENABLE */
 	uint8_t xlogrip;       /*  Grip suppression X low boundary   */
 	uint8_t xhigrip;       /*  Grip suppression X high boundary  */
@@ -252,7 +252,7 @@ typedef struct {
 
 
 
-typedef struct { 
+typedef struct {
 	uint8_t ctrl;            /*  ctrl field reserved for future expansion */
 	uint8_t apprthr;         /*  Approach threshold */
 	uint8_t maxapprarea;     /*  Maximum approach area threshold */
@@ -264,7 +264,7 @@ typedef struct {
 } __packed proci_touchsuppression_t42_config_t;
 
 
-typedef struct { 
+typedef struct {
 	uint8_t ctrl;          /*  ctrl field reserved for future expansion */
 	uint8_t mode;          /*  X line start position   */
 	uint8_t idlesyncsperx; /*  Number of sets of ADC conversions per X when idle  */
@@ -276,7 +276,7 @@ typedef struct {
 } __packed spt_cteconfig_t46_config_t;
 
 
-typedef struct { 
+typedef struct {
 	uint8_t ctrl;          /*  Reserved ENABLE            */
 	uint8_t contmin;       /*  Minimum contact diameter   */
 	uint8_t contmax;       /*  Maximum contact diameter   */
@@ -291,7 +291,7 @@ typedef struct {
 
 
 
-typedef struct { 
+typedef struct {
 	uint8_t ctrl;                /*  Reserved RPTAPX RPTFREQ RPTEN ENABLE             */
 	uint8_t cfg;                 /*  Reserved GCMODE                                  */
 	uint8_t calcfg;              /*  INCRST INCBIAS Reserved FIXFREQ MFEN NLEN        */

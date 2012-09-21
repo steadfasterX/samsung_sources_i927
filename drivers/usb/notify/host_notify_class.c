@@ -145,11 +145,11 @@ static struct attribute_group host_notify_attr_grp = {
 	.attrs = host_notify_attrs,
 };
 
-void host_state_notify(struct host_notify_dev *ndev, int state)
+void host_state_notify(struct host_notify_dev *ndev, int state, bool force)
 {
-	printk(KERN_INFO "host_notify: ndev name=%s: from state=%d -> to state=%d\n",
-		ndev->name, ndev->state, state);
-	if (ndev->state != state) {
+	printk(KERN_INFO "host_notify:dev name=%s: from state=%d -> to state=%d force=%d\n",
+		ndev->name, ndev->state, state, force);
+	if (ndev->state != state || force) {
 		ndev->state = state;
 		kobject_uevent(&ndev->dev->kobj, KOBJ_CHANGE);
 	}

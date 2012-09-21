@@ -40,6 +40,7 @@ static const char *strnames[] = {
 	"BT_NEW_STREAM",
 	"BT_START_STREAM",
 	"BT_STOP_STREAM",
+	"BT_CLOSE",
 	"BT_SUSPEND_STREAM",
 	"BT_RESUME_STREAM",
 	"BT_CONTROL",

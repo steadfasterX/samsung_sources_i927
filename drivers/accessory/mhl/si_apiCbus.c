@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -38,9 +38,9 @@
 #include <linux/irq.h>
 #include <linux/delay.h>
 
-#include <linux/syscalls.h> 
-#include <linux/fcntl.h> 
-#include <linux/uaccess.h> 
+#include <linux/syscalls.h>
+#include <linux/fcntl.h>
+#include <linux/uaccess.h>
 #include <linux/types.h>
 
 
@@ -68,7 +68,7 @@ static cbusChannelState_t l_cbus[MHD_MAX_CHANNELS];
 Bool dev_cap_regs_ready_bit;
 
 //------------------------------------------------------------------------------
-// Function:    SI_CbusRequestStatus 
+// Function:    SI_CbusRequestStatus
 // Description: Return the status of the message currently in process, if any.
 // Parameters:  channel - CBUS channel to check
 // Returns:     CBUS_REQ_IDLE, CBUS_REQ_PENDING, CBUS_REQ_SENT, or CBUS_REQ_RECEIVED
@@ -81,7 +81,7 @@ byte SI_CbusRequestStatus ( byte channel )
 
 //------------------------------------------------------------------------------
 // Function:    SI_CbusRequestSetIdle
-// Description: Set the active request to the specified state 
+// Description: Set the active request to the specified state
 // Parameters:  channel - CBUS channel to set
 //------------------------------------------------------------------------------
 
@@ -91,7 +91,7 @@ void SI_CbusRequestSetIdle ( byte channel, byte newState )
 }
 
 //------------------------------------------------------------------------------
-// Function:    SI_CbusRequestData 
+// Function:    SI_CbusRequestData
 // Description: Return a pointer to the currently active request structure
 // Parameters:  channel - CBUS channel.
 // Returns:     Pointer to a cbus_req_t structure.
@@ -105,7 +105,7 @@ cbus_req_t *SI_CbusRequestData ( byte channel )
 //------------------------------------------------------------------------------
 // Function:    SI_CbusChannelConnected
 // Description: Return the CBUS channel connected status for this channel.
-// Returns:     TRUE if connected. 
+// Returns:     TRUE if connected.
 //              FALSE if disconnected.
 //------------------------------------------------------------------------------
 
@@ -150,7 +150,7 @@ void cbus_display_registers(int startfrom, int howmany)
 //------------------------------------------------------------------------------
 // Function:    CBusProcessConnectionChange
 // Description: Process a connection change interrupt
-// Returns:     
+// Returns:
 //------------------------------------------------------------------------------
 
 static byte CBusProcessConnectionChange ( int channel )
@@ -358,11 +358,11 @@ static byte CBusProcessSubCommand ( int channel, byte vs_cmd, byte vs_data )
 	case MHD_MSC_MSG_DEVCAP9_CHANGE:
 		SiIRegioCbusWrite( REG_CBUS_DEVICE_CAP_9, channel, vs_data );
 		SI_CbusMscMsgSubCmdSend(channel, MHD_MSC_MSG_DEVCAP_CHANGE_REPLY, SiIRegioCbusRead( REG_CBUS_DEVICE_CAP_9, channel);
-		break;		
+		break;
 	case MHD_MSC_MSG_DEVCAP10_CHANGE:
 		SiIRegioCbusWrite( REG_CBUS_DEVICE_CAP_A, channel, vs_data );
 		SI_CbusMscMsgSubCmdSend(channel, MHD_MSC_MSG_DEVCAP_CHANGE_REPLY, SiIRegioCbusRead( REG_CBUS_DEVICE_CAP_A, channel);
-		break;		
+		break;
 	case MHD_MSC_MSG_DEVCAP11_CHANGE:
 		SiIRegioCbusWrite( REG_CBUS_DEVICE_CAP_B, channel, vs_data );
 		SI_CbusMscMsgSubCmdSend(channel, MHD_MSC_MSG_DEVCAP_CHANGE_REPLY, SiIRegioCbusRead( REG_CBUS_DEVICE_CAP_B, channel);
@@ -412,7 +412,7 @@ static byte CBusProcessSubCommand ( int channel, byte vs_cmd, byte vs_data )
 		break;
 	case MHD_MSC_MSG_DEVCAP_CHANGE_REPLY:
 		msc_return_cmd = vs_cmd;
-		break;	
+		break;
 	case MHD_MSC_MSG_SET_INT_REPLY:
 		msc_return_value = vs_data;
 		msc_return_cmd = vs_cmd;
@@ -458,11 +458,11 @@ byte	SI_CbusMscReturnValue()
 //------------------------------------------------------------------------------
 // Function:    CBusWriteCommand
 // Description: Write the specified Sideband Channel command to the CBUS.
-//              Command can be a MSC_MSG command (RCP/MCW/RAP), or another command 
+//              Command can be a MSC_MSG command (RCP/MCW/RAP), or another command
 //              such as READ_DEVCAP, GET_VENDOR_ID, SET_HPD, CLR_HPD, etc.
 //
 // Parameters:  channel - CBUS channel to write
-//              pReq    - Pointer to a cbus_req_t structure containing the 
+//              pReq    - Pointer to a cbus_req_t structure containing the
 //                        command to write
 // Returns:     TRUE    - successful write
 //              FALSE   - write failed
@@ -502,7 +502,7 @@ static Bool CBusWriteCommand ( int channel, cbus_req_t *pReq  )
 			break;
 
 		case MHD_GET_STATE:			// 0x62 - Used for heartbeat
-		case MHD_GET_VENDOR_ID:		// 0x63 - for vendor id	
+		case MHD_GET_VENDOR_ID:		// 0x63 - for vendor id
 		case MHD_SET_HPD:			// 0x64	- Set Hot Plug Detect in follower
 		case MHD_CLR_HPD:			// 0x65	- Clear Hot Plug Detect in follower
 		case MHD_GET_SC1_ERRORCODE:		// 0x69	- Get channel 1 command error code
@@ -561,16 +561,16 @@ static byte CBusConmmandGetNextInQueue( byte channel )
 {
 	byte   result = STATUS_SUCCESS;
 
-	byte nextIndex = (l_cbus[ channel].activeIndex == (CBUS_MAX_COMMAND_QUEUE - 1)) ? 
+	byte nextIndex = (l_cbus[ channel].activeIndex == (CBUS_MAX_COMMAND_QUEUE - 1)) ?
 		0 : (l_cbus[ channel].activeIndex + 1)	;
 
 
 	while ( l_cbus[ channel].request[ nextIndex].reqStatus != CBUS_REQ_PENDING )
 	{
-		if ( nextIndex == l_cbus[ channel].activeIndex )   //searched whole queue, no pending 
-			return 0;	
+		if ( nextIndex == l_cbus[ channel].activeIndex )   //searched whole queue, no pending
+			return 0;
 
-		nextIndex = ( nextIndex == (CBUS_MAX_COMMAND_QUEUE - 1)) ? 
+		nextIndex = ( nextIndex == (CBUS_MAX_COMMAND_QUEUE - 1)) ?
 			0 : (nextIndex + 1);
 	}
 
@@ -579,8 +579,8 @@ static byte CBusConmmandGetNextInQueue( byte channel )
 	if ( CBusWriteCommand( channel, &l_cbus[ channel].request[ nextIndex] ) )
 	{
 		l_cbus[ channel].request[ nextIndex].reqStatus = CBUS_REQ_SENT;
-		l_cbus[ channel].activeIndex = nextIndex;						
-		l_cbus[ channel].state = CBUS_SENT;					
+		l_cbus[ channel].activeIndex = nextIndex;
+		l_cbus[ channel].state = CBUS_SENT;
 	}
 	else
 	{
@@ -595,7 +595,7 @@ static byte CBusConmmandGetNextInQueue( byte channel )
 //------------------------------------------------------------------------------
 // Function:    CBusResetToIdle
 // Description: Set the specified channel state to IDLE. Clears any messages that
-//              are in progress or queued.  Usually used if a channel connection 
+//              are in progress or queued.  Usually used if a channel connection
 //              changed or the channel heartbeat has been lost.
 // Parameters:  channel - CBUS channel to reset
 //------------------------------------------------------------------------------
@@ -660,9 +660,9 @@ static byte CBusCheckInterruptStatus ( byte channel )
 			/* Save any response data in the channel request structure to be returned    */
 			/* to the upper level.                                                      */
 
-			msc_return_cmd = l_cbus[ channel].request[ l_cbus[ channel].activeIndex ].msgData[0] = 
+			msc_return_cmd = l_cbus[ channel].request[ l_cbus[ channel].activeIndex ].msgData[0] =
 				SiIRegioCbusRead( REG_CBUS_PRI_RD_DATA_1ST, channel );
-			msc_return_value = l_cbus[ channel].request[ l_cbus[ channel].activeIndex ].msgData[1] = 
+			msc_return_value = l_cbus[ channel].request[ l_cbus[ channel].activeIndex ].msgData[1] =
 				SiIRegioCbusRead( REG_CBUS_PRI_RD_DATA_2ND, channel );
 
 			printk ( "\nCBUS:: Transfer Done \n" );
@@ -724,14 +724,14 @@ Bool SI_CbusMscMsgSubCmdSend ( byte channel, byte vsCommand, byte cmdData )
 	// Send MSC_MSG command (Vendor Specific command)
 	//
 	req.command     = MHD_MSC_MSG;
-	req.msgData[0]  = vsCommand; 
-	req.msgData[1]  = cmdData; 
+	req.msgData[0]  = vsCommand;
+	req.msgData[1]  = cmdData;
 	return( SI_CbusWriteCommand( channel, &req  ));
 }
 
 //------------------------------------------------------------------------------
 // Function:    SI_CbusRcpMessageAck
-// Description: Send RCP_K (acknowledge) message to the specified CBUS channel 
+// Description: Send RCP_K (acknowledge) message to the specified CBUS channel
 //              and set the request status to idle.
 //
 // Parameters:  channel     - CBUS channel
@@ -753,7 +753,7 @@ Bool SI_CbusRcpMessageAck ( byte channel, byte cmdStatus, byte keyCode )
 
 //------------------------------------------------------------------------------
 // Function:    SI_CbusRapMessageAck
-// Description: Send RAPK (acknowledge) message to the specified CBUS channel 
+// Description: Send RAPK (acknowledge) message to the specified CBUS channel
 //              and set the request status to idle.
 //
 // Parameters:  channel     - CBUS channel
@@ -763,7 +763,7 @@ Bool SI_CbusRcpMessageAck ( byte channel, byte cmdStatus, byte keyCode )
 
 Bool SI_CbusRapMessageAck ( byte channel, byte cmdStatus )
 {
-	printk("SI_CbusRapMessageAck:%x \n",(int)cmdStatus);  
+	printk("SI_CbusRapMessageAck:%x \n",(int)cmdStatus);
 	SI_CbusRequestSetIdle( channel, CBUS_REQ_IDLE );
 	return( SI_CbusMscMsgSubCmdSend( channel, MHD_MSC_MSG_RAPK, cmdStatus ));
 }
@@ -778,26 +778,26 @@ Bool SI_CbusRapMessageAck ( byte channel, byte cmdStatus )
 //------------------------------------------------------------------------------
 Bool SI_CbusSendDcapRdyMsg ( byte channel )
 {
-	//cbus_req_t *pReq; // SIMG old code 
+	//cbus_req_t *pReq; // SIMG old code
 	cbus_req_t pReq;  //daniel 20101101
 	Bool result = TRUE;
 
-	if( l_cbus[ channel].connected ) 
+	if( l_cbus[ channel].connected )
 	{
 		printk( "SI_CbusSendDcapRdyMsg Called!!\n");
 		//send a msg to peer that the device capability registers are ready to be read.
-		//set DCAP_RDY bit 
+		//set DCAP_RDY bit
 		pReq.command = MHD_WRITE_STAT;
 		pReq.offsetData = 0x00;
 		pReq.msgData[0] = BIT_0;
-		//result = SI_CbusWriteCommand(0, pReq); // SIMG old code 
+		//result = SI_CbusWriteCommand(0, pReq); // SIMG old code
 		result = SI_CbusWriteCommand(0, &pReq);
 
 		//set DCAP_CHG bit
 		pReq.command = MHD_SET_INT;
 		pReq.offsetData = 0x00;
 		pReq.msgData[0] = BIT_0;
-		//result = SI_CbusWriteCommand(0, pReq); // SIMG old code 
+		//result = SI_CbusWriteCommand(0, pReq); // SIMG old code
 		result = SI_CbusWriteCommand(0, &pReq);
 
 		dev_cap_regs_ready_bit = TRUE;
@@ -810,7 +810,7 @@ Bool SI_CbusSendDcapRdyMsg ( byte channel )
 //------------------------------------------------------------------------------
 // Function:    SI_CbusHandler
 // Description: Check the state of any current CBUS message on specified channel.
-//              Handle responses or failures and send any pending message if 
+//              Handle responses or failures and send any pending message if
 //              channel is IDLE.
 // Parameters:  channel - CBUS channel to check, must be in range, NOT 0xFF
 // Returns:     SUCCESS or one of CBUS_SOFTWARE_ERRORS_t
@@ -838,7 +838,7 @@ byte SI_CbusHandler ( byte channel )
 	switch ( l_cbus[ channel].state )
 	{
 		case CBUS_IDLE:
-			result = CBusConmmandGetNextInQueue( channel );				
+			result = CBusConmmandGetNextInQueue( channel );
 			break;
 
 		case CBUS_SENT:
@@ -880,7 +880,7 @@ byte SI_CbusHandler ( byte channel )
 //              send the new command immediately.
 //
 // Parameters:  channel - CBUS channel to write
-//              pReq    - Pointer to a cbus_req_t structure containing the 
+//              pReq    - Pointer to a cbus_req_t structure containing the
 //                        command to write
 // Returns:     TRUE    - successful queue/write
 //              FALSE   - write and/or queue failed
@@ -920,8 +920,8 @@ Bool SI_CbusWriteCommand ( byte channel, cbus_req_t *pReq  )
 			switch ( l_cbus[ channel].state )
 			{
 				case CBUS_IDLE:
-				case CBUS_RECEIVED:	   
-					success = CBusConmmandGetNextInQueue( channel );				
+				case CBUS_RECEIVED:
+					success = CBusConmmandGetNextInQueue( channel );
 					break;
 				case CBUS_WAIT_RESPONSE:
 				case CBUS_SENT:
@@ -1018,8 +1018,8 @@ Bool SI_CbusInitialize ( void )
 	SiIRegioCbusWrite(devcap_reg++, channel, MHD_DEV_ACTIVE);
 	SiIRegioCbusWrite(devcap_reg++, channel, MHD_VERSION);
 	SiIRegioCbusWrite(devcap_reg++, channel, MHD_DEVICE_CATEGORY);
-	SiIRegioCbusWrite(devcap_reg++, channel, 0);  						
-	SiIRegioCbusWrite(devcap_reg++, channel, 0);						
+	SiIRegioCbusWrite(devcap_reg++, channel, 0);
+	SiIRegioCbusWrite(devcap_reg++, channel, 0);
 	SiIRegioCbusWrite(devcap_reg++, channel, MHD_DEV_VID_LINK_SUPPRGB444);
 	SiIRegioCbusWrite(devcap_reg++, channel, MHD_DEV_AUD_LINK_2CH);
 	SiIRegioCbusWrite(devcap_reg++, channel, 0);										// not for source
@@ -1056,5 +1056,3 @@ Bool SI_CbusInitialize ( void )
 
 	return result;
 }
-
-

@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -63,22 +63,22 @@ enum
 
   MHD_MSC_MSG_STATE_CHANGE             	= 0x90,
   MHD_MSC_MSG_STATE_CHANGE_REPLY			= 0x91,
- 
-	MHD_MSC_MSG_DEVCAP0_CHANGE            	= 0xA0,   
-	MHD_MSC_MSG_DEVCAP1_CHANGE            	= 0xA1,    
-	MHD_MSC_MSG_DEVCAP2_CHANGE            	= 0xA2,    
-	MHD_MSC_MSG_DEVCAP3_CHANGE            	= 0xA3,    
-	MHD_MSC_MSG_DEVCAP4_CHANGE            	= 0xA4,    
-	MHD_MSC_MSG_DEVCAP5_CHANGE            	= 0xA5,    
-	MHD_MSC_MSG_DEVCAP6_CHANGE            	= 0xA6,   
-	MHD_MSC_MSG_DEVCAP7_CHANGE            	= 0xA7,   
-	MHD_MSC_MSG_DEVCAP8_CHANGE            	= 0xA8,   
-	MHD_MSC_MSG_DEVCAP9_CHANGE            	= 0xA9,   
-	MHD_MSC_MSG_DEVCAP10_CHANGE            	= 0xAA,    
-	MHD_MSC_MSG_DEVCAP11_CHANGE            	= 0xAB,    
-	MHD_MSC_MSG_DEVCAP12_CHANGE            	= 0xAC,  
-	MHD_MSC_MSG_DEVCAP13_CHANGE            	= 0xAD,   
-	MHD_MSC_MSG_DEVCAP14_CHANGE            	= 0xAE,    
+
+	MHD_MSC_MSG_DEVCAP0_CHANGE            	= 0xA0,
+	MHD_MSC_MSG_DEVCAP1_CHANGE            	= 0xA1,
+	MHD_MSC_MSG_DEVCAP2_CHANGE            	= 0xA2,
+	MHD_MSC_MSG_DEVCAP3_CHANGE            	= 0xA3,
+	MHD_MSC_MSG_DEVCAP4_CHANGE            	= 0xA4,
+	MHD_MSC_MSG_DEVCAP5_CHANGE            	= 0xA5,
+	MHD_MSC_MSG_DEVCAP6_CHANGE            	= 0xA6,
+	MHD_MSC_MSG_DEVCAP7_CHANGE            	= 0xA7,
+	MHD_MSC_MSG_DEVCAP8_CHANGE            	= 0xA8,
+	MHD_MSC_MSG_DEVCAP9_CHANGE            	= 0xA9,
+	MHD_MSC_MSG_DEVCAP10_CHANGE            	= 0xAA,
+	MHD_MSC_MSG_DEVCAP11_CHANGE            	= 0xAB,
+	MHD_MSC_MSG_DEVCAP12_CHANGE            	= 0xAC,
+	MHD_MSC_MSG_DEVCAP13_CHANGE            	= 0xAD,
+	MHD_MSC_MSG_DEVCAP14_CHANGE            	= 0xAE,
 	MHD_MSC_MSG_DEVCAP15_CHANGE            	= 0xAF,
     MHD_MSC_MSG_DEVCAP_CHANGE_REPLY			= 0xB0,
 
@@ -107,9 +107,9 @@ enum
 enum
 {
     MHD_MSC_MSG_RAP_NO_ERROR        		= 0x00,     // RAP No Error
-    MHD_MSC_MSG_RAP_UNRECOGNIZED_ACT_CODE  	= 0x01,     
-    MHD_MSC_MSG_RAP_UNSUPPORTED_ACT_CODE  	= 0x02,      			
-    MHD_MSC_MSG_RAP_RESPONDER_BUSY   		= 0x03     
+    MHD_MSC_MSG_RAP_UNRECOGNIZED_ACT_CODE  	= 0x01,
+    MHD_MSC_MSG_RAP_UNSUPPORTED_ACT_CODE  	= 0x02,
+    MHD_MSC_MSG_RAP_RESPONDER_BUSY   		= 0x03
 };
 
 enum
@@ -128,7 +128,7 @@ enum
   MHD_RCP_CMD_CONTENTS_MENU   = 0x0B,
   MHD_RCP_CMD_FAVORITE_MENU   = 0x0C,
   MHD_RCP_CMD_EXIT            = 0x0D,
-	
+
 	//0x0E - 0x1F are reserved
 
 	MHD_RCP_CMD_NUM_0           = 0x20,
@@ -287,7 +287,7 @@ typedef enum
 //
 // structure to hold command details from upper layer to CBUS module
 //
-typedef struct 
+typedef struct
 {
   byte reqStatus;                      // CBUS_IDLE, CBUS_PENDING
   byte command;                        // VS_CMD or RCP opcode
@@ -353,4 +353,3 @@ Bool SI_CbusSendDcapRdyMsg ( byte channel );
 
 
 #endif  // __SI_APICBUS_H__
-

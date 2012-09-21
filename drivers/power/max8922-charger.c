@@ -113,8 +113,8 @@ static int max8922_enable_charging(struct max8922_info *info, bool enable)
 #if defined (CONFIG_MACH_BOSE_ATT)
 	if(system_rev <= 7){		// USING TR
 #else
- 	if(CHG_EN_USING_TR){ 
-#endif 
+	if(CHG_EN_USING_TR){
+#endif
 		if (enable) {
 			if (info->is_usb_cable) {
 				/* Charging by USB cable */
@@ -184,9 +184,9 @@ static int max8922_set_property(struct power_supply *psy,
 	    container_of(psy, struct max8922_info, psy_bat);
 	bool enable;
 //20110517_HDLNC_PMIC
-#if defined (CONFIG_MACH_BOSE_ATT)	
+#if defined (CONFIG_MACH_BOSE_ATT)
 	int gpio_chg_en = info->pdata->gpio_chg_en;
-#endif 
+#endif
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CURRENT_NOW:	/* Set charging current */
@@ -196,7 +196,7 @@ static int max8922_set_property(struct power_supply *psy,
 		enable = (val->intval == POWER_SUPPLY_STATUS_CHARGING);
 
 		max8922_enable_charging(info, enable);
-#if !defined (CONFIG_MACH_BOSE_ATT)  
+#if !defined (CONFIG_MACH_BOSE_ATT)
 		max8922_enable_irq_wake(info, enable);
 #endif
 		break;
@@ -370,7 +370,7 @@ static struct platform_driver max8922_driver = {
 		   .name = "max8922-charger",
 		   .owner = THIS_MODULE,
 		   },
-	.probe = max8922_probe,		   
+	.probe = max8922_probe,
 	.remove = __devexit_p(max8922_remove),
 };
 

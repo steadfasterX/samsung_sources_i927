@@ -27,6 +27,7 @@
 #include <linux/clk.h>
 #include <linux/mutex.h>
 
+#include <mach/dma.h>
 #include <mach/hardware.h>
 #include <mach/ipu.h>
 #include <mach/mx3fb.h>
@@ -332,8 +333,8 @@ static void sdc_enable_channel(struct mx3fb_info *mx3_fbi)
 
 	/* This enables the channel */
 	if (mx3_fbi->cookie < 0) {
-		mx3_fbi->txd = dma_chan->device->device_prep_slave_sg(dma_chan,
-		      &mx3_fbi->sg[0], 1, DMA_TO_DEVICE, DMA_PREP_INTERRUPT);
+		mx3_fbi->txd = dmaengine_prep_slave_sg(dma_chan,
+		      &mx3_fbi->sg[0], 1, DMA_MEM_TO_DEV, DMA_PREP_INTERRUPT);
 		if (!mx3_fbi->txd) {
 			dev_err(mx3fb->dev, "Cannot allocate descriptor on %d\n",
 				dma_chan->chan_id);
@@ -1102,8 +1103,13 @@ static int mx3fb_pan_display(struct fb_var_screeninfo *var,
 	if (mx3_fbi->txd)
 		async_tx_ack(mx3_fbi->txd);
 
+<<<<<<< HEAD
 	txd = dma_chan->device->device_prep_slave_sg(dma_chan, sg +
 		mx3_fbi->cur_ipu_buf, 1, DMA_TO_DEVICE, DMA_PREP_INTERRUPT);
+=======
+	txd = dmaengine_prep_slave_sg(dma_chan, sg +
+		mx3_fbi->cur_ipu_buf, 1, DMA_MEM_TO_DEV, DMA_PREP_INTERRUPT);
+>>>>>>> 1605282... dmaengine/dma_slave: introduce inline wrappers
 	if (!txd) {
 		dev_err(fbi->device,
 			"Error preparing a DMA transaction descriptor.\n");
@@ -1176,9 +1182,9 @@ static int mx3fb_suspend(struct platform_device *pdev, pm_message_t state)
 	struct mx3fb_data *mx3fb = platform_get_drvdata(pdev);
 	struct mx3fb_info *mx3_fbi = mx3fb->fbi->par;
 
-	acquire_console_sem();
+	console_lock();
 	fb_set_suspend(mx3fb->fbi, 1);
-	release_console_sem();
+	console_unlock();
 
 	if (mx3_fbi->blank == FB_BLANK_UNBLANK) {
 		sdc_disable_channel(mx3_fbi);
@@ -1201,9 +1207,9 @@ static int mx3fb_resume(struct platform_device *pdev)
 		sdc_set_brightness(mx3fb, mx3fb->backlight_level);
 	}
 
-	acquire_console_sem();
+	console_lock();
 	fb_set_suspend(mx3fb->fbi, 0);
-	release_console_sem();
+	console_unlock();
 
 	return 0;
 }
@@ -1420,6 +1426,9 @@ static bool chan_filter(struct dma_chan *chan, void *arg)
 	struct device *dev;
 	struct mx3fb_platform_data *mx3fb_pdata;
 
+	if (!imx_dma_is_ipu(chan))
+		return false;
+
 	if (!rq)
 		return false;
 
@@ -1470,8 +1479,7 @@ static int mx3fb_probe(struct platform_device *pdev)
 		goto eremap;
 	}
 
-	pr_debug("Remapped %x to %x at %p\n", sdc_reg->start, sdc_reg->end,
-		 mx3fb->reg_base);
+	pr_debug("Remapped %pR at %p\n", sdc_reg, mx3fb->reg_base);
 
 	/* IDMAC interface */
 	dmaengine_get();

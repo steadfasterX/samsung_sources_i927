@@ -17,9 +17,6 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef SEC_FIPS_ENABLED
-#include <crypto/fips_compress.h>
-#else
 #ifndef _CRYPTO_COMPRESS_H
 #define _CRYPTO_COMPRESS_H
 
@@ -146,4 +143,3 @@ static inline int crypto_decompress_final(struct crypto_pcomp *tfm,
 }
 
 #endif	/* _CRYPTO_COMPRESS_H */
-#endif

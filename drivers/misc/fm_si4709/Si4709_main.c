@@ -107,7 +107,7 @@ static int Si4709_release(struct inode *inode, struct file *filp)
 }
 
 #ifdef CONFIG_MACH_N1
-static long Si4709_ioctl (struct file *flip, unsigned int ioctl_cmd, unsigned long arg)			
+static long Si4709_ioctl (struct file *flip, unsigned int ioctl_cmd, unsigned long arg)
 {
 #else
 static int Si4709_ioctl(struct inode *inode, struct file *filp,
@@ -443,7 +443,7 @@ static int Si4709_ioctl(struct inode *inode, struct file *filp,
 			debug("Si4709_IOC_RDS_DATA_GET called");
 
 			ret = Si4709_dev_RDS_data_get(&data);
-			if (ret < 0) 
+			if (ret < 0)
 				debug("Si4709_IOC_RDS_DATA_GET failed");
 			else if (copy_to_user(argp, (void *)&data,
 					      sizeof(radio_data_t)))
@@ -841,7 +841,7 @@ int __init Si4709_driver_init(void)
 	Si4709_rst =FM_RESET;
 #endif //CONFIG_MACH_N1
 
-	set_irq_type(Si4709_irq, IRQ_TYPE_EDGE_FALLING);
+	irq_set_irq_type(Si4709_irq, IRQ_TYPE_EDGE_FALLING);
 
 	/*KGVS: Configuring the GPIO_FM_INT in mach-jupiter.c */
 	ret = request_irq(Si4709_irq, Si4709_isr, IRQF_DISABLED,
@@ -852,7 +852,7 @@ int __init Si4709_driver_init(void)
 		goto MISC_DREG;
 	} else
 		debug("Si4709_driver_init request_irq success %d", Si4709_int);
-	
+
 	/*VNVS: 13-OCT'09----
 	Initially Pulling the interrupt pin HIGH as the FM Radio device gives 5ms low pulse*/
 #ifdef CONFIG_MACH_N1
@@ -862,16 +862,16 @@ int __init Si4709_driver_init(void)
 			printk(KERN_ERR "Failed to request FM_RESET!\n");
 		gpio_direction_output(Si4709_rst, 0);
 	}
-	
+
 	s3c_gpio_setpull(Si4709_int, S3C_GPIO_PULL_UP);
 
-    /****Resetting the device****/ 
+    /****Resetting the device****/
 	gpio_set_value(Si4709_rst, 0);
 	debug(" Si4709_driver_init FM_RESET=%d", gpio_get_value(Si4709_rst));
 	gpio_set_value(Si4709_rst, 1);
 	debug(" Si4709_driver_init FM_RESET=%d", gpio_get_value(Si4709_rst));
 	/*VNVS: 13-OCT'09---- Freeing the FM_RESET pin */
-	gpio_free(Si4709_rst);	
+	gpio_free(Si4709_rst);
 #endif //CONFIG_MACH_N1
 
 	/*Add the i2c driver */
@@ -885,7 +885,7 @@ int __init Si4709_driver_init(void)
 	if (ret < 0)
 		goto MISC_IRQ_DREG;
 
-	init_waitqueue_head(&Si4709_waitq); 
+	init_waitqueue_head(&Si4709_waitq);
 
 	debug("Si4709_driver_init successful");
 
@@ -905,7 +905,7 @@ void __exit Si4709_driver_exit(void)
 
 #ifdef CONFIG_MACH_N1
 	if (system_rev <4) {
-		debug("Si4709_driver_exit skip"); 
+		debug("Si4709_driver_exit skip");
 	} else {
 		/*Delete the i2c driver */
 		Si4709_i2c_drv_exit();
@@ -914,7 +914,7 @@ void __exit Si4709_driver_exit(void)
 		/*misc device deregistration */
 		misc_deregister(&Si4709_misc_device);
 	}
-#else 
+#else
 	/*Delete the i2c driver */
 	Si4709_i2c_drv_exit();
 	free_irq(Si4709_irq, NULL);

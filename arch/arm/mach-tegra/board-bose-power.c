@@ -23,10 +23,9 @@
 #include <linux/mfd/max8907c.h>
 #include <linux/power/max8907c-charger.h>
 #include <linux/regulator/max8907c-regulator.h>
-#include <linux/regulator/max8952.h>
+#include <linux/regulator/max8952n1.h>
 #include <linux/max17043_battery.h>
 #include <linux/gpio.h>
-#include <mach/suspend.h>
 #include <linux/io.h>
 #include <linux/power_supply.h>
 #include <mach/sec_battery.h>
@@ -34,7 +33,8 @@
 #include <mach/irqs.h>
 
 #include "gpio-names.h"
-#include "power.h"
+#include "fuse.h"
+#include "pm.h"
 #include "wakeups-t2.h"
 #include "board.h"
 
@@ -115,7 +115,7 @@ static int max8907c_power_vchg_f_cb(int vdcin)
 }
 
 /* FACTORY TEST BINARY */
-static int max8907c_poewer_vchg_r_f_cb(int vchg_on) 
+static int max8907c_power_vchg_r_f_cb(int vchg_on)
 {
 	struct power_supply *psy = power_supply_get_by_name("battery");
 	union power_supply_propval value;
@@ -126,15 +126,17 @@ static int max8907c_poewer_vchg_r_f_cb(int vchg_on)
 	}else {
 		set_cable_status = CABLE_TYPE_NONE;
 		value.intval = POWER_SUPPLY_TYPE_BATTERY;
-	}	
+	}
 
 	if (!psy) {
 		pr_err("%s: fail to get battery ps\n", __func__);
-		return ;
+		return -ENODEV;
 	}
 
 	psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE, &value);
-}	
+
+	return 0;
+}
 
 static int max8907c_power_topoff_cb(void)
 {
@@ -181,7 +183,7 @@ static struct max8907c_charger_pdata n1_charger_pdata = {
 	.irq 			= INT_EXTERNAL_PMU,
     .topoff_cb = max8907c_power_topoff_cb,
     .vchg_f_cb = max8907c_power_vchg_f_cb,
-    .vchg_r_f_cb = max8907c_poewer_vchg_r_f_cb, /* FACTORY TEST BINARY */
+    .vchg_r_f_cb = max8907c_power_vchg_r_f_cb, /* FACTORY TEST BINARY */
 	.topoff_threshold	= MAX8907C_TOPOFF_20PERCENT,
 	.restart_hysteresis	= MAX8907C_RESTART_100MV,
 	.fast_charging_current	= MAX8907C_FASTCHARGE_460MA,
@@ -200,7 +202,8 @@ static struct regulator_consumer_supply max8907c_SD1_supply[] = {
 };
 
 static struct regulator_consumer_supply max8907c_SD2_supply[] = {
-	REGULATOR_SUPPLY("vdd_core", NULL), 
+	REGULATOR_SUPPLY("vdd_core", NULL),
+	REGULATOR_SUPPLY("vdd_aon", NULL),
 };
 
 static struct regulator_consumer_supply max8907c_SD3_supply[] = {
@@ -260,17 +263,10 @@ static struct regulator_consumer_supply max8907c_LDO13_supply[] = {
 };
 
 static struct regulator_consumer_supply max8907c_LDO14_supply[] = {
-#if !defined (CONFIG_MACH_BOSE_ATT)
-	REGULATOR_SUPPLY("TSP_VDD_LVSIO", NULL),
-#endif
 };
 
 static struct regulator_consumer_supply max8907c_LDO15_supply[] = {
-#if defined (CONFIG_MACH_BOSE_ATT)
 	REGULATOR_SUPPLY("TSP_VDD_LVSIO", NULL),
-#else
-	REGULATOR_SUPPLY("VCMC623_IO_1V8", NULL),
-#endif
 };
 
 static struct regulator_consumer_supply max8907c_LDO16_supply[] = {
@@ -291,18 +287,15 @@ static struct regulator_consumer_supply max8907c_LDO19_supply[] = {
 };
 
 static struct regulator_consumer_supply max8907c_LDO20_supply[] = {
-#if defined (CONFIG_MACH_BOSE_ATT)
 	REGULATOR_SUPPLY("T_KEY_3V0", NULL),
-#else
-	REGULATOR_SUPPLY("VCC_3V0_MOTOR", NULL),
-#endif
 };
 
 static struct regulator_consumer_supply max8907c_OUT5V_supply[] = {
 	/* REGULATOR_SUPPLY("VUSB", NULL), */
 };
 
-#define MAX8907C_REGULATOR_DEVICE(_id, _minmv, _maxmv, _sys_on, _init_on)			\
+#define MAX8907C_REGULATOR_DEVICE(_id, _minmv, _maxmv, _sys_on,		\
+	_init_on, _apply)	\
 static struct regulator_init_data max8907c_##_id##_data = {		\
 	.constraints = {						\
 		.min_uV = (_minmv),					\
@@ -314,7 +307,7 @@ static struct regulator_init_data max8907c_##_id##_data = {		\
 				   REGULATOR_CHANGE_VOLTAGE),		\
 		.always_on = _sys_on,			\
 		.boot_on = _init_on,				\
-		.apply_uV = 1,					\
+		.apply_uV = _apply,					\
 	},								\
 	.num_consumer_supplies = ARRAY_SIZE(max8907c_##_id##_supply),	\
 	.consumer_supplies = max8907c_##_id##_supply,			\
@@ -331,34 +324,30 @@ static struct platform_device max8907c_##_id##_device = {		\
 #define OFF		0
 
 
-MAX8907C_REGULATOR_DEVICE(SD1, 637500, 1425000, ON, ON);
-MAX8907C_REGULATOR_DEVICE(SD2, 637500, 1425000, ON, ON);
-MAX8907C_REGULATOR_DEVICE(SD3, 750000, 3900000, ON, ON);
-MAX8907C_REGULATOR_DEVICE(LDO1, 3300000, 3300000, ON, ON);
-MAX8907C_REGULATOR_DEVICE(LDO2, 1100000, 1100000, ON, ON);
-MAX8907C_REGULATOR_DEVICE(LDO3, 1800000, 1800000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO4, 3300000, 3300000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO5, 3300000, 3300000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO6, 1800000, 1800000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO7, 1800000, 1800000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO8, 2800000, 2800000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO9, 3300000, 3300000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO10, 1800000, 1800000, ON, ON);
-MAX8907C_REGULATOR_DEVICE(LDO11, 2800000, 2800000, ON, ON);
-MAX8907C_REGULATOR_DEVICE(LDO12, 3000000, 3000000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO13, 3300000, 3300000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO14, 2800000, 2800000, OFF, OFF);
-#if defined(CONFIG_MACH_BOSE_ATT)
-MAX8907C_REGULATOR_DEVICE(LDO15, 1800000, 1800000, OFF, OFF);
-#else
-MAX8907C_REGULATOR_DEVICE(LDO15, 2800000, 2800000, OFF, OFF);//yd.seo
-#endif
-MAX8907C_REGULATOR_DEVICE(LDO16, 3300000, 3300000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO17, 1200000, 1200000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO18, 1800000, 1800000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO19, 3300000, 3300000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(LDO20, 3000000, 3000000, OFF, OFF);
-MAX8907C_REGULATOR_DEVICE(OUT5V, 5000000, 5000000, ON, ON);
+MAX8907C_REGULATOR_DEVICE(SD1, 637500, 1425000, ON, ON, ON);
+MAX8907C_REGULATOR_DEVICE(SD2, 637500, 1425000, ON, ON, ON);
+MAX8907C_REGULATOR_DEVICE(SD3, 750000, 3900000, ON, ON, ON);
+MAX8907C_REGULATOR_DEVICE(LDO1, 3300000, 3300000, ON, ON, ON);
+MAX8907C_REGULATOR_DEVICE(LDO2, 1100000, 1100000, ON, ON, ON);
+MAX8907C_REGULATOR_DEVICE(LDO3, 1800000, 1800000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO4, 3300000, 3300000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO5, 3300000, 3300000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO6, 1800000, 1800000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO7, 1800000, 1800000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO8, 2800000, 2800000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO9, 3300000, 3300000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO10, 1800000, 1800000, ON, ON, ON);
+MAX8907C_REGULATOR_DEVICE(LDO11, 2800000, 2800000, ON, ON, ON);
+MAX8907C_REGULATOR_DEVICE(LDO12, 3000000, 3000000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO13, 3300000, 3300000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO14, 2800000, 2800000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO15, 1800000, 1800000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO16, 3300000, 3300000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO17, 1200000, 1200000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO18, 1800000, 1800000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO19, 3300000, 3300000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(LDO20, 3000000, 3000000, OFF, OFF, ON);
+MAX8907C_REGULATOR_DEVICE(OUT5V, 5000000, 5000000, ON, ON, OFF);
 
 static struct platform_device *n1_max8907c_power_devices[] = {
 	&max8907c_SD1_device,
@@ -373,8 +362,9 @@ static struct platform_device *n1_max8907c_power_devices[] = {
 	&max8907c_LDO7_device,
 	&max8907c_LDO8_device,
 	&max8907c_LDO9_device,
-	&max8907c_LDO10_device,
+	/* Switch 11&10 for Sensor power margin */
 	&max8907c_LDO11_device,
+	&max8907c_LDO10_device,
 	&max8907c_LDO12_device,
 	&max8907c_LDO13_device,
 	&max8907c_LDO14_device,
@@ -392,6 +382,7 @@ static struct max8907c_platform_data max8907c_pdata = {
 	.num_subdevs = ARRAY_SIZE(n1_max8907c_power_devices),
 	.subdevs = n1_max8907c_power_devices,
 	.irq_base = TEGRA_NR_IRQS,
+	.use_power_off = true,
 };
 
 static struct regulator_consumer_supply max8952_MODE1_supply[] = {
@@ -420,7 +411,7 @@ static struct platform_device max8952_##_id##_device = {		\
 	},								\
 }
 
-MAX8952_REGULATOR_INIT(MODE1, 750000, 1380000);
+MAX8952_REGULATOR_INIT(MODE1, 750000, 1100000);
 
 static struct platform_device *n1_max8952_power_devices[] = {
 	&max8952_MODE1_device,
@@ -443,6 +434,18 @@ static struct i2c_board_info __initdata n1_regulators[] = {
 	},
 };
 
+static void n1_board_suspend(int lp_state, enum suspend_stage stg)
+{
+	if ((lp_state == TEGRA_SUSPEND_LP1) && (stg == TEGRA_SUSPEND_BEFORE_CPU))
+		tegra_console_uart_suspend();
+}
+
+static void n1_board_resume(int lp_state, enum resume_stage stg)
+{
+	if ((lp_state == TEGRA_SUSPEND_LP1) && (stg == TEGRA_RESUME_AFTER_CPU))
+		tegra_console_uart_resume();
+}
+
 static struct tegra_suspend_platform_data n1_suspend_data = {
 	.cpu_timer	= 2000,
 	.cpu_off_timer	= 0,
@@ -452,16 +455,28 @@ static struct tegra_suspend_platform_data n1_suspend_data = {
 	.separate_req	= true,
 	.corereq_high	= true,
 	.sysclkreq_high	= true,
-	.wake_enb	= TEGRA_WAKE_GPIO_PO5 | TEGRA_WAKE_GPIO_PU5 | TEGRA_WAKE_PWR_INT | TEGRA_WAKE_GPIO_PY6,
+	.wake_enb	= TEGRA_WAKE_GPIO_PO5 \
+					| TEGRA_WAKE_GPIO_PU5 \
+					| TEGRA_WAKE_PWR_INT \
+					| TEGRA_WAKE_GPIO_PY6,
 	.wake_high	= TEGRA_WAKE_GPIO_PU5,
-	.wake_low	= TEGRA_WAKE_GPIO_PO5 | TEGRA_WAKE_PWR_INT | TEGRA_WAKE_GPIO_PY6,
+	.wake_low	= TEGRA_WAKE_GPIO_PO5 \
+					| TEGRA_WAKE_PWR_INT \
+					| TEGRA_WAKE_GPIO_PY6,
 	.wake_any	= 0,
 };
 
 int __init n1_regulator_init(void)
 {
 	void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
+	void __iomem *chip_id = IO_ADDRESS(TEGRA_APB_MISC_BASE) + 0x804;
 	u32 pmc_ctrl;
+	u32 minor;
+
+	minor = (readl(chip_id) >> 16) & 0xf;
+	/* A03 (but not A03p) chips do not support LP0 */
+	if (minor == 3 && !(tegra_spare_fuse(18) || tegra_spare_fuse(19)))
+		n1_suspend_data.suspend_mode = TEGRA_SUSPEND_LP1;
 
 	/* configure the power management controller to trigger PMU
 	 * interrupts when low */
@@ -469,11 +484,6 @@ int __init n1_regulator_init(void)
 	writel(pmc_ctrl | PMC_CTRL_INTR_LOW, pmc + PMC_CTRL);
 
 	i2c_register_board_info(4, n1_regulators, ARRAY_SIZE(n1_regulators));
-
-	if (system_rev > 0) {
-		n1_suspend_data.wake_enb |= TEGRA_WAKE_GPIO_PW2;
-		n1_suspend_data.wake_low |= TEGRA_WAKE_GPIO_PW2;
-	}
 
 	regulator_has_full_constraints();
 	tegra_init_suspend(&n1_suspend_data);

@@ -27,7 +27,7 @@
 #include <linux/pwm_backlight.h>
 #include <linux/spi/spi.h>
 #include <linux/earlysuspend.h>
-#include <mach/nvhost.h>
+#include <linux/nvhost.h>
 #include <mach/nvmap.h>
 #include <mach/irqs.h>
 #include <mach/iomap.h>
@@ -43,10 +43,6 @@
 #define LCD_ONOFF_TEST 1 //LCD on/off test
 #define LCD_TYPE 1
 
-#define n1_ld9040 0
-#define USE_CHECK_HW_REVERSION 0 
-
-
 // LCD_ONOFF_TEST , LCD_TYPE
 extern struct class *sec_class;
 struct device *tune_lcd_dev;
@@ -56,27 +52,31 @@ static int lcdonoff_test=0;
 #define TEGRA_GPIO_PR3		139
 #define GPIO_LCD_LDO_LED_EN TEGRA_GPIO_PR3
 #endif
+static int initialized=0;
 
 static struct spi_device *n1_disp1_spi;
 static struct regulator *reg_lcd_1v8, *reg_lcd_3v0;
 static struct early_suspend n1_panel_early_suspend;
+
+static void n1_panel_config_pins(void);
+static void n1_panel_reconfig_pins(void);
 
 static int n1_spi_write(u8 addr, u8 data)
 {
 	struct spi_message m;
 	struct spi_transfer xfer;
 
-	u8 w[2];
+	u16 w[1];
+
 	int ret;
 
 	spi_message_init(&m);
 
 	memset(&xfer, 0, sizeof(xfer));
 
-	w[0] = addr;
-	w[1] = data;
-	xfer.tx_buf = &w;
+	w[0] = (addr << 8) | data;
 
+	xfer.tx_buf = &w;
 	xfer.bits_per_word = 9;
 	xfer.len = 2;
 	spi_message_add_tail(&xfer, &m);
@@ -89,132 +89,58 @@ static int n1_spi_write(u8 addr, u8 data)
 	return ret;
 }
 
-#if n1_ld9040
-static int n1_panel_enable(void)
+int n1_panel_pre_enable(void)
 {
-	printk(KERN_INFO "%s: start\n", __func__);
+	int i;
+	pr_info("-- start of %s\n", __func__);
+
+/*
+	regulator_disable(reg_lcd_1v8);
+	regulator_disable(reg_lcd_3v0);
+*/
+	gpio_set_value(n1_lvds_reset, 0);
+	usleep_range(10000, 11000);
 
 	regulator_enable(reg_lcd_1v8);
-	mdelay(1);
-	printk(KERN_INFO "%s: regulator_enable(reg_lcd_1v8);\n", __func__);
-
 	regulator_enable(reg_lcd_3v0);
-	mdelay(1);
-	printk(KERN_INFO "%s: regulator_enable(reg_lcd_3v0);\n", __func__);
+	usleep_range(10000, 11000);
 
 	/* take panel out of reset */
 	gpio_set_value(n1_lvds_reset, 1);
 
-	mdelay(50);
-	printk(KERN_INFO "%s: gpio_set_value(n1_lvds_reset, 1);\n", __func__);
+	n1_panel_reconfig_pins();
 
-	//SEQ_USER_SETTING
-	n1_spi_write( 0, 0xF0 );
-	n1_spi_write( 1, 0x5A );
-	n1_spi_write( 1, 0x5A );
+	if (initialized)
+		tegra_fb_dc_data_out(registered_fb[0]);
 
-	//SEQ_DISPCTL
-	n1_spi_write( 0, 0xF2 );
-	n1_spi_write( 1, 0x02 );
-	n1_spi_write( 1, 0x06 );
-	n1_spi_write( 1, 0x0A );
-	n1_spi_write( 1, 0x10 );
-	n1_spi_write( 1, 0x10 );
-	
-	//SEQ_GTCON
-	n1_spi_write( 0, 0xF7 );
-	n1_spi_write( 1, 0x09 );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x00 );
-	
-	//SEQ_PANEL_CONDITION
-	n1_spi_write( 0, 0xF8 );
-	n1_spi_write( 1, 0x05 );
-	n1_spi_write( 1, 0x5E );
-	n1_spi_write( 1, 0x96 );
-	n1_spi_write( 1, 0x6B );
-	n1_spi_write( 1, 0x7D );
-	n1_spi_write( 1, 0x0D );
-	n1_spi_write( 1, 0x3F );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x32 );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x07 );
-	n1_spi_write( 1, 0x07 );
-	n1_spi_write( 1, 0x20 );
-	n1_spi_write( 1, 0x20 );
-	n1_spi_write( 1, 0x20 );	
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x00 );	
-	//SEQ_SLPOUT
-	n1_spi_write( 0, 0x11 );
-	n1_spi_write( 1, 0x09 );
-	
-    mdelay(120);//Wait 120ms
+	usleep_range(40000, 40000);
 
+	for (i = 0; i < 20; i++) {
+		/*Set address mode*/
+		n1_spi_write(0, 0x36);
+		n1_spi_write(1, 0xD4);
 
-	//SEQ_ELVSS_ON_SM2
-	n1_spi_write( 0, 0xB1 );
-	n1_spi_write( 1, 0x0F );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x16 );
-	n1_spi_write( 0, 0xB2 );
-	n1_spi_write( 1, 0x15 );
-	n1_spi_write( 1, 0x15 );
-	n1_spi_write( 1, 0x15 );
-	
-	//SEQ_PWR_CTRL_SM2
-	n1_spi_write( 0, 0xF4 );
-	n1_spi_write( 1, 0x0A );
-	n1_spi_write( 1, 0x87 );
-	n1_spi_write( 1, 0x25 );
-	n1_spi_write( 1, 0x6A );
-	n1_spi_write( 1, 0x44 );
-	n1_spi_write( 1, 0x02 );
-	
-	//SEQ_GAMMA_SET1_SM2
-	n1_spi_write( 0, 0xF9 );
-	n1_spi_write( 1, 0x2E );
-	n1_spi_write( 1, 0xB1 );
-	n1_spi_write( 1, 0xB3 );
-	n1_spi_write( 1, 0xAD );
-	n1_spi_write( 1, 0xBF );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x8E );
-	n1_spi_write( 1, 0x36 );
-	n1_spi_write( 1, 0xA3 );
-	n1_spi_write( 1, 0xA9 );
-	n1_spi_write( 1, 0xA6 );
-	n1_spi_write( 1, 0xBB );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0xA3 );
-	n1_spi_write( 1, 0x2E );
-	n1_spi_write( 1, 0xAC );
-	n1_spi_write( 1, 0xAD );
-	n1_spi_write( 1, 0xA8 );
-	n1_spi_write( 1, 0xBC );
-	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0xB4 );
-	
-	//SEQ_GAMMA_CTRL
-	n1_spi_write( 0, 0xFB );
-	n1_spi_write( 1, 0x02 );
-	n1_spi_write( 1, 0x5A );
+		/*Sleep Out Command*/
+		n1_spi_write(0, 0x11);
 
-	//SEQ_DISPON
-	n1_spi_write( 0, 0x29 );
+		/*Display on Command*/
+		n1_spi_write(0, 0x29);
+	}
+	n1_spi_write(0, 0x36);
+	n1_spi_write(1, 0xD4);
 
-	return 0;
+	usleep_range(100000, 100000);
+	gpio_set_value(GPIO_LCD_LDO_LED_EN, 1);
+
+	printk(KERN_INFO "-- end of %s : %d  +\n", __func__, __LINE__);
+
 }
-#else
+SYMBOL_EXPRORT(n1_panel_pre_enable);
+
 static int n1_panel_enable(void)
 {
+	printk(KERN_INFO "\n ************ %s : %d  +\n", __func__, __LINE__);
+
 	regulator_enable(reg_lcd_1v8);
 	regulator_enable(reg_lcd_3v0);
 	mdelay(10);
@@ -222,49 +148,41 @@ static int n1_panel_enable(void)
 	gpio_set_value(n1_lvds_reset, 1);
 	//gpio_set_value(GPIO_LCD_LDO_LED_EN, 1);
 
-	msleep(50);//50ms
+    msleep(10);//10ms
+    //Pushing DC data out 10 msec after from LCD reset.
+	if (initialized)
+		tegra_fb_dc_data_out(registered_fb[0]);
+
+    msleep(40);//40ms
 	msleep(50);//50ms
 	msleep(10);//50ms
 
 	//Set address mode
-	{
-		n1_spi_write( 0, 0x36 );
-#if USE_CHECK_HW_REVERSION		
-		if(system_rev==0 || system_rev==-1)
-		{
-			n1_spi_write( 1, 0x44 ); 
-		}
-		else
-		{
-			n1_spi_write( 1, 0xD4 ); 
-		}
-#else
-	n1_spi_write( 1, 0xD4 );
-#endif		
-	}
+	n1_spi_write(0, 0x36);
+	n1_spi_write(1, 0xD4);
+
 
 	msleep(25);//25ms
 
 	//Sleep Out Command
-	{
-		n1_spi_write( 0, 0x11 );
-	}
+	n1_spi_write(0, 0x11);
 
 	msleep(150);//150ms
 
 	//Display On Command
-	{
-		n1_spi_write( 0, 0x29 );
-	}
+	n1_spi_write(0, 0x29);
 
 	gpio_set_value(GPIO_LCD_LDO_LED_EN, 1);
-	
+
+	printk(KERN_INFO "\n ************ %s : %d  +\n", __func__, __LINE__);
+
 	return 0;
 }
-#endif
 
-static int n1_panel_disable(void)
+int n1_panel_disable(void)
 {
+	gpio_set_value(GPIO_LCD_LDO_LED_EN, 0);
+
 	//Display off
 	{
 		n1_spi_write( 0, 0x28 );
@@ -279,21 +197,23 @@ static int n1_panel_disable(void)
 
 	msleep(150);//150ms
 
-	gpio_set_value(GPIO_LCD_LDO_LED_EN, 0);
-
 	gpio_set_value(n1_lvds_reset, 0);
 
 	usleep_range(5000, 6000);//5ms
 	regulator_disable(reg_lcd_3v0);
 	regulator_disable(reg_lcd_1v8);
+
+	n1_panel_config_pins();
 	return 0;
 }
+SYMBOL_EXPORT(n1_panel_disable);
+
 
 static void n1_panel_config_pins(void)
 {
     tegra_gpio_enable(TEGRA_GPIO_PN4);
     gpio_request(TEGRA_GPIO_PN4, "SFIO_LCD_NCS");
-    gpio_direction_output(TEGRA_GPIO_PN4, 0); 
+    gpio_direction_output(TEGRA_GPIO_PN4, 0);
     tegra_gpio_enable(TEGRA_GPIO_PZ4);
     gpio_request(TEGRA_GPIO_PZ4, "SFIO_LCD_SCLK");
     gpio_direction_output(TEGRA_GPIO_PZ4, 0);
@@ -305,6 +225,8 @@ static void n1_panel_reconfig_pins(void)
     tegra_gpio_disable(TEGRA_GPIO_PN4);
     /* LCD_SCLK */
     tegra_gpio_disable(TEGRA_GPIO_PZ4);
+	gpio_free(TEGRA_GPIO_PN4);
+	gpio_free(TEGRA_GPIO_PZ4);
 }
 
 static int panel_n1_spi_suspend(struct spi_device *spi, pm_message_t message)
@@ -425,8 +347,8 @@ static int panel_n1_spi_probe(struct spi_device *spi)
 //LCD_ONOFF_TEST, LCD_TYPE
 	tune_lcd_dev = device_create(sec_class, NULL, 0, NULL, "sec_tune_lcd");
 
-	if (IS_ERR(tune_lcd_dev)) 
-    	{
+	if (IS_ERR(tune_lcd_dev))
+	{
 		printk("Failed to create device!");
 		ret = -1;
 	}
@@ -452,8 +374,9 @@ static int panel_n1_spi_probe(struct spi_device *spi)
 		printk(KERN_INFO "%s: VLCD_1V8 regulator not found\n", __func__);
 		reg_lcd_1v8 = NULL;
 	} else {
-		regulator_set_voltage(reg_lcd_1v8, 1800*1000,1800*1000);
-//		regulator_enable(reg_lcd_1v8);
+		ret = regulator_set_voltage(reg_lcd_1v8, 1800*1000,1800*1000);
+		if (ret < 0)
+			printk(KERN_ERR "%s: ret(%d) L:%d\n", __func__, ret, __LINE__);
 	}
 
 	reg_lcd_3v0 = regulator_get(NULL, "VLCD_3V0");
@@ -461,19 +384,21 @@ static int panel_n1_spi_probe(struct spi_device *spi)
 		printk(KERN_INFO "%s: VLCD_3V0 regulator not found\n", __func__);
 		reg_lcd_3v0 = NULL;
 	} else {
-		regulator_set_voltage(reg_lcd_3v0, 3000*1000,3000*1000);
-//		regulator_enable(reg_lcd_3v0);
+		ret = regulator_set_voltage(reg_lcd_3v0, 3000*1000,3000*1000);
+		if (ret < 0)
+			printk(KERN_ERR "%s: ret(%d) L:%d\n", __func__, ret, __LINE__);
 	}
 
 	n1_disp1_spi = spi;
 
-	//n1_panel_early_suspend.level =  EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;/* EARLY_SUSPEND_LEVEL_DISABLE_FB; */
+#if 0
 	n1_panel_early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
 	n1_panel_early_suspend.suspend = panel_n1_spi_suspend;
 	n1_panel_early_suspend.resume = panel_n1_spi_resume;
 	register_early_suspend(&n1_panel_early_suspend);
-
+#endif
 	n1_panel_enable();
+	initialized = 1;
 
 	return 0;
 }
@@ -491,7 +416,7 @@ static struct spi_driver panel_n1_spi_driver = {
 	},
 	.probe = panel_n1_spi_probe,
 	.remove = __devexit_p(panel_n1_spi_remove),
-#if !(defined CONFIG_HAS_EARLYSUSPEND)	
+#if !(defined CONFIG_HAS_EARLYSUSPEND)
 	.suspend = panel_n1_spi_suspend,
 	.resume = panel_n1_spi_resume,
 #endif

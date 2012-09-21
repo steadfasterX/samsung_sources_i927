@@ -93,7 +93,7 @@ static const struct Cmc623RegisterSet cmc623_init1[] = {
     {CMC623_REG_DNRHDTROVE, 0x0030},
     {CMC623_REG_DITHEROFF, 0x0000},
     {CMC623_REG_CLKCONT, 0x0012},
-    {0x0f, 0x0078},		
+    {0x0f, 0x0078},
     {CMC623_REG_CLKGATINGOFF, 0x0000},
     {CMC623_REG_INPUTIFCON, 0x0001},
     {CMC623_REG_HDRTCEOFF, 0x0000},  /*0x001d -> 0x0000*/
@@ -147,7 +147,7 @@ static const struct Cmc623RegisterSet cmc623_init2[] = {
 	{0xb3, 0xffff}, // up/down step
 	//{0x11, 0x0082}, // Monitor Clock{for chip active check}
 	//{0x10, 0x001A}, // PCLK Polarity Sel
-	{0x24, 0x0001}, // Polarity Sel    
+	{0x24, 0x0001}, // Polarity Sel
 	{0x0b, 0x0184}, // Clock Gating
 	{0x0f, 0x0010}, // PWM clock frequency
 	{0x0d, 0x1a11}, // A-Stage clk
@@ -158,7 +158,7 @@ static const struct Cmc623RegisterSet cmc623_init2[] = {
 	{0x2d, 0x1900}, // DNR bypass
 	{0x2e, 0x0000}, // DNR bypass
 	{0x2f, 0x00ff}, // DNR bypass
-	//{0x3a, 0x0000}, // HDTR on DE 
+	//{0x3a, 0x0000}, // HDTR on DE
 	{0x00, 0x0001}, // BANK 1
 	//{0x09, 0x01E0}, // H_Size
 	//{0x0a, 0x0320}, // V_Size
@@ -170,8 +170,8 @@ static const struct Cmc623RegisterSet cmc623_init2[] = {
 	{0x68, 0x0080}, // TCON Polarity
 	{0x6c, 0x020A}, // VLW,HLW 2  10
 	{0x6d, 0x0403}, // VBP,VFP 4  3
-	{0x6e, 0x140A}, // HBP,HFP 20 10 
-	{0x00, 0x0000}, // BANK0  
+	{0x6e, 0x140A}, // HBP,HFP 20 10
+	{0x00, 0x0000}, // BANK0
 	{0x28, 0x0000}, // Reg. mask
 	{0x09, 0x0000}, // SW rst
 	{0x09, 0xffff}, // sw rst
@@ -188,7 +188,7 @@ static const struct Cmc623RegisterSet cmc623_init_amoled[] =
 	//{0xb3, 0xffff}, // up/down step
 	//{0x11, 0x0082}, // Monitor Clock{for chip active check}
 	//{0x10, 0x001A}, // PCLK Polarity Sel
-	 {0x24, 0x0000}, // Polarity Sel //modified by Cho	  
+	 {0x24, 0x0000}, // Polarity Sel //modified by Cho
 	{0x0b, 0x0184}, // Clock Gating
 	{0x0f, 0x0010}, // PWM clock frequency
 	{0x0d, 0x1a11}, // A-Stage clk
@@ -199,7 +199,7 @@ static const struct Cmc623RegisterSet cmc623_init_amoled[] =
 	{0x2d, 0x1900}, // DNR bypass
 	{0x2e, 0x0000}, // DNR bypass
 	{0x2f, 0x00ff}, // DNR bypass
-	{0x3a, 0x0000}, // HDTR on DE 
+	{0x3a, 0x0000}, // HDTR on DE
 	{0x00, 0x0001}, // BANK 1
 	 //{0x09, 0x01E0}, // H_Size
 	 //{0x0a, 0x0320}, // V_Size
@@ -209,10 +209,10 @@ static const struct Cmc623RegisterSet cmc623_init_amoled[] =
 	{0x06, 0x0037}, // Refresh time
 	{0x07, 0x1113}, // eDRAM
 	 {0x68, 0x00C0}, // TCON Polarity  //modified by Cho 0x0040
-	 {0x6c, 0x0202}, // VLW,HLW 2  2   //modified by Cho 
-	 {0x6d, 0x040a}, // VBP,VFP 4  10  //modified by Cho 
-	 {0x6e, 0x0e10}, // HBP,HFP 14 16  //modified by Cho  
-	{0x00, 0x0000}, // BANK0  
+	 {0x6c, 0x0202}, // VLW,HLW 2  2   //modified by Cho
+	 {0x6d, 0x040a}, // VBP,VFP 4  10  //modified by Cho
+	 {0x6e, 0x0e10}, // HBP,HFP 14 16  //modified by Cho
+	{0x00, 0x0000}, // BANK0
 	{0x28, 0x0000}, // Reg. mask
 	{0x09, 0x0000}, // SW rst
 	{0x09, 0xffff}, // sw rst

@@ -8,4 +8,3 @@
 
 
 obj-$(CONFIG_MHL_SII9234) +=	mhl/
-

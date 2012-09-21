@@ -5,7 +5,7 @@
  * Copyright (c) 2006 Intel Corporation
  * Copyright (c) 2007 Keir Fraser, XenSource Inc
  * Copyright (c) 2008 Intel Corporation
- * Copyright 2009 Red Hat, Inc. and/or its affilates.
+ * Copyright 2009 Red Hat, Inc. and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -232,15 +232,6 @@ static void pit_latch_status(struct kvm *kvm, int channel)
 	}
 }
 
-int pit_has_pending_timer(struct kvm_vcpu *vcpu)
-{
-	struct kvm_pit *pit = vcpu->kvm->arch.vpit;
-
-	if (pit && kvm_vcpu_is_bsp(vcpu) && pit->pit_state.irq_ack)
-		return atomic_read(&pit->pit_state.pit_timer.pending);
-	return 0;
-}
-
 static void kvm_pit_ack_irq(struct kvm_irq_ack_notifier *kian)
 {
 	struct kvm_kpit_state *ps = container_of(kian, struct kvm_kpit_state,
@@ -347,10 +338,14 @@ static enum hrtimer_restart pit_timer_fn(struct hrtimer *data)
 		return HRTIMER_NORESTART;
 }
 
-static void create_pit_timer(struct kvm_kpit_state *ps, u32 val, int is_period)
+static void create_pit_timer(struct kvm *kvm, u32 val, int is_period)
 {
+	struct kvm_kpit_state *ps = &kvm->arch.vpit->pit_state;
 	struct kvm_timer *pt = &ps->pit_timer;
 	s64 interval;
+
+	if (!irqchip_in_kernel(kvm))
+		return;
 
 	interval = muldiv64(val, NSEC_PER_SEC, KVM_PIT_FREQ);
 
@@ -403,13 +398,13 @@ static void pit_load_count(struct kvm *kvm, int channel, u32 val)
         /* FIXME: enhance mode 4 precision */
 	case 4:
 		if (!(ps->flags & KVM_PIT_FLAGS_HPET_LEGACY)) {
-			create_pit_timer(ps, val, 0);
+			create_pit_timer(kvm, val, 0);
 		}
 		break;
 	case 2:
 	case 3:
 		if (!(ps->flags & KVM_PIT_FLAGS_HPET_LEGACY)){
-			create_pit_timer(ps, val, 1);
+			create_pit_timer(kvm, val, 1);
 		}
 		break;
 	default:

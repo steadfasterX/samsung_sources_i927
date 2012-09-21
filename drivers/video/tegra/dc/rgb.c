@@ -23,6 +23,19 @@
 #include "dc_priv.h"
 
 
+static const u32 tegra_dc_rgb_enable_partial_pintable[] = {
+	DC_COM_PIN_OUTPUT_ENABLE0,	0x00000000,
+	DC_COM_PIN_OUTPUT_ENABLE1,	0x00000000,
+	DC_COM_PIN_OUTPUT_ENABLE2,	0x00000000,
+	DC_COM_PIN_OUTPUT_ENABLE3,	0x00000000,
+	DC_COM_PIN_OUTPUT_POLARITY0,	0x00000000,
+	DC_COM_PIN_OUTPUT_POLARITY2,	0x00000000,
+	DC_COM_PIN_OUTPUT_DATA0,	0x00000000,
+	DC_COM_PIN_OUTPUT_DATA1,	0x00000000,
+	DC_COM_PIN_OUTPUT_DATA2,	0x00000000,
+	DC_COM_PIN_OUTPUT_DATA3,	0x00000000,
+};
+
 static const u32 tegra_dc_rgb_enable_pintable[] = {
 	DC_COM_PIN_OUTPUT_ENABLE0,	0x00000000,
 	DC_COM_PIN_OUTPUT_ENABLE1,	0x00000000,
@@ -33,7 +46,7 @@ static const u32 tegra_dc_rgb_enable_pintable[] = {
 	DC_COM_PIN_OUTPUT_POLARITY1,	0x51000000,
 #else
 	DC_COM_PIN_OUTPUT_POLARITY1,	0x01000000,
-#endif	
+#endif
 	DC_COM_PIN_OUTPUT_POLARITY2,	0x00000000,
 	DC_COM_PIN_OUTPUT_POLARITY3,	0x00000000,
 	DC_COM_PIN_OUTPUT_DATA0,	0x00000000,
@@ -46,7 +59,14 @@ static const u32 tegra_dc_rgb_enable_out_sel_pintable[] = {
 	DC_COM_PIN_OUTPUT_SELECT0,	0x00000000,
 	DC_COM_PIN_OUTPUT_SELECT1,	0x00000000,
 	DC_COM_PIN_OUTPUT_SELECT2,	0x00000000,
+#ifdef CONFIG_TEGRA_SILICON_PLATFORM
 	DC_COM_PIN_OUTPUT_SELECT3,	0x00000000,
+#else
+	/* The display panel sub-board used on FPGA platforms (panel 86)
+	   is non-standard. It expects the Data Enable signal on the WR
+	   pin instead of the DE pin. */
+	DC_COM_PIN_OUTPUT_SELECT3,	0x00200000,
+#endif
 	DC_COM_PIN_OUTPUT_SELECT4,	0x00210222,
 	DC_COM_PIN_OUTPUT_SELECT5,	0x00002200,
 	DC_COM_PIN_OUTPUT_SELECT6,	0x00020000,
@@ -62,7 +82,7 @@ static const u32 tegra_dc_rgb_disable_pintable[] = {
 	DC_COM_PIN_OUTPUT_POLARITY1,	0x51000000,
 #else
 	DC_COM_PIN_OUTPUT_POLARITY1,	0x00000000,
-#endif	
+#endif
 	DC_COM_PIN_OUTPUT_POLARITY2,	0x00000000,
 	DC_COM_PIN_OUTPUT_POLARITY3,	0x00000000,
 	DC_COM_PIN_OUTPUT_DATA0,	0xaaaaaaaa,
@@ -89,7 +109,13 @@ void tegra_dc_rgb_enable(struct tegra_dc *dc)
 
 	tegra_dc_writel(dc, DISP_CTRL_MODE_C_DISPLAY, DC_CMD_DISPLAY_COMMAND);
 
-	tegra_dc_write_table(dc, tegra_dc_rgb_enable_pintable);
+	if (dc->out->out_pins) {
+		tegra_dc_set_out_pin_polars(dc, dc->out->out_pins,
+			dc->out->n_out_pins);
+		tegra_dc_write_table(dc, tegra_dc_rgb_enable_partial_pintable);
+	} else {
+		tegra_dc_write_table(dc, tegra_dc_rgb_enable_pintable);
+	}
 
 	memcpy(out_sel_pintable, tegra_dc_rgb_enable_out_sel_pintable,
 		sizeof(tegra_dc_rgb_enable_out_sel_pintable));
@@ -126,6 +152,12 @@ void tegra_dc_rgb_enable(struct tegra_dc *dc)
 	}
 
 	tegra_dc_write_table(dc, out_sel_pintable);
+
+	/* Inform DC register updated */
+	/*
+	tegra_dc_writel(dc, GENERAL_UPDATE, DC_CMD_STATE_CONTROL);
+	tegra_dc_writel(dc, GENERAL_ACT_REQ, DC_CMD_STATE_CONTROL);
+	*/
 }
 
 void tegra_dc_rgb_disable(struct tegra_dc *dc)

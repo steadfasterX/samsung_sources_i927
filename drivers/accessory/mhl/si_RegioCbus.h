@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -43,4 +43,3 @@ byte SiIRegioCbusRead ( word regAddr, byte channel );
 void SiIRegioCbusWrite ( word regAddr, byte channel, byte value );
 
 #endif // __SI_REGIO_H__
-

@@ -2,13 +2,13 @@
  * Broadcom Dongle Host Driver (DHD), common DHD core.
  *
  * Copyright (C) 1999-2011, Broadcom Corporation
- * 
+ *
  *         Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- * 
+ *
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -16,7 +16,7 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- * 
+ *
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
@@ -985,10 +985,10 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata,
 	case WLC_E_IF:
 		{
 			dhd_if_event_t *ifevent = (dhd_if_event_t *)event_data;
-				
+
 #ifdef SOFTAP
 			if (ap_fw_loaded == FALSE) {
-#endif			 	
+#endif
                 if (strncmp(pvt_data->event.ifname,"wl",2) == 0) {
                      memmove(&(pvt_data->event.ifname[1]),&(pvt_data->event.ifname[0]),6);
                      memcpy(pvt_data->event.ifname,P2P_INTERFACE_NAME,strlen(P2P_INTERFACE_NAME));
@@ -1104,7 +1104,7 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata,
 				           eabuf, status, reason));
 			}
 			break;
-#endif /* defined(BCMCCX) && defined(BCMDBG_EVENT) */		
+#endif /* defined(BCMCCX) && defined(BCMDBG_EVENT) */
 
 		/* fall through */
 		case WLC_E_LINK:
@@ -1572,7 +1572,7 @@ dhd_iscan_free_buf(void *dhdp, iscan_buf_t *iscan_delete)
 
 	iscanbuf_cur = iscan_chain;
 
-	/* If iscan_delete is null then delete the entire 
+	/* If iscan_delete is null then delete the entire
 	 * chain or else delete specific one provided
 	 */
 	if (!iscan_delete) {
@@ -1783,7 +1783,7 @@ fail:
 	return status;
 }
 
-#endif 
+#endif
 
 #ifdef PNO_SUPPORT
 int dhd_pno_clean(dhd_pub_t *dhd)

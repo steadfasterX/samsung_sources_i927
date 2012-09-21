@@ -2,13 +2,13 @@
  * DHD Protocol Module for CDC and BDC.
  *
  * Copyright (C) 1999-2011, Broadcom Corporation
- * 
+ *
  *         Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- * 
+ *
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -16,7 +16,7 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- * 
+ *
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
@@ -510,7 +510,7 @@ dhd_enable_keepalive(dhd_pub_t *dhd, uint32 period)
 	wl_keep_alive_pkt_t	*pkt;
 
 	memset(buf, 0, sizeof(buf));
-	
+
 	memcpy(buf, "keep_alive", str_len);
 	buf[str_len] = 0;
 
@@ -569,10 +569,10 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	uint bcn_timeout = 12;
 	int arpoe = 1;
 	int arp_ol = 0xf;
-#ifndef BCMCCX	
+#ifndef BCMCCX
 	int scan_assoc_time = 40;
 	int scan_unassoc_time = 80;
-#endif	
+#endif
 	int assoc_retry = 3;
 	char buf[256];
 #ifdef USE_WIFI_DIRECT
@@ -641,7 +641,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #endif
 
 #ifdef BCMDISABLE_PM
-	power_mode = PM_OFF;	
+	power_mode = PM_OFF;
 	/* Disable PowerSave Mode */
 	dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode, sizeof(power_mode), TRUE, 0);
 	/* Turn off MPC in AP mode */
@@ -785,7 +785,7 @@ dhd_pub_t *dhd_get_pub(struct net_device *dev); /* dhd_linux.c */
 
 void dhd_set_packet_filter(int value, dhd_pub_t *dhd);
 
-int dhd_deepsleep(struct net_device *dev, int flag) 
+int dhd_deepsleep(struct net_device *dev, int flag)
 {
 	char iovbuf[20];
 	uint powervar = 0;

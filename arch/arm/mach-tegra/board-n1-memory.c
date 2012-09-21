@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 NVIDIA, Inc.
+ * Copyright (C) 2011 NVIDIA, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -19,9 +19,9 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
-#include "board-n1.h"
+#include "board-whistler.h"
 #include "tegra2_emc.h"
-
+#include "board.h"
 
 static const struct tegra_emc_table n1_emc_tables_samsung[] = {
 	{
@@ -63,7 +63,7 @@ static const struct tegra_emc_table n1_emc_tables_samsung[] = {
             0x00000003,   /* FBIO_CFG6 */
             0x00000000,   /* ODT_WRITE */
             0x00000000,   /* ODT_READ */
-            0x00000282,   /* FBIO_CFG5 */
+            0x00000082,   /* FBIO_CFG5 */
             0xa06a04ae,   /* CFG_DIG_DLL */
             0x00080000,   /* DLL_XFORM_DQS */
 			0x00000000,   /* DLL_XFORM_QUSE */
@@ -114,7 +114,7 @@ static const struct tegra_emc_table n1_emc_tables_samsung[] = {
             0x00000000,   /* FBIO_CFG6 */
             0x00000000,   /* ODT_WRITE */
             0x00000000,   /* ODT_READ */
-            0x00000282,   /* FBIO_CFG5 */
+            0x00000082,   /* FBIO_CFG5 */
             0xa06a04ae,   /* CFG_DIG_DLL */
             0x00080000,   /* DLL_XFORM_DQS */
 			0x00000000,   /* DLL_XFORM_QUSE */
@@ -165,7 +165,7 @@ static const struct tegra_emc_table n1_emc_tables_samsung[] = {
             0x00000000,   /* FBIO_CFG6 */
             0x00000000,   /* ODT_WRITE */
             0x00000000,   /* ODT_READ */
-            0x00000282,   /* FBIO_CFG5 */
+            0x00000082,   /* FBIO_CFG5 */
             0xa06a04ae,   /* CFG_DIG_DLL */
             0x00080000,   /* DLL_XFORM_DQS */
 			0x00000000,   /* DLL_XFORM_QUSE */
@@ -216,7 +216,7 @@ static const struct tegra_emc_table n1_emc_tables_samsung[] = {
 			0x00000001,   /* FBIO_CFG6 */
 			0x00000000,   /* ODT_WRITE */
 			0x00000000,   /* ODT_READ */
-			0x00000282,   /* FBIO_CFG5 */
+			0x00000082,   /* FBIO_CFG5 */
 			0xa04c04ae,   /* CFG_DIG_DLL */
             0x007dea10,   /* DLL_XFORM_DQS */
 			0x00000000,   /* DLL_XFORM_QUSE */
@@ -281,12 +281,22 @@ static const struct tegra_emc_table n1_emc_tables_samsung[] = {
 	}
 };
 
-int n1_emc_init(void)
+static const struct tegra_emc_chip n1_emc_chips[] = {
+	{
+		.description = "Samsung 300MHz",
+		.mem_manufacturer_id = 0x0303,
+		.mem_revision_id1 = 0,
+		.mem_revision_id2 = 0,
+		.mem_pid = 0x1414,
+		.table = n1_emc_tables_samsung,
+		.table_size = ARRAY_SIZE(n1_emc_tables_samsung)
+	},
+};
+
+int __init n1_emc_init(void)
 {
-	/* EMC Table of n1 project */
 	tegra_init_emc(n1_emc_tables_samsung,
 		ARRAY_SIZE(n1_emc_tables_samsung));
-
 	pr_info("%s+\n", __func__);
 
 	return 0;

@@ -61,9 +61,8 @@ static int tm_calc(struct rtc_time *tm, u8 *buf, int len)
 			+ (buf[RTC_YEAR1] >> 4) * 10
 			+ (buf[RTC_YEAR1] & 0xf);
 	tm->tm_year -= 1900;
-	/* Driver 0~11 to 1~12 month expression mismatch fix */
-//	tm->tm_mon = ((buf[RTC_MONTH] >> 4) & 0x01) * 10
-//			+ (buf[RTC_MONTH] & 0x0f);
+	/* RTC month index issue in max8907c
+	    : January index is 1 but kernel assumes it as 0 */
 	tm->tm_mon = ((buf[RTC_MONTH] >> 4) & 0x01) * 10
 			+ (buf[RTC_MONTH] & 0x0f) - 1;
 	tm->tm_mday = ((buf[RTC_DATE] >> 4) & 0x03) * 10
@@ -101,14 +100,13 @@ static int data_calc(u8 *buf, struct rtc_time *tm, int len)
 	low = low - high * 10;
 	high = high - (high / 10) * 10;
 	buf[RTC_YEAR1] = (high << 4) + low;
-	/* Driver 0~11 to 1~12 month expression mismatch fix */
-//	high = tm->tm_mon / 10;
-//	low = tm->tm_mon;
-//	low = low - high * 10;
-//	buf[RTC_MONTH] = (high << 4) + low;
+
+	/* RTC month index issue in max8907c
+	    : January index is 1 but kernel assumes it as 0 */
 	high = (tm->tm_mon + 1) / 10;
 	low = (tm->tm_mon + 1) % 10;
 	buf[RTC_MONTH] = (high << 4) + low;
+
 	high = tm->tm_mday / 10;
 	low = tm->tm_mday;
 	low = low - high * 10;
@@ -140,7 +138,10 @@ static int max8907c_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	if (ret < 0)
 		return ret;
 	ret = tm_calc(tm, buf, TIME_NUM);
-
+	pr_info("%s: %02d:%02d:%02d %02d/%02d/%04d\n",
+		__func__,
+		tm->tm_hour, tm->tm_min, tm->tm_sec,
+		tm->tm_mon + 1, tm->tm_mday, tm->tm_year + 1900);
 	return ret;
 }
 
@@ -149,16 +150,7 @@ static int max8907c_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	struct max8907c_rtc_info *info = dev_get_drvdata(dev);
 	u8 buf[TIME_NUM];
 	int ret;
-#ifdef CONFIG_MACH_N1
-	struct task_struct *task;
 
-	task = current;
-	pr_info("%s called by %s[pid:%d]\n", __func__, task->comm, task->pid);
-	pr_info("%s: %02d:%02d:%02d %02d/%02d/%04d\n",
-		__func__,
-		tm->tm_hour, tm->tm_min, tm->tm_sec,
-		tm->tm_mon + 1, tm->tm_mday, tm->tm_year + 1900);
-#endif
 	ret = data_calc(buf, tm, TIME_NUM);
 
 	if (ret < 0)
@@ -203,16 +195,7 @@ static int max8907c_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	struct max8907c_rtc_info *info = dev_get_drvdata(dev);
 	unsigned char buf[TIME_NUM];
 	int ret;
-#ifdef CONFIG_MACH_N1
-	struct task_struct *task;
 
-	task = current;
-	pr_info("%s called by %s[pid:%d]\n", __func__, task->comm, task->pid);
-	pr_info("%s: %02d:%02d:%02d %02d/%02d/%04d\n",
-		__func__,
-		alrm->time.tm_hour, alrm->time.tm_min, alrm->time.tm_sec,
-		alrm->time.tm_mon + 1, alrm->time.tm_mday, alrm->time.tm_year + 1900);
-#endif
 	ret = data_calc(buf, &alrm->time, TIME_NUM);
 	if (ret < 0)
 		return ret;
@@ -254,6 +237,7 @@ static int __devinit max8907c_rtc_probe(struct platform_device *pdev)
 		goto out_irq;
 	}
 
+	dev_set_drvdata(&pdev->dev, info);
 	info->rtc_dev = rtc_device_register("max8907c-rtc", &pdev->dev,
 					&max8907c_rtc_ops, THIS_MODULE);
 	ret = PTR_ERR(info->rtc_dev);
@@ -263,8 +247,6 @@ static int __devinit max8907c_rtc_probe(struct platform_device *pdev)
 	}
 
 	max8907c_set_bits(chip->i2c_power, MAX8907C_REG_SYSENSEL, 0x2, 0x2);
-
-	dev_set_drvdata(&pdev->dev, info);
 
 	platform_set_drvdata(pdev, info);
 

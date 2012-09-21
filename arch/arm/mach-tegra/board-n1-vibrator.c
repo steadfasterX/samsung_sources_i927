@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  *
  */
- 
+
 #include <linux/hrtimer.h>
 #include <linux/err.h>
 #include <linux/gpio.h>
@@ -55,14 +55,14 @@ static struct vibrator {
 static int vibrator_write_register(u8 addr, u8 w_data)
 {
 	int ret;
-	
+
 #if 0 /* HW I2C */
 
 	u8 buf[2];
 
 	buf[0] = addr;
 	buf[1] = w_data;
-	
+
 	ret = i2c_master_send(vibdata.client, buf, 2);
 	if (ret < 0) {
 		pr_err("%s: Failed to write addr=[0x%x], data=[0x%x] (ret:%d)\n",
@@ -72,7 +72,7 @@ static int vibrator_write_register(u8 addr, u8 w_data)
 
 #else
 	ret = i2c_smbus_write_byte_data(vibdata.client, addr, w_data);
-	
+
 	if (ret < 0) {
 		pr_err("%s: Failed to write addr=[0x%x], data=[0x%x] (ret:%d)\n",
 		   __func__, addr, w_data, ret);
@@ -205,14 +205,14 @@ int imm_vibrator_i2c_write(u8 addr, int length, u8 *data)
 		pr_err("%s driver is not ready\n", __func__);
 		return 0;
 	}
-	
+
 	if ((addr>>1) != vibdata.client->addr)
 		printk("%s i2c address(%x) not matched to %x\n", __func__, addr, vibdata.client->addr);
 
 	if (length!=2)
 		printk("%s length should be 2(len:%d)\n", __func__, length);
 
-	return vibrator_write_register(data[0], data[1]);	
+	return vibrator_write_register(data[0], data[1]);
 }
 EXPORT_SYMBOL(imm_vibrator_i2c_write);
 
@@ -231,7 +231,7 @@ int imm_vibrator_clk_enable(void)
 
 	ret = tegra_pinmux_set_tristate(TEGRA_PINGROUP_CDEV2,
 			TEGRA_TRI_NORMAL);
-	
+
 	pr_debug("%s: tegra_pinmux_set_tristate() returned = %d\n",
 				__func__, ret);
 
@@ -240,7 +240,7 @@ int imm_vibrator_clk_enable(void)
 				__func__, ret);
 
 	vibdata.running = true;
-	
+
 	mutex_unlock(&vibdata.lock);
 
 	pr_debug("%s\n", __func__);
@@ -268,9 +268,9 @@ int imm_vibrator_clk_disable(void)
 	vibdata.running = false;
 
 	wake_unlock(&vibdata.wklock);
-	
+
 	mutex_unlock(&vibdata.lock);
-	
+
 	pr_debug("%s\n", __func__);
 
 	return 0;
@@ -286,9 +286,9 @@ int imm_vibrator_chip_enable(void)
 
 	gpio_direction_output(GPIO_VIBTONE_EN, 1);
 	mdelay(1);
-	
+
 	pr_debug("%s\n", __func__);
-	
+
 	return 0;
 }
 EXPORT_SYMBOL(imm_vibrator_chip_enable);
@@ -301,7 +301,7 @@ int imm_vibrator_chip_disable(void)
 	}
 
 	gpio_direction_output(GPIO_VIBTONE_EN, 0);
-	
+
 	pr_debug("%s\n", __func__);
 
 	return 0;
@@ -337,8 +337,8 @@ static int __init n1_init_vibrator(void)
 	vibdata.timer.function = n1_vibrator_timer_func;
 	INIT_WORK(&vibdata.work, n1_vibrator_work);
 
-	vibdata.dap_mclk2  = tegra_get_clock_by_name("clk_dev2");
-		
+	vibdata.dap_mclk2  = tegra_get_clock_by_name("cdev2");
+
 	tegra_gpio_enable(GPIO_VIBTONE_EN);
 	ret = gpio_request(GPIO_VIBTONE_EN, "vibrator-en");
 	if (ret < 0)

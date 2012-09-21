@@ -26,12 +26,10 @@
 enum {
 	DEBUG_USER_STATE = 1U << 0,
 	DEBUG_SUSPEND = 1U << 2,
+	DEBUG_VERBOSE = 1U << 3,
 };
 static int debug_mask = DEBUG_USER_STATE;
 module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
-
-extern struct wake_lock sync_wake_lock;
-extern struct workqueue_struct *sync_work_queue;
 
 static DEFINE_MUTEX(early_suspend_lock);
 static LIST_HEAD(early_suspend_handlers);
@@ -53,7 +51,7 @@ static void sync_system(struct work_struct *work)
 {
 	pr_info("%s +\n", __func__);
 	wake_lock(&sync_wake_lock);
-   	sys_sync();
+	sys_sync();
 	wake_unlock(&sync_wake_lock);
 	pr_info("%s -\n", __func__);
 }
@@ -108,8 +106,11 @@ static void early_suspend(struct work_struct *work)
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("early_suspend: call handlers\n");
 	list_for_each_entry(pos, &early_suspend_handlers, link) {
-		if (pos->suspend != NULL)
+		if (pos->suspend != NULL) {
+			if (debug_mask & DEBUG_VERBOSE)
+				pr_info("early_suspend: calling %pf\n", pos->suspend);
 			pos->suspend(pos);
+		}
 	}
 	mutex_unlock(&early_suspend_lock);
 
@@ -147,9 +148,14 @@ static void late_resume(struct work_struct *work)
 	}
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("late_resume: call handlers\n");
-	list_for_each_entry_reverse(pos, &early_suspend_handlers, link)
-		if (pos->resume != NULL)
+	list_for_each_entry_reverse(pos, &early_suspend_handlers, link) {
+		if (pos->resume != NULL) {
+			if (debug_mask & DEBUG_VERBOSE)
+				pr_info("late_resume: calling %pf\n", pos->resume);
+
 			pos->resume(pos);
+		}
+	}
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("late_resume: done\n");
 abort:

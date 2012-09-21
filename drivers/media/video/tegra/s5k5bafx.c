@@ -304,7 +304,7 @@ static int s5k5bafx_write_tuningmode(struct i2c_client *client, char s_name[])
 
 			return -1;
 		}
-		
+
 		tempData = tempData->nextBuf;
 	}
 
@@ -411,7 +411,7 @@ static int loadFile(void){
 	max_size = l;
 
 	printk("l = %d\n", l);
-	
+
 	nBuf = vmalloc(l);
 
 	if (nBuf == NULL) {
@@ -675,7 +675,7 @@ static int s5k5bafx_set_mode(struct s5k5bafx_info *info, struct s5k5bafx_mode *m
 		if(err < 0) {
 			pr_err("%s: s5k5bafx_set_preview_resolution() returned %d\n",
 					__func__, err);
-			
+
 			return -EINVAL;
 		}
 
@@ -708,7 +708,7 @@ static int s5k5bafx_set_mode(struct s5k5bafx_info *info, struct s5k5bafx_mode *m
 	}
 
 	info->mode = sensor_mode;
-	
+
 	return err;
 }
 
@@ -801,7 +801,7 @@ static int s5k5bafx_set_exposure(struct s5k5bafx_info *info, s5k5bafx_exposure a
 		case FRONT_EXPOSURE_P1P0:
 			err = s5k5bafx_write_tuningmode(info->i2c_client, "mode_exposure_p1p0");
 			break;
-			
+
 		case FRONT_EXPOSURE_P0P5:
 			err = s5k5bafx_write_tuningmode(info->i2c_client, "mode_exposure_p0p5");
 			break;
@@ -844,7 +844,7 @@ static int s5k5bafx_set_exposure(struct s5k5bafx_info *info, s5k5bafx_exposure a
 		case FRONT_EXPOSURE_P1P0:
 			err = s5k5bafx_write_table(info->i2c_client, mode_exposure_p1p0);
 			break;
-			
+
 		case FRONT_EXPOSURE_P0P5:
 			err = s5k5bafx_write_table(info->i2c_client, mode_exposure_p0p5);
 			break;
@@ -915,19 +915,19 @@ static int s5k5bafx_set_pretty(struct s5k5bafx_info *info, s5k5bafx_exposure arg
 		case FRONT_PRETTY_P0:
 			err = s5k5bafx_write_table(info->i2c_client, mode_pretty_0);
 			break;
-	
+
 		case FRONT_PRETTY_P1:
 			err = s5k5bafx_write_table(info->i2c_client, mode_pretty_1);
 			break;
-	
+
 		case FRONT_PRETTY_P2:
 			err = s5k5bafx_write_table(info->i2c_client, mode_pretty_2);
 			break;
-	
+
 		case FRONT_PRETTY_P3:
 			err = s5k5bafx_write_table(info->i2c_client, mode_pretty_3);
 			break;
-	
+
 		default:
 			pr_err("%s: Invalid Pretty Value, %d\n", __func__, arg);
 			return 0;
@@ -1154,5 +1154,3 @@ static void __exit s5k5bafx_exit(void)
 
 module_init(s5k5bafx_init);
 module_exit(s5k5bafx_exit);
-
-

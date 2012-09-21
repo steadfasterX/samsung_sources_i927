@@ -39,9 +39,6 @@
 #include <signal.h>
 
 #include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-#include <bluetooth/hci_lib.h>
-#include <bluetooth/rfcomm.h>
 #include <bluetooth/sdp.h>
 #include <bluetooth/sdp_lib.h>
 
@@ -51,8 +48,8 @@
 
 #include "glib-helper.h"
 #include "btio.h"
-#include "../src/manager.h"
 #include "../src/adapter.h"
+#include "../src/manager.h"
 #include "../src/device.h"
 
 #include "log.h"
@@ -61,6 +58,7 @@
 #include "device.h"
 #include "error.h"
 #include "avdtp.h"
+#include "media.h"
 #include "a2dp.h"
 #include "headset.h"
 #include "gateway.h"
@@ -70,6 +68,11 @@
 #include "manager.h"
 #include "sdpd.h"
 #include "telephony.h"
+#include "unix.h"
+
+#ifndef DBUS_TYPE_UNIX_FD
+#define DBUS_TYPE_UNIX_FD -1
+#endif
 
 typedef enum {
 	HEADSET	= 1 << 0,
@@ -90,6 +93,7 @@ typedef enum {
 
 struct audio_adapter {
 	struct btd_adapter *btd_adapter;
+	gboolean powered;
 	uint32_t hsp_ag_record_id;
 	uint32_t hfp_ag_record_id;
 	uint32_t hfp_hs_record_id;
@@ -106,6 +110,9 @@ static GKeyFile *config = NULL;
 static GSList *adapters = NULL;
 static GSList *devices = NULL;
 
+/* SS_BT::VEERA + HFP1.6 */
+extern struct wbs_commands_param wbs_commands_param;
+
 static struct enabled_interfaces enabled = {
 	.hfp		= TRUE,
 	.headset	= TRUE,
@@ -113,15 +120,15 @@ static struct enabled_interfaces enabled = {
 	.sink		= TRUE,
 	.source		= FALSE,
 	.control	= TRUE,
+	.socket		= TRUE,
+	.media		= FALSE
 };
 
 static struct audio_adapter *find_adapter(GSList *list,
 					struct btd_adapter *btd_adapter)
 {
-	GSList *l;
-
-	for (l = list; l; l = l->next) {
-		struct audio_adapter *adapter = l->data;
+	for (; list; list = list->next) {
+		struct audio_adapter *adapter = list->data;
 
 		if (adapter->btd_adapter == btd_adapter)
 			return adapter;
@@ -218,8 +225,10 @@ static void handle_uuid(const char *uuidstr, struct audio_device *device)
 			control_update(device, uuid16);
 		else
 			device->control = control_init(device, uuid16);
-		if (device->sink && sink_is_active(device))
-			avrcp_connect(device);
+		/* SS_Bluetooth(sunjo4.kim) 2012.2.16 - add for a2dp connect fail */
+		//if (device->sink && sink_is_active(device))
+		//	avrcp_connect(device);
+                /* SS_Bluetooth(sunjo4.kim) End */
 		break;
 	default:
 		DBG("Unrecognized UUID: 0x%04X", uuid16);
@@ -556,7 +565,6 @@ static void hf_io_cb(GIOChannel *chan, gpointer data)
 	GError *err = NULL;
 	uint8_t ch;
 	const char *server_uuid, *remote_uuid;
-	uint16_t svclass;
 	struct audio_device *device;
 	int perr;
 
@@ -574,7 +582,6 @@ static void hf_io_cb(GIOChannel *chan, gpointer data)
 
 	server_uuid = HFP_AG_UUID;
 	remote_uuid = HFP_HS_UUID;
-	svclass = HANDSFREE_AGW_SVCLASS_ID;
 
 	device = manager_get_device(&src, &dst, TRUE);
 	if (!device)
@@ -607,7 +614,6 @@ static void hf_io_cb(GIOChannel *chan, gpointer data)
 
 drop:
 	g_io_channel_shutdown(chan, TRUE, NULL);
-	g_io_channel_unref(chan);
 }
 
 static int headset_server_init(struct audio_adapter *adapter)
@@ -692,8 +698,11 @@ static int headset_server_init(struct audio_adapter *adapter)
 	return 0;
 
 failed:
-	error("%s", err->message);
-	g_error_free(err);
+	if (err) {
+		error("%s", err->message);
+		g_error_free(err);
+	}
+
 	if (adapter->hsp_ag_server) {
 		g_io_channel_shutdown(adapter->hsp_ag_server, TRUE, NULL);
 		g_io_channel_unref(adapter->hsp_ag_server);
@@ -771,7 +780,8 @@ static int audio_probe(struct btd_device *device, GSList *uuids)
 	struct audio_device *audio_dev;
 
 	adapter_get_address(adapter, &src);
-	device_get_address(device, &dst);
+	//device_get_address(device, &dst);
+	device_get_address(device, &dst, NULL);
 
 	audio_dev = manager_get_device(&src, &dst, TRUE);
 	if (!audio_dev) {
@@ -850,6 +860,49 @@ static struct audio_adapter *audio_adapter_get(struct btd_adapter *adapter)
 	return adp;
 }
 
+static void state_changed(struct btd_adapter *adapter, gboolean powered)
+{
+	struct audio_adapter *adp;
+	static gboolean telephony = FALSE;
+	GSList *l;
+
+	DBG("%s powered %s", adapter_get_path(adapter),
+						powered ? "on" : "off");
+
+	/* ignore powered change, adapter is powering down */
+	if (powered && adapter_powering_down(adapter))
+		return;
+
+	adp = find_adapter(adapters, adapter);
+	if (!adp)
+		return;
+
+	adp->powered = powered;
+
+	if (powered) {
+		/* telephony driver already initialized*/
+		if (telephony == TRUE)
+			return;
+		telephony_init();
+		telephony = TRUE;
+		return;
+	}
+
+	/* telephony not initialized just ignore power down */
+	if (telephony == FALSE)
+		return;
+
+	for (l = adapters; l; l = l->next) {
+		adp = l->data;
+
+		if (adp->powered == TRUE)
+			return;
+	}
+
+	telephony_exit();
+	telephony = FALSE;
+}
+
 static int headset_server_probe(struct btd_adapter *adapter)
 {
 	struct audio_adapter *adp;
@@ -863,10 +916,15 @@ static int headset_server_probe(struct btd_adapter *adapter)
 		return -EINVAL;
 
 	err = headset_server_init(adp);
-	if (err < 0)
+	if (err < 0) {
 		audio_adapter_unref(adp);
+		return err;
+	}
 
-	return err;
+	btd_adapter_register_powered_callback(adapter, state_changed);
+	state_changed(adapter, TRUE);
+
+	return 0;
 }
 
 static void headset_server_remove(struct btd_adapter *adapter)
@@ -901,6 +959,8 @@ static void headset_server_remove(struct btd_adapter *adapter)
 		g_io_channel_unref(adp->hfp_ag_server);
 		adp->hfp_ag_server = NULL;
 	}
+
+	btd_adapter_unregister_powered_callback(adapter, state_changed);
 
 	audio_adapter_unref(adp);
 }
@@ -992,7 +1052,9 @@ static int avrcp_server_probe(struct btd_adapter *adapter)
 		return -EINVAL;
 
 	adapter_get_address(adapter, &src);
-
+       
+	if (avrcp_adapter_register(connection, adapter, config))
+		return -1;	
 	return avrcp_register(connection, &src, config);
 }
 
@@ -1009,7 +1071,40 @@ static void avrcp_server_remove(struct btd_adapter *adapter)
 		return;
 
 	adapter_get_address(adapter, &src);
+	avrcp_adapter_unregister(adapter);
 	avrcp_unregister(&src);
+	audio_adapter_unref(adp);
+}
+
+static int media_server_probe(struct btd_adapter *adapter)
+{
+	struct audio_adapter *adp;
+	const gchar *path = adapter_get_path(adapter);
+	bdaddr_t src;
+
+	DBG("path %s", path);
+
+	adp = audio_adapter_get(adapter);
+	if (!adp)
+		return -EINVAL;
+
+	adapter_get_address(adapter, &src);
+
+	return media_register(connection, path, &src);
+}
+
+static void media_server_remove(struct btd_adapter *adapter)
+{
+	struct audio_adapter *adp;
+	const gchar *path = adapter_get_path(adapter);
+
+	DBG("path %s", path);
+
+	adp = find_adapter(adapters, adapter);
+	if (!adp)
+		return;
+
+	media_unregister(path);
 	audio_adapter_unref(adp);
 }
 
@@ -1046,12 +1141,19 @@ static struct btd_adapter_driver avrcp_server_driver = {
 	.remove	= avrcp_server_remove,
 };
 
+static struct btd_adapter_driver media_server_driver = {
+	.name	= "media",
+	.probe	= media_server_probe,
+	.remove	= media_server_remove,
+};
+
 int audio_manager_init(DBusConnection *conn, GKeyFile *conf,
 							gboolean *enable_sco)
 {
 	char **list;
 	int i;
-	gboolean b;
+	char *str;
+	gboolean b, WBSEnable = false;
 	GError *err = NULL;
 
 	connection = dbus_connection_ref(conn);
@@ -1074,6 +1176,10 @@ int audio_manager_init(DBusConnection *conn, GKeyFile *conf,
 			enabled.source = TRUE;
 		else if (g_str_equal(list[i], "Control"))
 			enabled.control = TRUE;
+		else if (g_str_equal(list[i], "Socket"))
+			enabled.socket = TRUE;
+		else if (g_str_equal(list[i], "Media"))
+			enabled.media = TRUE;
 	}
 	g_strfreev(list);
 
@@ -1090,6 +1196,10 @@ int audio_manager_init(DBusConnection *conn, GKeyFile *conf,
 			enabled.source = FALSE;
 		else if (g_str_equal(list[i], "Control"))
 			enabled.control = FALSE;
+		else if (g_str_equal(list[i], "Socket"))
+			enabled.socket = FALSE;
+		else if (g_str_equal(list[i], "Media"))
+			enabled.media = FALSE;
 	}
 	g_strfreev(list);
 
@@ -1116,11 +1226,58 @@ int audio_manager_init(DBusConnection *conn, GKeyFile *conf,
 	} else
 		max_connected_headsets = i;
 
-proceed:
-	if (enabled.headset) {
-		telephony_init();
-		btd_register_adapter_driver(&headset_server_driver);
+	wbs_commands_param.WBSEnable = false;
+	WBSEnable = g_key_file_get_boolean(config, "WBspeech",
+						"WBSEnable", &err);
+	if (err)
+		g_clear_error(&err);
+	else {
+		if (WBSEnable)
+			wbs_commands_param.WBSEnable = true;
 	}
+
+	str = g_key_file_get_string(config, "WBspeech",
+						"I2sEnable", &err);
+	if (err)
+		g_clear_error(&err);
+	else {
+		wbs_commands_param.I2sEnable = strtol(str, NULL, 16);
+	}
+
+	str = g_key_file_get_string(config, "WBspeech",
+						"IsMaster", &err);
+	if (err)
+		g_clear_error(&err);
+	else {
+		wbs_commands_param.IsMaster = strtol(str, NULL, 16);
+	}
+
+	str = g_key_file_get_string(config, "WBspeech",
+						"ClockRate", &err);
+	if (err)
+		g_clear_error(&err);
+	else {
+		wbs_commands_param.ClockRate = strtol(str, NULL, 16);
+	}
+
+
+	str = g_key_file_get_string(config, "WBspeech",
+						"PcmInterfaceRate", &err);
+	if (err)
+		g_clear_error(&err);
+	else {
+		wbs_commands_param.PcmInterfaceRate = strtol(str, NULL, 16);
+	}
+
+proceed:
+	if (enabled.socket)
+		unix_init();
+
+	if (enabled.media)
+		btd_register_adapter_driver(&media_server_driver);
+
+	if (enabled.headset)
+		btd_register_adapter_driver(&headset_server_driver);
 
 	if (enabled.gateway)
 		btd_register_adapter_driver(&gateway_server_driver);
@@ -1152,10 +1309,14 @@ void audio_manager_exit(void)
 		config = NULL;
 	}
 
-	if (enabled.headset) {
+	if (enabled.socket)
+		unix_exit();
+
+	if (enabled.media)
+		btd_unregister_adapter_driver(&media_server_driver);
+
+	if (enabled.headset)
 		btd_unregister_adapter_driver(&headset_server_driver);
-		telephony_exit();
-	}
 
 	if (enabled.gateway)
 		btd_unregister_adapter_driver(&gateway_server_driver);
@@ -1289,4 +1450,18 @@ gboolean manager_allow_headset_connection(struct audio_device *device)
 	}
 
 	return TRUE;
+}
+
+void manager_set_fast_connectable(gboolean enable)
+{
+	GSList *l;
+
+	for (l = adapters; l != NULL; l = l->next) {
+		struct audio_adapter *adapter = l->data;
+
+		if (btd_adapter_set_fast_connectable(adapter->btd_adapter,
+								enable))
+			error("Changing fast connectable for hci%d failed",
+				adapter_get_dev_id(adapter->btd_adapter));
+	}
 }

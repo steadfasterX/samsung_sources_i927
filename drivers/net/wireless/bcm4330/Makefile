@@ -123,15 +123,15 @@ dhd-y := src/dhd/sys/dhd_linux.o \
          src/bcmsdio/sys/bcmsdh_linux.o \
          src/bcmsdio/sys/bcmsdh_sdmmc_linux.o \
          src/wl/sys/wl_iw.o
-         
+
 all:
 	@echo "$(MAKE) --no-print-directory -C $(KDIR) SUBDIRS=$(CURDIR) modules"
 	@$(MAKE) --no-print-directory -C $(KDIR) \
 		SUBDIRS=$(CURDIR) modules
 
-clean: 
+clean:
 	rm -rf *.o *.ko *.mod.c *~ .*.cmd Module.symvers modules.order .tmp_versions	\
-	 	 src/dhd/sys/dhd_linux.o \
+		 src/dhd/sys/dhd_linux.o \
          src/dhd/sys/dhd_common.o \
          src/dhd/sys/dhd_cdc.o \
          src/dhd/sys/dhd_linux_sched.o\

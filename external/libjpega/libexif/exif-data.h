@@ -121,7 +121,6 @@ void      exif_data_save_data (ExifData *data, unsigned char **d,
 void      exif_data_ref   (ExifData *data);
 void      exif_data_unref (ExifData *data);
 void      exif_data_free  (ExifData *data);
-
 void      exif_data_remove_thumbnail  (ExifData *data);
 
 

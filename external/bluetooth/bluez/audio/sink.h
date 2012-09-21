@@ -31,6 +31,24 @@ typedef enum {
 	SINK_STATE_PLAYING,
 } sink_state_t;
 
+#ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+struct sink {
+	struct audio_device *dev;
+	struct avdtp *session;
+	struct avdtp_stream *stream;
+	unsigned int cb_id;
+	guint retry_id;
+	avdtp_session_state_t session_state;
+	avdtp_state_t stream_state;
+	sink_state_t state;
+	//gboolean protection_required;
+	gboolean protected;
+	struct pending_request *connect;
+	struct pending_request *disconnect;
+	DBusConnection *conn;
+};
+#endif
+
 typedef void (*sink_state_cb) (struct audio_device *dev,
 				sink_state_t old_state,
 				sink_state_t new_state,
@@ -42,7 +60,6 @@ gboolean sink_remove_state_cb(unsigned int id);
 struct sink *sink_init(struct audio_device *dev);
 void sink_unregister(struct audio_device *dev);
 gboolean sink_is_active(struct audio_device *dev);
-gboolean sink_is_streaming(struct audio_device *dev);
 avdtp_state_t sink_get_state(struct audio_device *dev);
 gboolean sink_new_stream(struct audio_device *dev, struct avdtp *session,
 				struct avdtp_stream *stream);

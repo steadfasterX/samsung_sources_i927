@@ -79,7 +79,7 @@ enum {
 struct mxt224_platform_data {
 	int max_finger_touches;
 	const u8 **config;
-	const u8 **config_e;	
+	const u8 **config_e;
 	int gpio_read_done;
 	int min_x;
 	int max_x;
@@ -102,6 +102,8 @@ struct mxt224_platform_data {
 	u8 tchthr_charging_e;
 	u8 calcfg_batt_e;
 	u8 calcfg_charging_e;
+	u8 atchcalst_e;
+	u8 atchcalsthr_e;
 	u8 atchfrccalthr_e;
 	u8 atchfrccalratio_e;
 	const u8 *t48_config_batt_e;
@@ -109,14 +111,14 @@ struct mxt224_platform_data {
 	void (*power_on)(void *);
 	void (*power_off)(void *);
 	void (*register_cb)(void*);
-	void (*read_ta_status)(void*);	
+	void (*read_ta_status)(void*);
 
 	const char *reg_vdd_name;
 	const char *reg_avdd_name;
-	
+
 	struct regulator *reg_vdd;  /* TSP_VDD_1V8 */
 	struct regulator *reg_avdd;  /* TSP_AVDD_3V3 */
-	
+
 	int	reg_vdd_level;	/* uV range */
 	int	reg_avdd_level;	/* uV range */
 
@@ -184,13 +186,13 @@ struct mxt224_data {
 	void (*register_cb)(void *);
 	void (*read_ta_status)(void *);
 	int num_fingers;
-	
+
 	const char *reg_vdd_name;
 	const char *reg_avdd_name;
-	
+
 	struct regulator *reg_vdd;  /* TSP_VDD_1V8 */
 	struct regulator *reg_avdd;  /* TSP_AVDD_3V3 */
-	
+
 	int	reg_vdd_level;	/* uV range */
 	int	reg_avdd_level;	/* uV range */
 

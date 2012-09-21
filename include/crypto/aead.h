@@ -10,9 +10,6 @@
  *
  */
 
-#ifdef SEC_FIPS_ENABLED
-#include <crypto/fips_aead.h>
-#else
 #ifndef _CRYPTO_AEAD_H
 #define _CRYPTO_AEAD_H
 
@@ -106,4 +103,3 @@ static inline void aead_givcrypt_set_giv(struct aead_givcrypt_request *req,
 }
 
 #endif	/* _CRYPTO_AEAD_H */
-#endif

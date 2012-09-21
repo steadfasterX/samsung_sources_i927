@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -102,7 +102,7 @@
 #define REG_CBUS_PRI_VS_DATA            0xC19
 
 #define	REG_MSC_WRITE_BURST_LEN         0xC20       // only for WRITE_BURST
-#define	MSC_REQUESTOR_DONE_NACK         	(0x01 << 6)      
+#define	MSC_REQUESTOR_DONE_NACK         	(0x01 << 6)
 
 #define	REG_CBUS_MSC_RETRY_INTERVAL			0x1A		// default is 16
 #define	REG_CBUS_DDC_FAIL_LIMIT				0x1C		// default is 5
@@ -123,28 +123,28 @@
 #define	MSC_TIMEOUT_LIMIT_MSB_MASK	        (0x0F)	        // default is 1
 #define	MSC_LEGACY_BIT					    (0x01 << 7)	    // This should be cleared.
 
-#define	REG_CBUS_LINK_CONTROL_1				0xC30	// 
-#define	REG_CBUS_LINK_CONTROL_2				0xC31	// 
-#define	REG_CBUS_LINK_CONTROL_3				0xC32	// 
-#define	REG_CBUS_LINK_CONTROL_4				0xC33	// 
-#define	REG_CBUS_LINK_CONTROL_5				0xC34	// 
-#define	REG_CBUS_LINK_CONTROL_6				0xC35	// 
-#define	REG_CBUS_LINK_CONTROL_7				0xC36	// 
+#define	REG_CBUS_LINK_CONTROL_1				0xC30	//
+#define	REG_CBUS_LINK_CONTROL_2				0xC31	//
+#define	REG_CBUS_LINK_CONTROL_3				0xC32	//
+#define	REG_CBUS_LINK_CONTROL_4				0xC33	//
+#define	REG_CBUS_LINK_CONTROL_5				0xC34	//
+#define	REG_CBUS_LINK_CONTROL_6				0xC35	//
+#define	REG_CBUS_LINK_CONTROL_7				0xC36	//
 #define REG_CBUS_LINK_STATUS_1          	0xC37
 #define REG_CBUS_LINK_STATUS_2          	0xC38
-#define	REG_CBUS_LINK_CONTROL_8				0xC39	// 
-#define	REG_CBUS_LINK_CONTROL_9				0xC3A	// 
-#define	REG_CBUS_LINK_CONTROL_10				0xC3B	// 
-#define	REG_CBUS_LINK_CONTROL_11				0xC3C	// 
-#define	REG_CBUS_LINK_CONTROL_12				0xC3D	// 
+#define	REG_CBUS_LINK_CONTROL_8				0xC39	//
+#define	REG_CBUS_LINK_CONTROL_9				0xC3A	//
+#define	REG_CBUS_LINK_CONTROL_10				0xC3B	//
+#define	REG_CBUS_LINK_CONTROL_11				0xC3C	//
+#define	REG_CBUS_LINK_CONTROL_12				0xC3D	//
 
 
 #define REG_CBUS_LINK_CTRL9_0           0xC3A
 #define REG_CBUS_LINK_CTRL9_1           0xCBA
 
-#define	REG_CBUS_DRV_STRENGTH_0				0xC40	// 
-#define	REG_CBUS_DRV_STRENGTH_1				0xC41	// 
-#define	REG_CBUS_ACK_CONTROL				0xC42	// 
+#define	REG_CBUS_DRV_STRENGTH_0				0xC40	//
+#define	REG_CBUS_DRV_STRENGTH_1				0xC41	//
+#define	REG_CBUS_ACK_CONTROL				0xC42	//
 #define	REG_CBUS_CAL_CONTROL				0xC43	// Calibration
 
 #define REG_CBUS_SCRATCHPAD_0           0xCC0
@@ -188,4 +188,3 @@
 #define REG_CBUS_DU_CNT_9					0x05
 #define REG_CBUS_DU_CNT_11					0x07
 #endif  // __SI_CBUS_REGS_H__
-

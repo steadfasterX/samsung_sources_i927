@@ -1,6 +1,6 @@
 /***************************************************************************
 
-* 
+*
 
 *   SiI9244 ? MHL Transmitter Driver
 
@@ -33,4 +33,3 @@
 
 void CpCbusHandler ( void );
 void CpCbusInitialize ( void );
-

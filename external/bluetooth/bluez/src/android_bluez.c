@@ -34,6 +34,12 @@
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 
+/* SS_BLUETOOTH(is80.hwang) 2012.02.10 */
+#ifdef GLOBALCONFIG_BLUETOOTH_USE_CSR
+#include "../tools/csr.h"
+#endif
+/* SS_BLUETOOTH(is80.hwang) End */
+
 /* Set UID to bluetooth w/ CAP_NET_RAW, CAP_NET_ADMIN and CAP_NET_BIND_SERVICE
  * (Android's init.rc does not yet support applying linux capabilities) */
 void android_set_aid_and_cap() {
@@ -118,6 +124,7 @@ static int get_hci_sock() {
     }
 
     /* Bind socket to the HCI device */
+    memset(&addr, 0, sizeof(addr));
     addr.hci_family = AF_BLUETOOTH;
     addr.hci_dev = 0;  // hci0
     if(bind(sock, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
@@ -195,10 +202,74 @@ out:
     return ret;
 }
 
-#else
+#else // not BOARD_HAVE_BLUETOOTH_BCM
+/* SS_BLUETOOTH(is80.hwang) 2012.02.10 */
+// P120208-3105 : a2dp chopping issue when scan for device
+#ifdef GLOBALCONFIG_BLUETOOTH_USE_CSR
 
+int android_set_high_priority(bdaddr_t *ba) {
+	char *device = NULL;
+	uint8_t array[8];
+	uint16_t on = 1;
+	int ret = 0;
+
+	if(ret = csr_open_hci(device))
+	{
+		printf("csr_open_hci failure - ret:%d\n", ret);
+		return ret;
+	}
+
+ 	printf("inquiry priority = %s \n", /*on?*/ "low" /*:"default"*/); //bgkim ei30 prevent for GT-P6800
+
+	memset(array, 0, sizeof(array));
+	array[0] = on & 0xff;
+	array[1] = on >> 8;
+
+	if(ret = csr_write_hci(CSR_VARID_INQ_PRI, array, 8))
+	{
+		printf("csr_write_hci failure \n");
+		return ret;
+	}
+
+	csr_close_hci();
+
+	return ret;
+}
+
+int android_set_low_priority(bdaddr_t *ba) {
+	char *device = NULL;
+	uint8_t array[8];
+	uint16_t on = 0;
+	int ret = 0;
+
+	if(ret = csr_open_hci(device))
+	{
+		printf("csr_open_hci failure - ret:%d\n", ret);
+		return ret;
+	}
+
+ 	printf("inquiry priority = %s \n", /*on? "low":*/ "default"); //bgkim ei30 prevent for GT-P6800
+
+	memset(array, 0, sizeof(array));
+	array[0] = on & 0xff;
+	array[1] = on >> 8;
+
+	if(ret = csr_write_hci(CSR_VARID_INQ_PRI, array, 8))
+	{
+		printf("csr_write_hci failure \n");
+		return ret;
+	}
+
+	csr_close_hci();
+
+	return ret;
+}
+
+
+#else // not GLOBALCONFIG_BLUETOOTH_USE_CSR && not BOARD_HAVE_BLUETOOTH_BCM
 int android_set_high_priority(bdaddr_t *ba) {
     return 0;
 }
-
+#endif // GLOBALCONFIG_BLUETOOTH_USE_CSR
+/* SS_BLUETOOTH(is80.hwang) End */
 #endif

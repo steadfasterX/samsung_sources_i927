@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------------
  * i2c-algo-bit.c i2c driver algorithms for bit-shift adapters
  * -------------------------------------------------------------------------
- *   Copyright (C) 1995-2000 Simon G. Vogl 
+ *   Copyright (C) 1995-2000 Simon G. Vogl
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -46,11 +46,6 @@
 
 /* ----- global variables ---------------------------------------------	*/
 
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-#define SAMSUNG_HDMI_SW_I2C 13 /* c.f. DDC I2C id of board-XXX-gpioi2c.c */
-#define SAMSUNG_MHL_SW_I2C  14 /* c.f. MHL I2C id of board-XXX-gpioi2c.c */
-#endif
-
 static int bit_test;	/* see if the line-setting functions work	*/
 module_param(bit_test, bool, 0);
 MODULE_PARM_DESC(bit_test, "Test the lines of the bus to see if it is stuck");
@@ -94,9 +89,6 @@ static inline void scllo(struct i2c_algo_bit_data *adap)
 static int sclhi(struct i2c_algo_bit_data *adap)
 {
 	unsigned long start;
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-	unsigned int counter = 0;
-#endif
 
 	setscl(adap, 1);
 
@@ -106,28 +98,11 @@ static int sclhi(struct i2c_algo_bit_data *adap)
 
 	start = jiffies;
 	while (!getscl(adap)) {
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-		counter++;
-#endif
 		/* This hw knows how to read the clock line, so we wait
 		 * until it actually gets high.  This is safer as some
 		 * chips may hold it low ("clock stretching") while they
 		 * are processing data internally.
 		 */
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-		 if( unlikely(adap->nr == SAMSUNG_HDMI_SW_I2C
-		 	|| adap->nr == SAMSUNG_MHL_SW_I2C) ) {
-/*
-		 	if( unlikely(counter > 5 * 100000) ) {
-				printk(KERN_ERR	"-+ [ERROR] %s(%d:%d) timeout\n", __func__, adap->nr, counter);
-				return -ETIMEDOUT;
-		 	}
-*/
-			if( unlikely(counter % 100000 == 0) ) {
-				printk(KERN_INFO	"[WARN] %s(%d:%d) panding\n", __func__, adap->nr, counter);
-			}
-		}
-#endif
 		if (time_after(jiffies, start + adap->timeout))
 			return -ETIMEDOUT;
 		cond_resched();
@@ -188,10 +163,6 @@ static int i2c_outb(struct i2c_adapter *i2c_adap, unsigned char c)
 	int sb;
 	int ack;
 	struct i2c_algo_bit_data *adap = i2c_adap->algo_data;
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-	adap->nr = i2c_adap->nr;
-#endif
-
 
 	/* assert: scl is low */
 	for (i = 7; i >= 0; i--) {
@@ -199,13 +170,8 @@ static int i2c_outb(struct i2c_adapter *i2c_adap, unsigned char c)
 		setsda(adap, sb);
 		udelay((adap->udelay + 1) / 2);
 		if (sclhi(adap) < 0) { /* timed out */
-#ifndef	CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
 			bit_dbg(1, &i2c_adap->dev, "i2c_outb: 0x%02x, "
 				"timeout at bit #%d\n", (int)c, i);
-#else
-			dev_printk(KERN_ERR, &i2c_adap->dev, "i2c_outb: 0x%02x, "
-				"timeout at bit #%d\n", (int)c, i);
-#endif
 			return -ETIMEDOUT;
 		}
 		/* FIXME do arbitration here:
@@ -218,13 +184,8 @@ static int i2c_outb(struct i2c_adapter *i2c_adap, unsigned char c)
 	}
 	sdahi(adap);
 	if (sclhi(adap) < 0) { /* timeout */
-#ifndef	CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
 		bit_dbg(1, &i2c_adap->dev, "i2c_outb: 0x%02x, "
 			"timeout at ack\n", (int)c);
-#else
-		dev_printk(KERN_ERR, &i2c_adap->dev, "i2c_outb: 0x%02x, "
-			"timeout at ack\n", (int)c);
-#endif
 		return -ETIMEDOUT;
 	}
 
@@ -249,9 +210,6 @@ static int i2c_inb(struct i2c_adapter *i2c_adap)
 	unsigned char indata = 0;
 	struct i2c_algo_bit_data *adap = i2c_adap->algo_data;
 
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-	adap->nr = i2c_adap->nr;
-#endif
 	/* assert: scl is low */
 	sdahi(adap);
 	for (i = 0; i < 8; i++) {
@@ -274,9 +232,17 @@ static int i2c_inb(struct i2c_adapter *i2c_adap)
  * Sanity check for the adapter hardware - check the reaction of
  * the bus lines only if it seems to be idle.
  */
-static int test_bus(struct i2c_algo_bit_data *adap, char *name)
+static int test_bus(struct i2c_adapter *i2c_adap)
 {
-	int scl, sda;
+	struct i2c_algo_bit_data *adap = i2c_adap->algo_data;
+	const char *name = i2c_adap->name;
+	int scl, sda, ret;
+
+	if (adap->pre_xfer) {
+		ret = adap->pre_xfer(i2c_adap);
+		if (ret < 0)
+			return -ENODEV;
+	}
 
 	if (adap->getscl == NULL)
 		pr_info("%s: Testing SDA only, SCL is not readable\n", name);
@@ -339,11 +305,19 @@ static int test_bus(struct i2c_algo_bit_data *adap, char *name)
 		       "while pulling SCL high!\n", name);
 		goto bailout;
 	}
+
+	if (adap->post_xfer)
+		adap->post_xfer(i2c_adap);
+
 	pr_info("%s: Test OK\n", name);
 	return 0;
 bailout:
 	sdahi(adap);
 	sclhi(adap);
+
+	if (adap->post_xfer)
+		adap->post_xfer(i2c_adap);
+
 	return -ENODEV;
 }
 
@@ -362,9 +336,7 @@ static int try_address(struct i2c_adapter *i2c_adap,
 {
 	struct i2c_algo_bit_data *adap = i2c_adap->algo_data;
 	int i, ret = 0;
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-	adap->nr = i2c_adap->nr;
-#endif
+
 	for (i = 0; i <= retries; i++) {
 		ret = i2c_outb(i2c_adap, addr);
 		if (ret == 1 || i == retries)
@@ -376,18 +348,11 @@ static int try_address(struct i2c_adapter *i2c_adap,
 		bit_dbg(3, &i2c_adap->dev, "emitting start condition\n");
 		i2c_start(adap);
 	}
-#ifndef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
 	if (i && ret)
 		bit_dbg(1, &i2c_adap->dev, "Used %d tries to %s client at "
 			"0x%02x: %s\n", i + 1,
 			addr & 1 ? "read from" : "write to", addr >> 1,
 			ret == 1 ? "success" : "failed, timeout?");
-#else
-	if (ret != 1)
-		dev_printk(KERN_ERR, &i2c_adap->dev, "Used %d tries to %s client at "
-			"0x%02x(<<1) failed : ret=%d, i=%d\n", i + 1,
-			addr & 1 ? "read from" : "write to", addr, ret, i);
-#endif
 	return ret;
 }
 
@@ -436,9 +401,6 @@ static int acknak(struct i2c_adapter *i2c_adap, int is_ack)
 {
 	struct i2c_algo_bit_data *adap = i2c_adap->algo_data;
 
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-	adap->nr = i2c_adap->nr;
-#endif
 	/* assert: sda is high */
 	if (is_ack)		/* send ack */
 		setsda(adap, 0);
@@ -520,14 +482,11 @@ static int bit_doAddress(struct i2c_adapter *i2c_adap, struct i2c_msg *msg)
 	unsigned char addr;
 	int ret, retries;
 
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-	adap->nr = i2c_adap->nr;
-#endif
 	retries = nak_ok ? 0 : i2c_adap->retries;
 
 	if (flags & I2C_M_TEN) {
 		/* a ten bit address */
-		addr = 0xf0 | ((msg->addr >> 7) & 0x03);
+		addr = 0xf0 | ((msg->addr >> 7) & 0x06);
 		bit_dbg(2, &i2c_adap->dev, "addr0: %d\n", addr);
 		/* try extended address code...*/
 		ret = try_address(i2c_adap, addr, retries);
@@ -537,7 +496,7 @@ static int bit_doAddress(struct i2c_adapter *i2c_adap, struct i2c_msg *msg)
 			return -EREMOTEIO;
 		}
 		/* the remaining 8 bit address */
-		ret = i2c_outb(i2c_adap, msg->addr & 0x7f);
+		ret = i2c_outb(i2c_adap, msg->addr & 0xff);
 		if ((ret != 1) && !nak_ok) {
 			/* the chip did not ack / xmission error occurred */
 			dev_err(&i2c_adap->dev, "died at 2nd address code\n");
@@ -578,9 +537,6 @@ static int bit_xfer(struct i2c_adapter *i2c_adap,
 	int i, ret;
 	unsigned short nak_ok;
 
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-	adap->nr = i2c_adap->nr;
-#endif
 	if (adap->pre_xfer) {
 		ret = adap->pre_xfer(i2c_adap);
 		if (ret < 0)
@@ -660,15 +616,14 @@ static const struct i2c_algorithm i2c_bit_algo = {
 /*
  * registering functions to load algorithms at runtime
  */
-static int i2c_bit_prepare_bus(struct i2c_adapter *adap)
+static int __i2c_bit_add_bus(struct i2c_adapter *adap,
+			     int (*add_adapter)(struct i2c_adapter *))
 {
 	struct i2c_algo_bit_data *bit_adap = adap->algo_data;
-#ifdef CONFIG_MACH_BOSE_HDMI_I2C_DEBUG
-	bit_adap->nr = adap->nr;
-#endif
+	int ret;
 
 	if (bit_test) {
-		int ret = test_bus(bit_adap, adap->name);
+		ret = test_bus(adap);
 		if (ret < 0)
 			return -ENODEV;
 	}
@@ -677,30 +632,27 @@ static int i2c_bit_prepare_bus(struct i2c_adapter *adap)
 	adap->algo = &i2c_bit_algo;
 	adap->retries = 3;
 
+	ret = add_adapter(adap);
+	if (ret < 0)
+		return ret;
+
+	/* Complain if SCL can't be read */
+	if (bit_adap->getscl == NULL) {
+		dev_warn(&adap->dev, "Not I2C compliant: can't read SCL\n");
+		dev_warn(&adap->dev, "Bus may be unreliable\n");
+	}
 	return 0;
 }
 
 int i2c_bit_add_bus(struct i2c_adapter *adap)
 {
-	int err;
-
-	err = i2c_bit_prepare_bus(adap);
-	if (err)
-		return err;
-
-	return i2c_add_adapter(adap);
+	return __i2c_bit_add_bus(adap, i2c_add_adapter);
 }
 EXPORT_SYMBOL(i2c_bit_add_bus);
 
 int i2c_bit_add_numbered_bus(struct i2c_adapter *adap)
 {
-	int err;
-
-	err = i2c_bit_prepare_bus(adap);
-	if (err)
-		return err;
-
-	return i2c_add_numbered_adapter(adap);
+	return __i2c_bit_add_bus(adap, i2c_add_numbered_adapter);
 }
 EXPORT_SYMBOL(i2c_bit_add_numbered_bus);
 

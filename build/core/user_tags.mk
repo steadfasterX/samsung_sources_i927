@@ -25,11 +25,7 @@ GRANDFATHERED_USER_MODULES :=
 
 -include vendor/google/user_tags.mk
 
-#SEC user tags
-#include $(TARGET_DEVICE_DIR)/user_tags.mk
-
 GRANDFATHERED_USER_MODULES += \
-	01-test \
 	20-dns.conf \
 	95-configured \
 	aapt \
@@ -42,6 +38,7 @@ GRANDFATHERED_USER_MODULES += \
 	am \
 	android \
 	android-common \
+	android-common-carousel \
 	android.policy \
 	androidprefs \
 	android.test.runner \
@@ -52,14 +49,16 @@ GRANDFATHERED_USER_MODULES += \
 	apkcheck \
 	applypatch \
 	app_process \
-	apriori \
 	archquery \
 	asm-3.1 \
 	atree \
 	audio \
+	badblocks \
+	badblocks_host \
 	bb2sym \
 	bb_dump \
 	bbprof \
+	bcc \
 	bison \
 	bluetoothd \
 	bmgr \
@@ -69,12 +68,12 @@ GRANDFATHERED_USER_MODULES += \
 	cfassembler \
 	check_stack \
 	check_trace \
-	clearsilver \
 	cmu2nuance \
-	com.android.inputmethod.pinyin.lib \
 	com.android.phone.common \
+	com.android.vcard \
 	commons-compress-1.0 \
 	copybit.qsd8k \
+	copybit.s5pc110 \
 	coverage \
 	cpufeatures \
 	cts \
@@ -83,10 +82,13 @@ GRANDFATHERED_USER_MODULES += \
 	dasm \
 	dbus-daemon \
 	ddmlib \
+	ddmlib-prebuilt \
+	ddmlibTests \
 	ddms \
 	ddmuilib \
 	debuggerd \
 	descGen \
+	dexgen \
 	dexpreopt \
 	dex-tools \
 	dhcpcd \
@@ -94,16 +96,20 @@ GRANDFATHERED_USER_MODULES += \
 	dhcpcd-run-hooks \
 	dictTest \
 	dnsmasq \
+	doclava \
 	draw9patch \
-	droiddoc \
 	dumpeventlog \
 	dumpkey \
 	dump_regions \
 	dumpstate \
 	dumpsys \
 	dx-tests \
+	e2fsck \
+	e2fsck_host \
 	easymock \
+	easymocklib \
 	edify \
+	elftree \
 	emmalib \
 	emulator \
 	emulator-arm \
@@ -135,6 +141,9 @@ GRANDFATHERED_USER_MODULES += \
 	gzip \
 	hciattach \
 	hierarchyviewer \
+	hierarchyviewer1 \
+	hierarchyviewer2 \
+	hierarchyviewerlib \
 	hist_trace \
 	hosttestlib \
 	icudata \
@@ -142,14 +151,7 @@ GRANDFATHERED_USER_MODULES += \
 	ime \
 	init \
 	input \
-	installd \
 	ip \
-	ipcdump \
-	ipctool \
-	iptables \
-	ip-up-vpn \
-	iself \
-	isprelinked \
 	jarjar \
 	javax.obex \
 	jcommon-1.0.12 \
@@ -157,11 +159,11 @@ GRANDFATHERED_USER_MODULES += \
 	jdwpspy \
 	jfreechart-1.0.9 \
 	jfreechart-1.0.9-swt \
+	jsilver \
 	jsr305 \
 	jsr305lib \
 	junit \
 	jython \
-	kcm \
 	keystore \
 	kxml2-2.3.0 \
 	launch-wrapper \
@@ -170,11 +172,8 @@ GRANDFATHERED_USER_MODULES += \
 	layoutlib_create \
 	layoutlib_utils \
 	layoutopt \
-	libakm \
-	sensors.GT-I9103 \
 	liba2dp \
 	libabi \
-	libacc \
 	libandroid \
 	libandroid_runtime \
 	libandroid_servers \
@@ -199,12 +198,14 @@ GRANDFATHERED_USER_MODULES += \
 	libcameraservice \
 	libcamerastub \
 	libc_common \
+	libchromium_net \
 	libc_nomalloc \
 	libctest \
 	libcutils \
 	libdb \
 	libdbus \
 	libdiskconfig \
+	libdiskconfig_host \
 	libdl \
 	libdrm1 \
 	libdrm1_jni \
@@ -215,12 +216,23 @@ GRANDFATHERED_USER_MODULES += \
 	libeffects \
 	libEGL \
 	libelf \
-	libelfcopy \
 	libESR_Portable \
 	libESR_Shared \
 	libETC1 \
 	libexif \
 	libext \
+	libext2_blkid \
+	libext2_blkid_host \
+	libext2_com_err \
+	libext2_com_err_host \
+	libext2_e2p \
+	libext2_e2p_host \
+	libext2fs \
+	libext2fs_host \
+	libext2_profile \
+	libext2_profile_host \
+	libext2_uuid \
+	libext2_uuid_host \
 	libfdlibm \
 	libfdlibm-host \
 	libFFTEm \
@@ -231,16 +243,16 @@ GRANDFATHERED_USER_MODULES += \
 	libGLES_android \
 	libGLESv1_CM \
 	libGLESv2 \
-	libglib_static \
+	libglib \
 	libgui \
 	libhardware \
 	libhardware_legacy \
 	libhost \
+	libhyphenation \
 	libiprouteutil \
 	libiptc \
 	libjnigraphics \
 	libjni_latinime \
-	libjni_pinyinime \
 	libjpeg \
 	libjs \
 	liblinenoise \
@@ -251,9 +263,11 @@ GRANDFATHERED_USER_MODULES += \
 	libmedia_jni \
 	libmediaplayerservice \
 	libmincrypt \
+	libminelf \
 	libminui \
 	libminzip \
 	libmtdutils \
+	libmtp \
 	libmusicbundle \
 	libneo_cgi \
 	libneo_cs \
@@ -266,23 +280,25 @@ GRANDFATHERED_USER_MODULES += \
 	libOpenSLESUT \
 	libpcap \
 	libpixelflinger \
-	libpixelflinger_armv6 \
 	libpixelflinger_static \
 	libpng \
 	libpopt \
 	libpower \
-	libreference-cdma-sms \
+	libprotobuf-cpp-2.3.0-full \
+	libprotobuf-cpp-2.3.0-lite \
+	libprotobuf-java-2.3.0-lite \
+	libprotobuf-java-2.3.0-micro \
+	librecovery_ui_htc \
 	libreference-ril \
 	libreverb \
 	libreverbwrapper \
 	libril \
+	librilproto-java \
 	librpc \
 	librtp_jni \
 	libsafe_iop \
 	libSDL \
 	libSDLmain \
-	libsec-ril \
-	libsecril-client \
 	libsensorservice \
 	libskia \
 	libskiagl \
@@ -331,6 +347,7 @@ GRANDFATHERED_USER_MODULES += \
 	libstagefright_rtsp \
 	libstagefright_vorbisdec \
 	libstagefright_vpxdec \
+	libstagefright_yuv \
 	libstdc++ \
 	libstlport \
 	libstlport_static \
@@ -359,17 +376,17 @@ GRANDFATHERED_USER_MODULES += \
 	libwpa_client \
 	libwrapsim \
 	libxml2 \
+	libxslt \
 	libzipfile \
 	lights.kraken \
 	lights.qsd8k \
 	line_endings \
 	linker \
+	llvm-rs-link \
 	localize \
 	logcat \
 	logwrapper \
 	lsd \
-	macloader \
-	mahimahi-keypad.kcm \
 	make_cfst \
 	makedict \
 	make_ext4fs \
@@ -377,23 +394,27 @@ GRANDFATHERED_USER_MODULES += \
 	makekeycodes \
 	make_ve_grammar \
 	mediaserver \
-	mfgloader \
 	minigzip \
 	mkbootfs \
 	mkbootimg \
+	mke2fs \
+	mke2fs_host \
 	mksdcard \
 	mksnapshot \
 	mkstubs \
 	mkuserimg.sh \
 	mkyaffs2image \
+	mockrilcontroller \
 	monkey \
 	monkeyrunner \
+	MonkeyRunnerTest \
+	mtp \
 	mtpd \
 	ndc \
 	netcfg \
 	netd \
+	network \
 	ninepatch \
-	notified_event \
 	oauth \
 	obbtool \
 	omx_tests \
@@ -415,20 +436,21 @@ GRANDFATHERED_USER_MODULES += \
 	profile_trace \
 	q2dm \
 	q2g \
-	qwerty2.kcm \
-	qwerty.kcm \
+	qemu-android \
 	racoon \
 	read_addr \
 	read_method \
 	read_pid \
 	read_trace \
-	recovery \
+	resize2fs \
+	resize2fs_host \
 	rgb2565 \
 	rild \
 	rsg-generator \
 	run-as \
 	runtime \
 	schedtest \
+	screenshot \
 	screenshot2 \
 	sdcard \
 	sdklauncher \
@@ -445,15 +467,12 @@ GRANDFATHERED_USER_MODULES += \
 	service \
 	servicemanager \
 	services \
-	sh \
 	sig \
 	sig-check \
 	sig-create \
 	signapk \
 	signature-tools \
 	simg2img \
-	simulator \
-	soslim \
 	spec-progress \
 	sqlite3 \
 	stack_dump \
@@ -463,6 +482,7 @@ GRANDFATHERED_USER_MODULES += \
 	swing-worker-1.1 \
 	swt \
 	system_server \
+	tblgen \
 	tc \
 	temp_layoutlib \
 	test_g2g \
@@ -472,245 +492,17 @@ GRANDFATHERED_USER_MODULES += \
 	test_zipfile \
 	toolbox \
 	traceview \
-	tuttle2.kcm \
+	tune2fs \
+	tune2fs_host \
 	uix \
 	usbtest \
 	vdc \
 	vm-tests \
 	vold \
 	wdsclient \
-	WlanTest \
-	wlandutservice \
 	wpa_supplicant \
-	libexifa \
-	libjpega \
-	wpa_supplicant.conf \
-	xmlwriter \
 	yuv420sp2rgb \
 	zipalign \
-	libandroidpv \
-	libandroidpvauthor \
-	libcolorconvert \
-	libcpm \
-	libgetactualaacconfig \
-	libm4v_config \
-	libmp4recognizer_utility \
-	libomx_aac_component_lib \
-	libomx_aacdec_sharedlibrary \
-	libomx_amr_component_lib \
-	libomx_amrdec_sharedlibrary \
-	libomx_amrenc_component_lib \
-	libomx_amrenc_sharedlibrary \
-	libomx_avc_component_lib \
-	libomx_avcdec_sharedlibrary \
-	libomx_avcenc_component_lib \
-	libomx_avcenc_sharedlibrary \
-	libomx_baseclass_lib \
-	libomx_common_lib \
-	libomx_m4v_component_lib \
-	libomx_m4vdec_sharedlibrary \
-	libomx_m4venc_component_lib\
-	libomx_m4venc_sharedlibrary\
-	libomx_mastercore_lib \
-	libomx_mp3_component_lib \
-	libomx_mp3dec_sharedlibrary \
-	libomx_queue_lib \
-	libomx_sharedlibrary \
-	libopencore_2way \
-	libopencore_author \
-	libopencore_common \
-	libopencore_download \
-	libopencore_downloadreg \
-	libopencorehw \
-	libopencore_mp4local \
-	libopencore_mp4localreg \
-	libopencore_net_support \
-	libopencore_player \
-	libopencore_rtsp \
-	libopencore_rtspreg \
-	libosclbase \
-	libosclerror \
-	libosclio \
-	liboscllib \
-	libosclmemory \
-	libosclproc \
-	libosclregcli \
-	libosclregserv \
-	libosclutil \
-	libpassthru_oma1 \
-	libprotocolenginenode_base \
-	libprotocolenginenode_common \
-	libprotocolenginenode_download_common \
-	libprotocolenginenode_pdl \
-	libprotocolenginenode_ps \
-	libpv2wayengine \
-	libpv324m \
-	libpv_aac_dec \
-	libpvaacffparsernode \
-	libpvaacffrecognizer \
-	libpvaacparser \
-	libpvamrffparsernode \
-	libpvamrffrecognizer \
-	libpv_amr_nb_common_lib \
-	libpvamrwbdecoder \
-	libpvauthorengine \
-	libpv_avc_common_lib \
-	libpvavcdecoder \
-	libpvavch264enc \
-	libpvavifileparser \
-	libpvcommsionode \
-	libpv_config_parser \
-	libpvdecoder_gsmamr \
-	libpvdownloadinterface \
-	libpvdownloadmanagernode \
-	libpvdownloadreginterface \
-	libpvencoder_gsmamr \
-	libpvfileoutputnode \
-	libpvfileparserutils \
-	libpvframemetadatautility \
-	libpvgendatastruct \
-	libpvgeneraltools \
-	libpvgsmamrparser \
-	libpv_http_parcom \
-	libpvid3parcom \
-	libpvjitterbuffer \
-	libpvjitterbuffernode \
-	libpvjitterbufferrtp \
-	libpvlatmpayloadparser \
-	libpvm4vencoder \
-	libpvmediadatastruct \
-	libpvmediainputnode \
-	libpvmedialayernode \
-	libpvmediaoutputnode \
-	libpvmf \
-	libpvmfrecognizer \
-	libpvmimeutils \
-	libpvmioaviwavfileinput \
-	libpvmio_comm_loopback \
-	libpvmiofileinput \
-	libpvmiofileoutput \
-	libpvmp3 \
-	libpvmp3ff \
-	libpvmp3ffparsernode \
-	libpvmp3ffrecognizer \
-	libpvmp4decoder \
-	libpvmp4ff \
-	libpvmp4ffcomposer \
-	libpvmp4ffcomposernode \
-	libpvmp4ffparsernode \
-	libpvmp4ffrecognizer \
-	libpvmp4interface \
-	libpvmp4reginterface \
-	libpvomxaudiodecnode \
-	libpvomxbasedecnode \
-	libpvomxencnode \
-	libpv_omx_interface \
-	libpvomx_proxy_lib \
-	libpvomxvideodecnode \
-	libpvplayer_engine \
-	libpvpvxparser \
-	libpvrtsp_cli_eng_node \
-	libpvrtspinterface \
-	libpv_rtsp_parcom \
-	libpvrtspreginterface \
-	libpvsdpparser \
-	libpvsocketnode \
-	libpvstreamingmanagernode \
-	libpvthreadmessaging \
-	libpvvideoparsernode \
-	libpvwav \
-	libpvwavffparsernode \
-	libpvwavffrecognizer \
-	librtppayloadparser \
-	librtprtcp \
-	libthreadsafe_callback_ao \
-	libunit_test \
-	pv2way_omx_engine_test \
-	pvplayer_engine_test \
-	test_pvauthorengine \
-	pvnvomx \
-	pvplayer \
-        libdivxdrm \
-	libdivx_jni \
-	libsisodrm \
-	drm_android_siso_test \
-	drm_sqlite3_test \
-	libdrm2_jni \
-	libplayready \
-	libplayready_jni \
-	libaes \
-	libomadrm \
-	libkmj_oma1 \
-	libomadrmplugininterface \
-	libpvoma1ffrecognizer \
-	libpvplayready \
-	libopencorehw \
-	memsicd\
-	sec_platform_library
-
-# Mobile Media Lab. Start 
-GRANDFATHERED_USER_MODULES += \
-	libsvid_parser \
-	libsavidocn \
-	libsavidreg \
-	libswmfdocn \
-	libswmfdreg  \
-	libsflvdocn  \
-	libsflvdreg  \
-	libsmkvdocn  \
-	libsmkvdreg  \
-	libsflacfdocn  \
-	libsflacfdreg  \
-	libsdiv3domxoc  \
-	libswmv8domxoc  \
-	libswmv7domxoc  \
-        libs263domxoc \
-	libsac3domxoc  \
-	libsamrdomxoc  \
-	libsflacdomxoc  \
-	libsaacdomxoc \
-	libswmadomxoc \
-	libsmp3domxoc \
-	libsAMRNB  \
-	libsAMRWB  \
-	libsavscmn  \
-	libsavsvc  \
-	libsavsac  \
-	libsavsff  \
-	libsthmb  \
-	savsac	\
-	libocont
-
-# Mobile Media Lab. End
-
-ifeq ($(TARGET_BOARD_PLATFORM),msm8660)
-#ArcSoft Start
-GRANDFATHERED_USER_MODULES += \
-	libarcomx_evrcdec_sharedlibrary	\
-	libarcomx_ac3dec_sharedlibrary	\
-	libarcomx_rvdec_sharedlibrary	\
-	libarcomx_mp3dec_sharedlibrary	\
-	libarcomx_omxcore_sharedlibrary	\
-	libarcplatform	\
-	lib_ARC_Omx_Plugin	\
-	libarcomx_radec_sharedlibrary	\
-	libarcomx_wmadec_sharedlibrary	\
-	libarcomx_wmv7dec_sharedlibrary	\
-	libarcomx_wmv8dec_sharedlibrary	\
-	libarcomx_aacdec_sharedlibrary	\
-	libarcomx_qcelpdec_sharedlibrary	\
-	libarcomx_s263dec_sharedlibrary	\
-	libarcomx_flacdec_sharedlibrary	\
-	libarcomx_amrnbdec_sharedlibrary	\
-	libarcomx_amrwbdec_sharedlibrary	\
-	libarcomx_vp8dec_sharedlibrary	\
-	libarcomx_oggdec_sharedlibrary
-
-#ArcSoft End.	
-endif
-
-ifeq ($(SEC_PROJECT_REGION_OPERATOR),U1_NA_SPR)
-GRANDFATHERED_USER_MODULES += \
-	libsec-ril40 \
-        pppd_runner
-endif
+	libjpega \
+  libexifa
+  

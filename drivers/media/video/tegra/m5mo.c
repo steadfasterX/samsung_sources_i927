@@ -23,6 +23,7 @@
 #include <linux/file.h>
 #include <linux/fcntl.h>
 #include <linux/clk.h>
+#include <linux/ioctl.h>
 
 #include <media/m5mo.h>
 
@@ -57,7 +58,7 @@ struct m5mo_info {
 	bool touchaf_enable;
 };
 
-extern struct class *sec_class;
+extern struct class *camera_class;
 struct device *m5mo_dev;
 extern struct i2c_client *i2c_client_pmic;
 struct regulator *reg_mipi_1v2;
@@ -66,9 +67,15 @@ struct regulator *reg_mipi_1v2;
 static enum m5mo_dtp_test dtpTest = M5MO_DTP_TEST_OFF;
 #endif
 
-static int read_fw_cnt = 0;
-static int cur_cammod = 0;
-static int enable_scene=0;
+static int read_fw_cnt;
+static int cur_cammod;
+static int enable_scene;
+struct file *fp;
+union INFO_CLK {
+	long unsigned int a;
+	struct tegra_camera_clk_info b;
+} info_clk;
+
 
 #define CAMERA_FW_FILE_PATH	"/system/cameradata/RS_M5LS.bin"
 #define CAMERA_FW_FILE_EXTERNAL_PATH	"/sdcard/RS_M5LS.bin"
@@ -1003,7 +1010,7 @@ static const struct m5mo_reg_isp SetModeSequence_ISP_Preview_Start_Camera_1280_9
 };
 
 static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_3264x2448[] = {
-	{0x0502,        	5,  {0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
+	{0x0502,		5,	{0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
 	{0x0502,		5,      {0x05, 0x02, 0x0B, 0x01, 0x25} },/*  Capture size to YUV 3264 x 2448 */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x11, 0x08} },/* Enable Interrupt factor */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x0B, 0x03} },/* Capture mode */
@@ -1013,7 +1020,7 @@ static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_3264x2448[] = {
 };
 
 static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_3264x1968[] = {
-	{0x0502,        	5,  {0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
+	{0x0502,		5,	{0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
 	{0x0502,		5,      {0x05, 0x02, 0x0B, 0x01, 0x2D} },/*  Capture size to YUV 3264 x 1968 */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x11, 0x08} },/* Enable Interrupt factor */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x0B, 0x03} },/* Capture mode */
@@ -1023,7 +1030,7 @@ static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_3264x1968[] = {
 };
 
 static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_2048x1536[] = {
-	{0x0502,        	5,  {0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
+	{0x0502,		5,	{0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
 	{0x0502,		5,      {0x05, 0x02, 0x0B, 0x01, 0x1B} },/*  Capture size to YUV 2048 x 1536 */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x11, 0x08} },/* Enable Interrupt factor */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x0B, 0x03} },/* Capture mode */
@@ -1033,7 +1040,7 @@ static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_2048x1536[] = {
 };
 
 static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_2048x1232[] = {
-	{0x0502,        	5,  {0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
+	{0x0502,		5,	{0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
 	{0x0502,		5,      {0x05, 0x02, 0x0B, 0x01, 0x2C} },/*  Capture size to YUV 2048 x 1232 */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x11, 0x08} },/* Enable Interrupt factor */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x0B, 0x03} },/* Capture mode */
@@ -1042,8 +1049,18 @@ static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_2048x1232[] = {
 	{M5MO_TABLE_END,	0,      {0x00} }
 };
 
+static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_1280x960[] = {
+	{0x0502,                5,      {0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
+	{0x0502,                5,      {0x05, 0x02, 0x0B, 0x01, 0x14} },/*  Capture size to YUV 1280 x 960 */
+	{0x0502,                5,      {0x05, 0x02, 0x00, 0x11, 0x08} },/* Enable Interrupt factor */
+	{0x0502,                5,      {0x05, 0x02, 0x00, 0x0B, 0x03} },/* Capture mode */
+	{M5MO_TABLE_STOP,       5,      {0x05, 0x01, 0x00, 0x10, 0x01} },/* clear interrupt */
+	{0x0502,                5,      {0x05, 0x02, 0x0C, 0x06, 0x01} },/* Select image number */
+	{M5MO_TABLE_END,        0,      {0x00} }
+};
+
 static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_800x480[] = {
-	{0x0502,        	5,  {0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
+	{0x0502,		5,	{0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
 	{0x0502,		5,      {0x05, 0x02, 0x0B, 0x01, 0x0A} },/*  Capture size to YUV 800 x 480 */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x11, 0x08} },/* Enable Interrupt factor */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x0B, 0x03} },/* Capture mode */
@@ -1053,7 +1070,7 @@ static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_800x480[] = {
 };
 
 static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_640x480[] = {
-	{0x0502,        	5,  {0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
+	{0x0502,		5,	{0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
 	{0x0502,		5,      {0x05, 0x02, 0x0B, 0x01, 0x09} },/*  Capture size to YUV 640x 480 */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x11, 0x08} },/* Enable Interrupt factor */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x0B, 0x03} },/* Capture mode */
@@ -1063,7 +1080,7 @@ static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_640x480[] = {
 };
 
 static const struct m5mo_reg_isp SetModeSequence_ISP_Capture_1600x1200[] = {
-	{0x0502,        	5,  {0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
+	{0x0502,		5,	{0x05, 0x02, 0x0C, 0x0A, 0x64} },/* Delay for 100ms */
 	{0x0502,		5,      {0x05, 0x02, 0x0B, 0x01, 0x17} },/*  Capture size to YUV 1600x1200 */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x11, 0x08} },/* Enable Interrupt factor */
 	{0x0502,		5,	{0x05, 0x02, 0x00, 0x0B, 0x03} },/* Capture mode */
@@ -1130,6 +1147,51 @@ static struct m5mo_reg_isp SetModeSequence_ISP_Return_Normal_Preview[] = {
 	{M5MO_TABLE_END,	0,      {0x00} }
 };
 #endif
+
+static const struct m5mo_reg_isp SetModeSequence_ISP_Preview_Size_176_144[] = {
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x02, 0x01} },/* Framerate : auto */
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x01, 0x05} },/*  Preview size to YUV 640*480 */
+	{M5MO_TABLE_END,      0,      {0x00} }
+};
+static const struct m5mo_reg_isp SetModeSequence_ISP_Preview_Size_320_240[] = {
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x02, 0x01} },/* Framerate : auto */
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x01, 0x09} },/*  Preview size to YUV 640*480 */
+	{M5MO_TABLE_END,      0,      {0x00} }
+};
+static const struct m5mo_reg_isp SetModeSequence_ISP_Preview_Size_528_432[] = {
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x02, 0x01} },/* Framerate : auto */
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x01, 0x2C} },/*  Preview size to YUV 640*480 */
+	{M5MO_TABLE_END,      0,      {0x00} }
+};
+static const struct m5mo_reg_isp SetModeSequence_ISP_Preview_Size_720_480[] = {
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x02, 0x01} },/* Framerate : auto */
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x01, 0x18} },/*  Preview size to YUV 640*480 */
+	{M5MO_TABLE_END,      0,      {0x00} }
+};
+static const struct m5mo_reg_isp SetModeSequence_ISP_Preview_Size_VGA[] = {
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x02, 0x01} },/* Framerate : auto */
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x01, 0x17} },/*  Preview size to YUV 640*480 */
+	{M5MO_TABLE_END,      0,      {0x00} }
+};
+static const struct m5mo_reg_isp SetModeSequence_ISP_Preview_Size_WVGA[] = {
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x02, 0x01} },/* Framerate : auto */
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x01, 0x1A} },/*  Preview size to YUV 800*480 */
+	{M5MO_TABLE_END,      0,      {0x00} }
+};
+static const struct m5mo_reg_isp SetModeSequence_ISP_Preview_Size_HD[] = {
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x02, 0x01} },/* Framerate : auto */
+	{0x0502,                5,      {0x05, 0x02, 0x01, 0x01, 0x21} },/*  Preview size to YUV 1280*720 */
+	{M5MO_TABLE_END,      0,      {0x00} }
+};
+
+static const struct m5mo_reg_isp SetModeSequence_ISP_State_Monitor[] = {
+	{0x0502,                5,      {0x05, 0x02, 0x00, 0x11, 0x01} },/* Enable Interrupt factor */
+	{0x0502,                5,      {0x05, 0x02, 0x00, 0x0B, 0x02} },/* Go to monitor mode */
+	{M5MO_TABLE_STOP,     5,      {0x05, 0x01, 0x00, 0x10, 0x01} },/* clear interrupt */
+	{0x0502,                5,      {0x05, 0x02, 0x03, 0x00, 0x00} },/* unlock AE */
+	{0x0502,                5,      {0x05, 0x02, 0x06, 0x00, 0x00} },/* unlock AWB */
+	{M5MO_TABLE_END,      0,      {0x00} }
+};
 
 enum {
 	m5mo_MODE_1280x720_MON,
@@ -1203,7 +1265,7 @@ static const struct m5mo_reg_isp *exposure_table[] = {
 static const struct m5mo_reg_isp *exposure_meter_table[] = {
 	[EXPOSURE_METER_CENTER] = mode_exposure_meter_center,
 	[EXPOSURE_METER_SPOT] = mode_exposure_meter_spot,
-	[EXPOSURE_METER_MATRIX] = mode_exposure_meter_matrix	
+	[EXPOSURE_METER_MATRIX] = mode_exposure_meter_matrix
 };
 
 static const struct m5mo_reg_isp *iso_table[] = {
@@ -1320,7 +1382,7 @@ int m5mo_write_table(struct i2c_client *client,
 		if (next->addr == M5MO_TABLE_WAIT_US) {
 			udelay(next->val);
 			continue;
-		}				
+		}
 		if (size == 2)
 			err = m5mo_write_reg8 \
 			      (client, next->addr, next->val);
@@ -1351,9 +1413,7 @@ static int m5mo_write_i2c(struct i2c_client *client, u8 *pdata, u16 flags, u16 l
 		err = i2c_transfer(client->adapter, &msg, 1);
 		if (err == 1)
 			break;
-		pr_err("m5mo: i2c transfer failed, \
-				retrying(client : %d, msg : %d) - \
-				open(%d)\n",
+		pr_err("m5mo: i2c transfer failed, retrying(client : %d, msg : %d) - open(%d)\n",
 				client->addr, msg.addr, msg.flags);
 		msleep(3);
 	} while (++retry <= M5MO_MAX_RETRIES);
@@ -1409,7 +1469,7 @@ static unsigned int get_file_size(unsigned char *filename)
 	} else {
 		strcpy(filename, external_fw);
 	}
-	
+
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
@@ -1418,7 +1478,7 @@ static unsigned int get_file_size(unsigned char *filename)
 	filp_close(filep, current->files);
 
 	set_fs(old_fs);
-	
+
 	pr_debug("%s: File size is %d\n", __func__, file_size);
 
 	return file_size;
@@ -1460,7 +1520,7 @@ static int m5mo_write_table_Isp(struct m5mo_info *info,
 	unsigned int intstate;
 	int ret = 1;
 	struct i2c_client *client = info->i2c_client_isp;
-	
+
 	struct m5mo_touchaf_pos *tpos;
 	u8 *rdata;
 
@@ -1482,8 +1542,8 @@ static int m5mo_write_table_Isp(struct m5mo_info *info,
 				intstate = info->pdata->isp_int_read();
 				if (i == 150)	{
 					i = 0;
-					pr_err("%s No Interrupt, \
-							cancel waiting loop... (line : %d)\n", __func__, __LINE__);
+					pr_err("%s No Interrupt, cancel waiting loop... (line : %d)\n"
+							, __func__, __LINE__);
 					return -1;
 				}
 				i++;
@@ -1499,7 +1559,7 @@ static int m5mo_write_table_Isp(struct m5mo_info *info,
 
 			pr_info("INT clear..\n");
 
-			ret = m5mo_write_i2c(client, readbuffer, I2C_M_RD, 2);//read 2byte
+			ret = m5mo_write_i2c(client, readbuffer, I2C_M_RD, 2);
 			if (ret != 1)
 				return -1;
 
@@ -1511,8 +1571,7 @@ static int m5mo_write_table_Isp(struct m5mo_info *info,
 				intstate = info->pdata->isp_int_read();
 				if (i == 150) {
 					i = 0;
-					pr_debug("%s No Interrupt, \
-							cancel waiting loop... (line : %d)\n", \
+					pr_debug("%s No Interrupt, cancel waiting loop... (line : %d)\n",
 							__func__, __LINE__);
 					return -1;
 				}
@@ -1545,7 +1604,7 @@ static int m5mo_write_table_Isp(struct m5mo_info *info,
 			pr_info("2.filename = %s, filesize = %d\n", fw, fw_filesize);
 
 			if (fw_size >= 0) {
-				fw_code = (unsigned char *)vmalloc(fw_size);
+				fw_code = vmalloc(fw_size);
 				if (NULL == fw_code) {
 					pr_err("fw_code is NULL!!!\n");
 					return false;
@@ -1556,12 +1615,12 @@ static int m5mo_write_table_Isp(struct m5mo_info *info,
 				pr_err("Invalid input %d\n", fw_size);
 				return -1;
 			}
-			
+
 			if (!read_fw_data(fw_code, fw, fw_filesize)) {
 				pr_err("Error reading firmware file.\n");
 				goto write_fw_err;
 			}
-			
+
 			addr = (unsigned int) fw_code;
 			for (count = 0; count < 31; count++) {
 				pr_info("count: %d", count);
@@ -1720,7 +1779,7 @@ static int m5mo_write_table_Isp(struct m5mo_info *info,
 
 				flash_addr += 0x10000;
 			}
-			
+
 			for (count = 0; count < 4; count++) {
 				pr_info("count: %d", count);
 				/* Set FLASH ROM memory address */
@@ -1903,9 +1962,10 @@ write_fw_err:
 			unsigned int position;
 			if (userdata)
 				tpos = (struct m5mo_touchaf_pos *) userdata;
-			else 
+			else
 				return -1;
-//in case of touch af max numbytes is 6, and remain number 2 is position
+			/*in case of touch af max numbytes is 6
+			  , and remain number 2 is position*/
 			for (i = 0; i < next->numbytes - 2; i++)
 				pdata[i] = next->data[i];
 
@@ -1914,10 +1974,11 @@ write_fw_err:
 			else
 				position = tpos->ypos;
 
-			pdata[4] = (position & 0x0000FF00) >> 8; // touch AF position value is just 2 bye.
+			pdata[4] = (position & 0x0000FF00) >> 8;
+			/* touch AF position value is just 2 bye.*/
 			pdata[5] = (position & 0x000000FF);
 
-			//TODO make i2c behavior
+			/*TODO make i2c behavior*/
 			ret = m5mo_write_i2c(client, pdata, 0, next->numbytes);
 			if (ret != 1)
 				return -1;
@@ -1945,7 +2006,7 @@ static int m5mo_firmware_write(struct m5mo_info *info)
 
 static int m5mo_check_firmware_version(struct m5mo_info *fw_info)
 {
-	int err, i, m_pos = 0;	
+	int err, i, m_pos = 0;
 	char t_buf[30] = {0,};
 
 	for (i = 0; i < 6; i++) {
@@ -1956,9 +2017,9 @@ static int m5mo_check_firmware_version(struct m5mo_info *fw_info)
 
 	fw_info->fw_ver.unique_id[i] = '\0';
 
-	printk("*************************************\n");
-	printk("F/W Version: %s\n", fw_info->fw_ver.unique_id);
-	printk("*************************************\n");
+	pr_debug("*************************************\n");
+	pr_debug("F/W Version: %s\n", fw_info->fw_ver.unique_id);
+	pr_debug("*************************************\n");
 
 	return err;
 }
@@ -1976,7 +2037,7 @@ static int m5mo_get_exif_info(struct m5mo_info *info)
 	u16 iso_qtable[] = { 11, 14, 17, 22, 28, 35, 44, 56, 71, 89,
 		112, 141, 178, 224, 282, 356, 449, 565, 712, 890,
 		1122, 1414, 1782, 2245, 2828, 3564, 4490, 5657, 7127, 8909};
-	
+
 	struct m5mo_exif_info *exif_info = &info->exif_info;
 
 	status = m5mo_write_table_Isp(info, mode_exif_exptime_numer, val);
@@ -2096,9 +2157,9 @@ static int m5mo_verify_isp_mode(struct m5mo_info *info, enum m5mo_isp_mode isp_m
 	for (i = 0; i < 100; i++) {
 		err = m5mo_write_table_Isp(info, mode_isp_moderead, status);
 
-		if(err < 0)
+		if (err < 0)
 			return -1;
-		
+
 		pr_debug("%s: Isp mode status = 0x%x, trial = %d\n ", __func__, status[1], i);
 
 		if (isp_mode == MODE_PARAMETER_SETTING) {
@@ -2117,24 +2178,23 @@ static int m5mo_verify_isp_mode(struct m5mo_info *info, enum m5mo_isp_mode isp_m
 static int m5mo_set_preview_resolution
 	(struct m5mo_info *info, struct m5mo_mode *mode)
 {
-
 	int err = 0;
-	FUNC_ENTR	
-		
-	if (dtpTest) {		
-		pr_err("%s:  dtpTest = %d\n", __func__, dtpTest);	
+	FUNC_ENTR;
+
+	if (dtpTest) {
+		pr_err("%s:  dtpTest = %d\n", __func__, dtpTest);
 		err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Testpattern, NULL);
-		if(err < 0) {
+		if (err < 0) {
 			pr_err("%s fail, line is%d\n",
 					__func__, __LINE__);
 			return -1;
 		}
 		return 0;
 	}
-	
+
 	if (info->mode == CAPTURE_MODE) {
 		err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Return, NULL);
-		if(err < 0) {
+		if (err < 0) {
 			pr_err("%s fail, line is%d\n",
 					__func__, __LINE__);
 			return -1;
@@ -2142,17 +2202,17 @@ static int m5mo_set_preview_resolution
 		return 0;
 	}
 
-	if(cur_cammod) {
+	if (cur_cammod) {
 		if (mode->xres == 1280 && mode->yres == 720)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camcorder_1280_720, NULL);
 		else if (mode->xres == 800 && mode->yres == 480)
-			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camcorder_800_480, NULL);		
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camcorder_800_480, NULL);
 		else if (mode->xres == 720 && mode->yres == 480)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camcorder_720_480, NULL);
-		else if (mode->xres == 640 && mode->yres == 480) 
+		else if (mode->xres == 640 && mode->yres == 480)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camcorder_640_480, NULL);
-		else if (mode->xres == 528 && mode->yres == 432) 
-			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camcorder_528_432, NULL);			
+		else if (mode->xres == 528 && mode->yres == 432)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camcorder_528_432, NULL);
 		else if (mode->xres == 320 && mode->yres == 240)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camcorder_320_240, NULL);
 		else if (mode->xres == 176 && mode->yres == 144)
@@ -2162,38 +2222,38 @@ static int m5mo_set_preview_resolution
 					__func__, mode->xres, mode->yres);
 			return -EINVAL;
 		}
-		if(err < 0) {
+		if (err < 0) {
 			pr_err("%s: set mode fail %d %d %d\n",
 					__func__, cur_cammod, mode->xres, mode->yres);
 			return -1;
 		}
-		
+
 	} else {
 		if (mode->xres == 1280 && mode->yres == 720)
-			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camera_1280_720, NULL);	
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camera_1280_720, NULL);
 		else if (mode->xres == 800 && mode->yres == 480)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camera_800_480, NULL);
-		else if (mode->xres == 720 && mode->yres == 480) 
-			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camera_720_480, NULL);		
-		else if (mode->xres == 640 && mode->yres == 480) 
+		else if (mode->xres == 720 && mode->yres == 480)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camera_720_480, NULL);
+		else if (mode->xres == 640 && mode->yres == 480)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camera_640_480, NULL);
-		else if (mode->xres == 528 && mode->yres == 432) 
+		else if (mode->xres == 528 && mode->yres == 432)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camera_528_432, NULL);
-		else if (mode->xres == 320 && mode->yres == 240) 
+		else if (mode->xres == 320 && mode->yres == 240)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camera_320_240, NULL);
-		else if (mode->xres == 176 && mode->yres == 144) 
-			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camera_176_144, NULL);		
+		else if (mode->xres == 176 && mode->yres == 144)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Start_Camera_176_144, NULL);
 		else {
 			pr_err("%s: invalid preview resolution supplied to set mode %d %d\n",
 					__func__, mode->xres, mode->yres);
 			return -EINVAL;
-		}	
-		if(err < 0) {
+		}
+		if (err < 0) {
 			pr_err("%s: set mode fail %d %d %d\n",
 					__func__, cur_cammod, mode->xres, mode->yres);
 			return -1;
 		}
-		
+
 	}
 
 	return 0;
@@ -2206,21 +2266,21 @@ static int m5mo_set_mode
 	int err = 0;
 	FUNC_ENTR;
 
-	if(sensor_mode != MONITOR_MODE) {
+	if (sensor_mode != MONITOR_MODE) {
 		err = m5mo_set_preview_resolution(info, mode);
-		if(err < 0) {
+		if (err < 0) {
 			pr_err("%s: m5mo_set_preview_resolution() returned %d\n",
-					__func__, err);			
+					__func__, err);
 			return -EINVAL;
 		}
 
-		if(read_fw_cnt == 0) { 
+		if (read_fw_cnt == 0) {
 			err = m5mo_check_firmware_version(info);
-			if(err < 0) {
+			if (err < 0) {
 				pr_err("%s: m5mo_check_firmware_version() returned %d\n",
-						__func__, err);				
+						__func__, err);
 				return -EINVAL;
-			}			
+			}
 			read_fw_cnt = 1;
 		}
 
@@ -2231,20 +2291,19 @@ static int m5mo_set_mode
 			/* if I2C error occured when change aeawb lock state,
 			 * only log the error but don't return one because it's
 			 * not a serious problem.
-			 */			 
+			 */
 			pr_err("%s : ae_awb unlock failed!\n", __func__);
 		}
-		
+
 		err = m5mo_write_table_Isp(info, antibanding_60hz, NULL);
 		if (err) {
 			/* if I2C error occured when setting antibanding to 60Hz because It is standard in USA,
 			 *  It only showes the log at that time and It doesn't call return because it's
 			 * not a serious problem.
-			 */			 
+			 */
 			pr_err("%s : To set antibanding to 60hz failed!\n", __func__);
-		}		
-	}
-	else if(mode->StillCount) {
+		}
+	} else if (mode->StillCount) {
 		if (mode->xres == 3264 && mode->yres == 2448)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Capture_3264x2448, NULL);
 		else if (mode->xres == 3264 && mode->yres == 1968)
@@ -2253,6 +2312,8 @@ static int m5mo_set_mode
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Capture_2048x1536, NULL);
 		else if (mode->xres == 2048 && mode->yres == 1232)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Capture_2048x1232, NULL);
+		else if (mode->xres == 1280 && mode->yres == 960)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Capture_1280x960, NULL);
 		else if (mode->xres == 800 && mode->yres == 480)
 			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Capture_800x480, NULL);
 		else if (mode->xres == 640 && mode->yres == 480)
@@ -2263,26 +2324,51 @@ static int m5mo_set_mode
 			return -EINVAL;
 		}
 
-		if(err < 0) {
+		if (err < 0) {
 			pr_err("%s: set mode fail %d %d\n",
 					__func__,  mode->xres, mode->yres);
 			return -1;
 		}
-		
-		sensor_mode = CAPTURE_MODE;		
+
+		sensor_mode = CAPTURE_MODE;
 
 		err = m5mo_get_exif_info(info);
 		if (err)
 			goto setmode_err;
 
-		err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Capture_transfer, NULL);		
+		err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Capture_transfer, NULL);
 		if (err)
 			goto setmode_err;
+	} else if (sensor_mode == MONITOR_MODE) {
+		err = m5mo_write_table_Isp(info, mode_isp_parameter, NULL);
+		if (err)
+			return err;
+		err = m5mo_verify_isp_mode(info, MODE_PARAMETER_SETTING);
+		if (err)
+			return err;
+
+		if (mode->xres == 1280 && mode->yres == 720)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Size_HD, NULL);
+		else if (mode->xres == 800 && mode->yres == 480)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Size_WVGA, NULL);
+		else if (mode->xres == 720 && mode->yres == 480)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Size_720_480, NULL);
+		else if (mode->xres == 640 && mode->yres == 480)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Size_VGA, NULL);
+		else if (mode->xres == 528 && mode->yres == 432)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Size_528_432, NULL);
+		else if (mode->xres == 320 && mode->yres == 240)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Size_320_240, NULL);
+		else if (mode->xres == 176 && mode->yres == 144)
+			err = m5mo_write_table_Isp(info, SetModeSequence_ISP_Preview_Size_176_144, NULL);
+
+		err = m5mo_write_table_Isp(info, SetModeSequence_ISP_State_Monitor, NULL);
+
 	}
 
 	info->mode = sensor_mode;
 	return 0;
-	
+
 setmode_err:
 	info->power_status = false;
 	return err;
@@ -2304,48 +2390,52 @@ static int m5mo_set_focus_mode
 	int ret;
 	pr_err("%s : %d, %d\n", __func__, arg, info->focusmode);
 
-	if(info->focusmode == arg)
+	if (info->focusmode == arg)
 		return -1;
 
-	if(info->focusmode == FOCUS_FACE_DETECT && arg != FOCUS_FACE_DETECT) {
+	if (info->focusmode == FOCUS_FACE_DETECT && arg != FOCUS_FACE_DETECT) {
 		ret = m5mo_write_table_Isp(info, mode_focus_face_detect_disable, NULL);
-		if(ret < 0) {
+		if (ret < 0) {
 			pr_err("%s fail, line is%d\n",
 					__func__, __LINE__);
 			return -1;
 		}
 	}
-	
+
 	info->focusmode = arg;
-	
-	switch(arg) {
-		case FOCUS_AUTO:
-			ret = m5mo_write_table_Isp(info, mode_focus_auto, NULL);
-			break;
-		
-		case FOCUS_MACRO:
-			ret = m5mo_write_table_Isp(info, mode_focus_macro, NULL);
-			break;
 
-		case FOCUS_FIXED:
-//			ret = m5mo_write_table_Isp(info, mode_focus_fixed, NULL);
-// It is temporary code because ISP can't support pan focus mode by mistake
-			ret = m5mo_write_table_Isp(info, mode_focus_auto, NULL);
-			break;
+	switch (arg) {
+	case FOCUS_AUTO:
+		ret = m5mo_write_table_Isp(info, mode_focus_auto, NULL);
+		break;
 
-		case FOCUS_FACE_DETECT:
-			ret = m5mo_write_table_Isp(info, mode_focus_face_detect, NULL);
-			break;
+	case FOCUS_MACRO:
+		ret = m5mo_write_table_Isp(info, mode_focus_macro, NULL);
+		break;
 
-		case FOCUS_CONTINUOUS_VIDEO:
-			ret = m5mo_write_table_Isp(info, mode_focus_continuous_video, NULL);
-			break;
+	case FOCUS_FIXED:
+		/*ret = m5mo_write_table_Isp(info, mode_focus_fixed, NULL);
+		It is temporary code because ISP can't support pan
+		focus mode by mistake*/
+		ret = m5mo_write_table_Isp(info
+				, mode_focus_auto, NULL);
+		break;
 
-		default:
-			pr_err("%s: Invalid Focus Mode%d\n", __func__, arg);
-			return -EINVAL;
-			break;
-		}
+	case FOCUS_FACE_DETECT:
+		ret = m5mo_write_table_Isp(info
+				, mode_focus_face_detect, NULL);
+		break;
+
+	case FOCUS_CONTINUOUS_VIDEO:
+		ret = m5mo_write_table_Isp(info
+				, mode_focus_continuous_video, NULL);
+		break;
+
+	default:
+		pr_err("%s: Invalid Focus Mode%d\n", __func__, arg);
+		return -EINVAL;
+		break;
+	}
 
 	return ret;
 }
@@ -2371,20 +2461,25 @@ static int m5mo_set_color_effect
 			return ret;
 	} else {
 		u8 geffect[2];
-		ret = m5mo_write_table_Isp(info, mode_read_gammaeffect, geffect);
+		ret = m5mo_write_table_Isp(info
+				, mode_read_gammaeffect, geffect);
 		if (ret)
 			return ret;
 		if (geffect[1]) {
-			ret = m5mo_write_table_Isp(info, mode_isp_parameter, NULL);
+			ret = m5mo_write_table_Isp(info
+					, mode_isp_parameter, NULL);
 			if (ret)
 				return ret;
-			ret = m5mo_verify_isp_mode(info, MODE_PARAMETER_SETTING);
+			ret = m5mo_verify_isp_mode(info
+					, MODE_PARAMETER_SETTING);
 			if (ret)
 				return ret;
-			ret = m5mo_write_table_Isp(info, mode_gammaeffect_off, NULL);
+			ret = m5mo_write_table_Isp(info
+					, mode_gammaeffect_off, NULL);
 			if (ret)
 				return ret;
-			ret = m5mo_write_table_Isp(info, mode_isp_monitor, NULL);
+			ret = m5mo_write_table_Isp(info
+					, mode_isp_monitor, NULL);
 			if (ret)
 				return ret;
 		}
@@ -2392,32 +2487,38 @@ static int m5mo_set_color_effect
 
 	switch (arg) {
 	case EFFECT_NONE:
-		ret = m5mo_write_table_Isp(info, mode_coloreffect_off, NULL);
+		ret = m5mo_write_table_Isp(info
+				, mode_coloreffect_off, NULL);
 		if (ret)
 			return ret;
 		break;
 	case EFFECT_MONO:
-		ret = m5mo_write_table_Isp(info, mode_coloreffect_mono, NULL);
+		ret = m5mo_write_table_Isp(info
+				, mode_coloreffect_mono, NULL);
 		if (ret)
 			return ret;
 		break;
 	case EFFECT_SEPIA:
-		ret = m5mo_write_table_Isp(info, mode_coloreffect_sepia, NULL);
+		ret = m5mo_write_table_Isp(info
+				, mode_coloreffect_sepia, NULL);
 		if (ret)
 			return ret;
 		break;
 	case EFFECT_POSTERIZE:
-		ret = m5mo_write_table_Isp(info, mode_coloreffect_posterize, NULL);
+		ret = m5mo_write_table_Isp(info
+				, mode_coloreffect_posterize, NULL);
 		if (ret)
 			return ret;
 		break;
 	case EFFECT_NEGATIVE:
-		ret = m5mo_write_table_Isp(info, mode_coloreffect_negative, NULL);
+		ret = m5mo_write_table_Isp(info
+				, mode_coloreffect_negative, NULL);
 		if (ret)
 			return ret;
 		break;
 	case EFFECT_SOLARIZE:
-		ret = m5mo_write_table_Isp(info, mode_coloreffect_solarize, NULL);
+		ret = m5mo_write_table_Isp(info
+				, mode_coloreffect_solarize, NULL);
 		if (ret)
 			return ret;
 		break;
@@ -2442,10 +2543,12 @@ static int m5mo_set_white_balance
 	(struct m5mo_info *info, enum m5mo_white_balance arg)
 {
 	pr_debug("%s : %d\n", __func__, arg);
-	if (info->scenemode == SCENE_SUNSET || info->scenemode == SCENE_CANDLE_LIGHT)
+	if (info->scenemode == SCENE_SUNSET ||
+			info->scenemode == SCENE_CANDLE_LIGHT)
 		return 0;
 	if (arg < WB_MODE_MAX && arg >= 0)
-		return m5mo_write_table_Isp(info, wb_table[arg], NULL);
+		return m5mo_write_table_Isp(info
+				, wb_table[arg], NULL);
 	else
 		return -EINVAL;
 }
@@ -2454,7 +2557,8 @@ static int m5mo_set_flash_mode
 {
 	pr_debug("%s : %d\n", __func__, arg);
 	if (arg < FLASH_MODE_MAX && arg >= 0)
-		return  m5mo_write_table_Isp(info, flash_table[arg], NULL);
+		return  m5mo_write_table_Isp(info
+				, flash_table[arg], NULL);
 	else
 		return -EINVAL;
 }
@@ -2463,7 +2567,8 @@ static int m5mo_set_exposure
 {
 	pr_debug("%s : %d\n", __func__, arg);
 	if (arg < EXPOSURE_MODE_MAX && arg >= 0)
-		return m5mo_write_table_Isp(info, exposure_table[arg], NULL);
+		return m5mo_write_table_Isp(info
+				, exposure_table[arg], NULL);
 	else
 		return -EINVAL;
 }
@@ -2472,7 +2577,8 @@ static int m5mo_set_exposure_meter
 {
 	pr_debug("%s : %d\n", __func__, arg);
 	if (arg < EXPOSURE_METER_MAX && arg >= 0)
-		return m5mo_write_table_Isp(info, exposure_meter_table[arg], NULL);
+		return m5mo_write_table_Isp(info
+				, exposure_meter_table[arg], NULL);
 	else
 		return -EINVAL;
 }
@@ -2481,7 +2587,8 @@ static int m5mo_set_iso
 {
 	pr_debug("%s : %d\n", __func__, arg);
 	if (arg < ISO_MAX && arg >= 0)
-		return m5mo_write_table_Isp(info, iso_table[arg], NULL);
+		return m5mo_write_table_Isp(info
+				, iso_table[arg], NULL);
 	else
 		return -EINVAL;
 }
@@ -2490,7 +2597,8 @@ static int m5mo_set_antishake
 {
 	pr_debug("%s : %d\n", __func__, arg);
 	if (arg < ANTISHAKE_MAX && arg >= 0)
-		return m5mo_write_table_Isp(info, antishake_table[arg], NULL);
+		return m5mo_write_table_Isp(info
+				, antishake_table[arg], NULL);
 	else
 		return -EINVAL;
 }
@@ -2499,7 +2607,8 @@ static int m5mo_set_autocontrast
 {
 	pr_debug("%s : %d\n", __func__, arg);
 	if (arg < AUTOCONTRAST_MAX && arg >= 0)
-		return m5mo_write_table_Isp(info, autocontrast_table[arg], NULL);
+		return m5mo_write_table_Isp(info
+				, autocontrast_table[arg], NULL);
 	else
 		return -EINVAL;
 }
@@ -2518,23 +2627,23 @@ static int m5mo_set_autofocus
 				return err;
 			}
 		}
-		if(info->is_samsung_camera == M5MO_SAMSUNG_CAMERA_ON) {
+		if (info->is_samsung_camera == M5MO_SAMSUNG_CAMERA_ON) {
 			err = m5mo_write_table_Isp(info, aeawb_unlock, NULL);
 			if (err) {
 				pr_err("ae_awb unlock failed!\n");
 				return err;
 			}
 			mdelay(10);
-			
+
 			err = m5mo_write_table_Isp(info, aeawb_lock, NULL);
 			if (err) {
 				pr_err("ae_awb lock failed!\n");
 				return err;
 			}
 		}
-				
+
 		return m5mo_write_table_Isp(info, mode_af_start, NULL);
-	case AF_STOP: 
+	case AF_STOP:
 		{
 			u8 sysmode = 0;
 			err = m5mo_write_table_Isp(info, mode_af_stop, NULL);
@@ -2557,24 +2666,23 @@ static int m5mo_set_autofocus
 					pr_err("ae_awb unlock failed!\n");
 					return err;
 				}
-				
-				if(info->focusmode == FOCUS_AUTO) {
+
+				if (info->focusmode == FOCUS_AUTO) {
 					err = m5mo_write_table_Isp(info, mode_af_set_normal_default, NULL);
 					if (err) {
 						pr_err("mode_af_set_normal_default set failed!\n");
 						return err;
 					}
 				}
-				if(info->focusmode == FOCUS_MACRO) {
+				if (info->focusmode == FOCUS_MACRO) {
 					err = m5mo_write_table_Isp(info, mode_af_set_macro_default, NULL);
 					if (err) {
 						pr_err("mode_af_set_normal_default set failed!\n");
 						return err;
 					}
 				}
-				if (info->touchaf_enable) { // touch AF
+				if (info->touchaf_enable)
 					info->touchaf_enable = 0;
-				}
 			}
 		}
 		break;
@@ -2586,7 +2694,7 @@ static int m5mo_set_autofocus
 	return 0;
 }
 
-static int m5mo_set_lens_soft_landing (struct m5mo_info *info)
+static int m5mo_set_lens_soft_landing(struct m5mo_info *info)
 {
 	pr_debug("%s\n", __func__);
 	return m5mo_write_table_Isp(info, mode_lens_soft_landing, NULL);
@@ -2603,13 +2711,13 @@ static int m5mo_get_af_result
 	if (err) {
 		pr_err("mode_af_result failed!\n");
 		goto FAIL;
-	}	
+	}
 	pr_info("af status = 0x%x", status[1]);
 
 	if (info->touchaf_enable) {
-		if(info->is_samsung_camera == M5MO_SAMSUNG_CAMERA_ON) {
-			if((status[1] == 0x00) || (status[1] == 0x02))
-			err = m5mo_write_table_Isp(info, aeawb_unlock, NULL);
+		if (info->is_samsung_camera == M5MO_SAMSUNG_CAMERA_ON) {
+			if ((status[1] == 0x00) || (status[1] == 0x02))
+				err = m5mo_write_table_Isp(info, aeawb_unlock, NULL);
 			if (err) {
 				pr_err("ae_awb unlock failed!\n");
 				goto FAIL;
@@ -2627,7 +2735,7 @@ static int m5mo_esd_camera_reset
 	if (arg == ESD_DETECTED) {
 		info->pdata->power_off();
 		info->mode = SYSTEM_INITIALIZE_MODE;
-		msleep(200); //500ms -> 200ms	
+		msleep(200);
 		info->pdata->power_on();
 	}
 	return 0;
@@ -2638,7 +2746,8 @@ static int m5mo_return_normal_preview(struct m5mo_info *info)
 {
 	int status = 0;
 
-	status = m5mo_write_table_Isp(info, SetModeSequence_ISP_Return_Normal_Preview, NULL);
+	status = m5mo_write_table_Isp(info, SetModeSequence_ISP_Return_Normal_Preview
+					, NULL);
 
 	return status;
 }
@@ -2649,20 +2758,21 @@ static int m5mo_set_face_beauty(struct m5mo_info *info, enum m5mo_recording_fram
 	int err;
 
 	FUNC_ENTR;
-	
+
 	switch (arg) {
-		case M5MO_FACE_BEAUTY_OFF:
-			pr_err("%s: Invalid face beauty Value, %d\n",__func__, arg);
-			err = m5mo_write_table_Isp(info, mode_face_beauty_off, NULL);
-			break;
-		case M5MO_FACE_BEAUTY_ON:
-			pr_err("%s: M5MO_FACE_BEAUTY_ON face beauty Value, %d\n",__func__, arg);
-			err = m5mo_write_table_Isp(info, mode_face_beauty_on, NULL);
-			break;
-		default:
-			pr_err("%s: Invalid face beauty Value, %d\n",__func__, arg);
-			return 0;
-			break;
+	case M5MO_FACE_BEAUTY_OFF:
+		pr_err("%s: Invalid face beauty Value, %d\n", __func__, arg);
+		err = m5mo_write_table_Isp(info, mode_face_beauty_off, NULL);
+		break;
+	case M5MO_FACE_BEAUTY_ON:
+		pr_err("%s: M5MO_FACE_BEAUTY_ON face beauty Value, %d\n"
+				, __func__, arg);
+		err = m5mo_write_table_Isp(info, mode_face_beauty_on, NULL);
+		break;
+	default:
+		pr_err("%s: Invalid face beauty Value, %d\n", __func__, arg);
+		return 0;
+		break;
 	}
 
 	if (err < 0)
@@ -2672,7 +2782,8 @@ static int m5mo_set_face_beauty(struct m5mo_info *info, enum m5mo_recording_fram
 	return err;
 }
 
-static int m5mo_set_recording_frame(struct m5mo_info *info, enum m5mo_recording_frame arg)
+static int m5mo_set_recording_frame(struct m5mo_info *info
+			, enum m5mo_recording_frame arg)
 {
 	int err = 0;
 
@@ -2705,7 +2816,7 @@ static int m5mo_set_touchaf(struct m5mo_info *info,
 		struct m5mo_touchaf_pos *tpos)
 {
 	int err = 0;
-	
+
 	pr_debug("Touch AF!!n");
 
 	info->touchaf_enable = 1;
@@ -2720,22 +2831,26 @@ static int m5mo_set_touchaf(struct m5mo_info *info,
 #if 1
 static int m5mo_check_camcorder_mode(unsigned int cmd)
 {
-	if(cur_cammod) {
-		//pr_err(KERN_INFO "m5mo_check_camcorder_mode : cmd = %d\n", cmd);		
-		if( (cmd == M5MO_IOCTL_SCENE_MODE) || \
+	if (cur_cammod) {
+		/*pr_err(KERN_INFO "m5mo_check_camcorder_mode :
+		  cmd = %d\n", cmd);*/
+		if ((cmd == M5MO_IOCTL_SCENE_MODE) || \
 			(cmd == M5MO_IOCTL_EXPOSURE_METER) ||\
 			(cmd == M5MO_IOCTL_ANTISHAKE) ||\
 			(cmd == M5MO_IOCTL_AUTOCONTRAST) ||\
 			(cmd == M5MO_IOCTL_SCENE_MODE)\
 		) {
-			//pr_err(KERN_INFO "[m5mo_check_camcorder_mode]camcorder mode dosen't need to set %d cmd\n", cmd);
+			/*pr_err(KERN_INFO "[m5mo_check_camcorder_mode]
+			  camcorder mode dosen't need to set %d cmd\n", cmd);*/
 			return M5MO_CAN_NOT_SUPPORT_PARAM;
 		} else {
-			//pr_err(KERN_INFO "[m5mo_check_camcorder_mode]camcorder mode !!\n");
+			/*pr_err(KERN_INFO "[m5mo_check_camcorder_mode]
+			  camcorder mode !!\n");*/
 			return M5MO_CAN_SUPPORT_PARAM;
 		}
 	} else {
-		//pr_err(KERN_INFO "[m5mo_check_camcorder_mode]camera mode !!\n");
+		/*pr_err(KERN_INFO "[m5mo_check_camcorder_mode]
+		  camera mode !!\n");*/
 		return M5MO_CAN_SUPPORT_PARAM;
 	}
 }
@@ -2750,133 +2865,143 @@ static long m5mo_ioctl(struct file *file,
 {
 	struct m5mo_info *info = file->private_data;
 
-	//pr_debug(KERN_INFO "\nm5mo_ioctl : cmd = %d\n", cmd);
+	/*pr_debug(KERN_INFO "\nm5mo_ioctl : cmd = %d\n", cmd);*/
 
 #if 1
-	if(m5mo_check_camcorder_mode(cmd) == M5MO_CAN_NOT_SUPPORT_PARAM)
+	if (m5mo_check_camcorder_mode(cmd) == M5MO_CAN_NOT_SUPPORT_PARAM)
 		return 0;
 #endif
 
-	if(enable_scene) {
-		if(cmd == M5MO_IOCTL_WHITE_BALANCE || cmd == M5MO_IOCTL_ANTISHAKE) {
-//			pr_info("Now Scene mode is setted!!\n");
+	if (enable_scene) {
+		if (cmd == M5MO_IOCTL_WHITE_BALANCE ||
+				cmd == M5MO_IOCTL_ANTISHAKE) {
+			/*pr_info("Now Scene mode is setted!!\n");*/
 			return 0;
 		}
 	}
 
-	if(dtpTest == M5MO_DTP_TEST_ON) {
-	    if( ( cmd != M5MO_IOCTL_SET_MODE ) &&
-			( cmd != M5MO_IOCTL_DTP_TEST ) ) {
-			printk(KERN_ERR "func(%s):line(%d)s5k6aafx_DTP_TEST_ON. cmd(%d)\n",__func__,__LINE__, cmd);
+	if (dtpTest == M5MO_DTP_TEST_ON) {
+		if ((cmd != M5MO_IOCTL_SET_MODE) &&
+			(cmd != M5MO_IOCTL_DTP_TEST)) {
+			pr_err("func(%s):line(%d)s5k6aafx_DTP_TEST_ON. cmd(%d)\n"
+					, __func__, __LINE__, cmd);
 			return 0;
 		}
 	}
 
 	switch (cmd) {
-		case M5MO_IOCTL_SET_MODE:
-		{
-			struct m5mo_mode mode;
-			if (copy_from_user(&mode, (const void __user *)arg,
-				sizeof(struct m5mo_mode))) {
-				pr_info("%s %d\n", __func__, __LINE__);
-				return -EFAULT;
-			}
-			cur_cammod = mode.camcordmode;
-			return m5mo_set_mode(info, &mode);
+	case M5MO_IOCTL_SET_MODE:
+	{
+		struct m5mo_mode mode;
+		if (copy_from_user(&mode, (const void __user *)arg,
+			sizeof(struct m5mo_mode))) {
+			pr_info("%s %d\n", __func__, __LINE__);
+			return -EFAULT;
 		}
-		case M5MO_IOCTL_SCENE_MODE:
-			if(arg == 0)
-				enable_scene = 0;
-			else
-				enable_scene = 1;
-			
-			return m5mo_set_scene_mode(info, (enum m5mo_scene_mode) arg);
-		case M5MO_IOCTL_FOCUS_MODE:
-			return m5mo_set_focus_mode(info, (enum m5mo_focus_mode) arg);
-		case M5MO_IOCTL_COLOR_EFFECT:
-			return m5mo_set_color_effect(info, (enum m5mo_color_effect) arg);
-		case M5MO_IOCTL_WHITE_BALANCE:
-			return m5mo_set_white_balance(info, (enum m5mo_white_balance) arg);
-		case M5MO_IOCTL_FLASH_MODE:
-			return m5mo_set_flash_mode(info, (enum m5mo_flash_mode) arg);
-		case M5MO_IOCTL_EXPOSURE:
-			return m5mo_set_exposure(info, (enum m5mo_exposure) arg);
-		case M5MO_IOCTL_EXPOSURE_METER:
-			return m5mo_set_exposure_meter(info, (enum m5mo_exposure_meter) arg);
-		case M5MO_IOCTL_ISO:
-			return m5mo_set_iso(info, (enum m5mo_iso) arg);
-		case M5MO_IOCTL_ANTISHAKE:
-			return m5mo_set_antishake(info, (enum m5mo_antishake) arg);
-		case M5MO_IOCTL_AUTOCONTRAST:
-			return m5mo_set_autocontrast(info, (enum m5mo_autocontrast) arg);
-		case M5MO_IOCTL_AF_CONTROL:
-			return m5mo_set_autofocus(info, (enum m5mo_autofocus_control) arg);
-		case M5MO_IOCTL_LENS_SOFT_LANDING:
-			return m5mo_set_lens_soft_landing(info);
-		case M5MO_IOCTL_AF_RESULT:
-		{
-			int err = 0; //cq_problem
-			u8 status[2] = {0};
-			err = m5mo_get_af_result(info, status);
-			if (err)
-				return err;
-			if (copy_to_user((void __user *)arg, &status[1], 1)) {
-				pr_info("%s %d\n", __func__, __LINE__);
-				return -EFAULT;
-			}
-			return 0;
+		cur_cammod = mode.camcordmode;
+		return m5mo_set_mode(info, &mode);
+	}
+	case M5MO_IOCTL_SCENE_MODE:
+		if (arg == 0)
+			enable_scene = 0;
+		else
+			enable_scene = 1;
+
+		return m5mo_set_scene_mode(info, (enum m5mo_scene_mode) arg);
+	case M5MO_IOCTL_FOCUS_MODE:
+		return m5mo_set_focus_mode(info, (enum m5mo_focus_mode) arg);
+	case M5MO_IOCTL_COLOR_EFFECT:
+		return m5mo_set_color_effect(info
+				, (enum m5mo_color_effect) arg);
+	case M5MO_IOCTL_WHITE_BALANCE:
+		return m5mo_set_white_balance(info
+				, (enum m5mo_white_balance) arg);
+	case M5MO_IOCTL_FLASH_MODE:
+		return m5mo_set_flash_mode(info, (enum m5mo_flash_mode) arg);
+	case M5MO_IOCTL_EXPOSURE:
+		return m5mo_set_exposure(info, (enum m5mo_exposure) arg);
+	case M5MO_IOCTL_EXPOSURE_METER:
+		return m5mo_set_exposure_meter(info
+				, (enum m5mo_exposure_meter) arg);
+	case M5MO_IOCTL_ISO:
+		return m5mo_set_iso(info, (enum m5mo_iso) arg);
+	case M5MO_IOCTL_ANTISHAKE:
+		return m5mo_set_antishake(info, (enum m5mo_antishake) arg);
+	case M5MO_IOCTL_AUTOCONTRAST:
+		return m5mo_set_autocontrast(info
+				, (enum m5mo_autocontrast) arg);
+	case M5MO_IOCTL_AF_CONTROL:
+		return m5mo_set_autofocus(info
+				, (enum m5mo_autofocus_control) arg);
+	case M5MO_IOCTL_LENS_SOFT_LANDING:
+		return m5mo_set_lens_soft_landing(info);
+	case M5MO_IOCTL_AF_RESULT:
+	{
+		int err = 0;
+		u8 status[2] = {0};
+		err = m5mo_get_af_result(info, status);
+		if (err)
+			return err;
+		if (copy_to_user((void __user *)arg, &status[1], 1)) {
+			pr_info("%s %d\n", __func__, __LINE__);
+			return -EFAULT;
 		}
-		case M5MO_IOCTL_ESD_RESET:
-			if (dtpTest == M5MO_DTP_TEST_OFF)
-				m5mo_esd_camera_reset(info, (enum m5mo_esd_reset) arg);
-			break;
-		case M5MO_IOCTL_EXIF_INFO:
-			if (copy_to_user((void __user *)arg, &info->exif_info,
-						sizeof(info->exif_info)))
-				return -EFAULT;
-			break;
+		return 0;
+	}
+	case M5MO_IOCTL_ESD_RESET:
+		if (dtpTest == M5MO_DTP_TEST_OFF)
+			m5mo_esd_camera_reset(info, (enum m5mo_esd_reset) arg);
+		break;
+	case M5MO_IOCTL_EXIF_INFO:
+		if (copy_to_user((void __user *)arg, &info->exif_info,
+					sizeof(info->exif_info)))
+			return -EFAULT;
+		break;
 #ifdef FACTORY_TEST
-		case M5MO_IOCTL_DTP_TEST:
-		{
-			int status = 0; //cq_problem
-			pr_debug("\n : M5MO_IOCTL_DTP_TEST arg = %lu\n", arg);
-			if (dtpTest == 1 && (enum m5mo_dtp_test) arg == 0)
-				status = m5mo_return_normal_preview(info);
-			dtpTest = (enum m5mo_dtp_test) arg;
-			return status;
-		}
+	case M5MO_IOCTL_DTP_TEST:
+	{
+		int status = 0;
+		pr_debug("\n : M5MO_IOCTL_DTP_TEST arg = %lu\n", arg);
+		if (dtpTest == 1 && (enum m5mo_dtp_test) arg == 0)
+			status = m5mo_return_normal_preview(info);
+		dtpTest = (enum m5mo_dtp_test) arg;
+		return status;
+	}
 #endif
-		case M5MO_IOCTL_FACE_BEAUTY:
-			return m5mo_set_face_beauty(info, (enum m5mo_face_beauty) arg);
+	case M5MO_IOCTL_FACE_BEAUTY:
+		return m5mo_set_face_beauty(info, (enum m5mo_face_beauty) arg);
 
-		case M5MO_IOCTL_RECORDING_FRAME:
-			return m5mo_set_recording_frame(info, (enum m5mo_recording_frame) arg);
+	case M5MO_IOCTL_RECORDING_FRAME:
+		return m5mo_set_recording_frame(info
+				, (enum m5mo_recording_frame) arg);
 
-		case M5MO_IOCTL_TOUCHAF:
-			{
-				struct m5mo_touchaf_pos tpos;
-				if (copy_from_user(&tpos, (const void __user *)arg,
-					sizeof(struct m5mo_touchaf_pos))) {
-					pr_info("%s %d\n", __func__, __LINE__);
-					return -EFAULT;
-				}
-
-				return m5mo_set_touchaf(info, &tpos);
+	case M5MO_IOCTL_TOUCHAF:
+		{
+			struct m5mo_touchaf_pos tpos;
+			if (copy_from_user(&tpos, (const void __user *)arg,
+				sizeof(struct m5mo_touchaf_pos))) {
+				pr_info("%s %d\n", __func__, __LINE__);
+				return -EFAULT;
 			}
 
-		case M5MO_IOCTL_FW_VERSION:
-			if (copy_to_user((void __user *)arg, &info->fw_ver,
-						sizeof(info->fw_ver)))
-				return -EFAULT;
-			break;
-			
-		case M5MO_IOCTL_SAMSUNG_CAMERA:
-			pr_warning("SAMSUNG_CAMERA is %s\n", (enum m5mo_samsung_camera) arg ? "enabled":"disabled");
-			info->is_samsung_camera = (enum m5mo_samsung_camera) arg;
-			break;
-			
-		default:
-			return -EINVAL;
+			return m5mo_set_touchaf(info, &tpos);
+		}
+
+	case M5MO_IOCTL_FW_VERSION:
+		if (copy_to_user((void __user *)arg, &info->fw_ver,
+					sizeof(info->fw_ver)))
+			return -EFAULT;
+		break;
+
+	case M5MO_IOCTL_SAMSUNG_CAMERA:
+		pr_warning("SAMSUNG_CAMERA is %s\n"
+			, (enum m5mo_samsung_camera) arg ?
+			"enabled" : "disabled");
+		info->is_samsung_camera = (enum m5mo_samsung_camera) arg;
+		break;
+
+	default:
+		return -EINVAL;
 	}
 	return 0;
 }
@@ -2891,10 +3016,9 @@ static int firmware_read(void)
 	mm_segment_t oldfs;
 	struct i2c_client *client = info->i2c_client_isp;
 
-	readbuffer = (u8 *)vmalloc(M5MO_FIRMEWARE_READ_MAX_BUFFER_SIZE);
-	if (!readbuffer) {
+	readbuffer = vmalloc(M5MO_FIRMEWARE_READ_MAX_BUFFER_SIZE);
+	if (!readbuffer)
 		return -ENOMEM;
-	}
 
 	filp = filp_open(CAMERA_FW_DUMP_FILE_PATH, O_RDWR | O_CREAT, 0666);
 	if (IS_ERR_OR_NULL(filp)) {
@@ -2969,11 +3093,11 @@ static int m5mo_get_FW_info(char *fw_info)
 	char t_buf[35] = {0};
 	struct file *filp;
 	mm_segment_t oldfs;
-	
+
 	/*CAM FW*/
 	for (i = 0; i < 30; i++) {
 		err = m5mo_write_table_Isp(info, mode_fwver_read, t_buf);
-		if(err < 0) {
+		if (err < 0) {
 			pr_err("%s fail, line is%d\n",
 					__func__, __LINE__);
 		}
@@ -2982,15 +3106,26 @@ static int m5mo_get_FW_info(char *fw_info)
 		fw_info[m_pos] = t_buf[1];
 		m_pos++;
 	}
-	
+
 	/* Make blank*/
 	fw_info[m_pos++] = ' ';
 
 	/* PHONE FW */
+#if 0
 	filp = filp_open(CAMERA_FW_FILE_PATH, O_RDONLY, 0);
 	if (IS_ERR_OR_NULL(filp)) {
 		pr_err("Error with open MISC(filp)\n");
 		return -1;
+	}
+#endif
+
+	filp = filp_open(CAMERA_FW_FILE_EXTERNAL_PATH, O_RDONLY, 0);
+
+	if (IS_ERR_OR_NULL(filp)) {
+		filp = filp_open(CAMERA_FW_FILE_PATH, O_RDONLY, 0);
+
+		if (IS_ERR_OR_NULL(filp))
+			return -1;
 	}
 
 	filp->f_pos = START_POSITION_OF_VERSION_STRING;
@@ -3022,10 +3157,10 @@ static int m5mo_get_FW_info(char *fw_info)
 
 	/* AF CAL */
 	err = m5mo_write_table_Isp(info, mode_afcal_read, t_buf);
-	if(err < 0) {
+	if (err < 0) {
 		pr_err("%s fail, line is%d\n",
 				__func__, __LINE__);
-	}	
+	}
 	if (t_buf[1] == 0xA0 || t_buf[1] == 0xA1) {
 		sprintf(fw_info + m_pos, "%X", t_buf[1]);
 		do {
@@ -3055,10 +3190,10 @@ static int m5mo_get_FW_info(char *fw_info)
 
 	/* AWB CAL RG High*/
 	err = m5mo_write_table_Isp(info, mode_awbcal_RGread_H, t_buf);
-	if(err < 0) {
+	if (err < 0) {
 		pr_err("%s fail, line is%d\n",
 				__func__, __LINE__);
-	}	
+	}
 	sprintf(fw_info + m_pos, "%X", t_buf[1]);
 	do {
 		m_pos++;
@@ -3069,10 +3204,10 @@ static int m5mo_get_FW_info(char *fw_info)
 
 	/* AWB CAL RG Low*/
 	err = m5mo_write_table_Isp(info, mode_awbcal_RGread_L, t_buf);
-	if(err < 0) {
+	if (err < 0) {
 		pr_err("%s fail, line is%d\n",
 				__func__, __LINE__);
-	}	
+	}
 	sprintf(fw_info + m_pos, "%X", t_buf[1]);
 	do {
 		m_pos++;
@@ -3083,7 +3218,7 @@ static int m5mo_get_FW_info(char *fw_info)
 
 	/* AWB CAL GB*/
 	err = m5mo_write_table_Isp(info, mode_awbcal_GBread_H, t_buf);
-	if(err < 0) {
+	if (err < 0) {
 		pr_err("%s fail, line is%d\n",
 				__func__, __LINE__);
 	}
@@ -3097,10 +3232,10 @@ static int m5mo_get_FW_info(char *fw_info)
 
 	/* AWB CAL GB*/
 	err = m5mo_write_table_Isp(info, mode_awbcal_GBread_L, t_buf);
-	if(err < 0) {
+	if (err < 0) {
 		pr_err("%s fail, line is%d\n",
 				__func__, __LINE__);
-	}	
+	}
 	sprintf(fw_info + m_pos, "%X", t_buf[1]);
 	do {
 		m_pos++;
@@ -3112,27 +3247,24 @@ static int m5mo_get_FW_info(char *fw_info)
 	/* Make end */
 	fw_info[m_pos] = '\0';
 
-	pr_err(" \nfirmware information: %s\n", fw_info);
+	pr_err("\nfirmware information: %s\n", fw_info);
 
 	return err;
 }
 
-static ssize_t camerafw_file_cmd_show(struct device *dev,
+static ssize_t rear_camfw_file_cmd_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	int status;
-	struct tegra_camera_clk_info info_clk;
 	char fw_info[100] = {0};
 
-	pr_info("called %s \n", __func__);
+	pr_info("called %s\n", __func__);
+	fp = filp_open("/dev/tegra_camera", O_RDONLY, 0);
+	info_clk.b.id = TEGRA_CAMERA_MODULE_VI;
+	info_clk.b.clk_id = TEGRA_CAMERA_VI_SENSOR_CLK;
+	info_clk.b.rate = 24000000;
 
-	tegra_camera_enable_vi();
-
-	info_clk.id = TEGRA_CAMERA_MODULE_VI;
-	info_clk.clk_id = TEGRA_CAMERA_VI_SENSOR_CLK;
-	info_clk.rate = 24000000;
-	tegra_camera_clk_set_rate(&info_clk);
-	tegra_camera_enable_csi();
+	fp->f_op->unlocked_ioctl(fp, TEGRA_CAMERA_IOCTL_SENSOR_FW_FOR_SAMSUNG, info_clk.a);
 	info->pdata->power_on();
 
 	status = m5mo_write_table_Isp(info, mode_isp_start, NULL);
@@ -3142,31 +3274,25 @@ static ssize_t camerafw_file_cmd_show(struct device *dev,
 	if (status != 0)
 		return status;
 	info->pdata->power_off();
-	tegra_camera_disable_vi();
-	tegra_camera_disable_csi();
-
+	filp_close(fp, current->files);
 	return sprintf(buf, "%s\n", fw_info);
 }
 
-static ssize_t camerafw_file_cmd_store(struct device *dev,
+static ssize_t rear_camfw_file_cmd_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	int value;
 	int status;
-	struct tegra_camera_clk_info info_clk;
 
-	pr_info("called %s \n", __func__);
-
+	pr_info("called %s\n", __func__);
 	sscanf(buf, "%d", &value);
+	fp = filp_open("/dev/tegra_camera", O_RDONLY, 0);
 
-	tegra_camera_enable_vi();
+	info_clk.b.id = TEGRA_CAMERA_MODULE_VI;
+	info_clk.b.clk_id = TEGRA_CAMERA_VI_SENSOR_CLK;
+	info_clk.b.rate = 24000000;
 
-	info_clk.id = TEGRA_CAMERA_MODULE_VI;
-	info_clk.clk_id = TEGRA_CAMERA_VI_SENSOR_CLK;
-	info_clk.rate = 24000000;
-	tegra_camera_clk_set_rate(&info_clk);
-
-	tegra_camera_enable_csi();
+	fp->f_op->unlocked_ioctl(fp, TEGRA_CAMERA_IOCTL_SENSOR_FW_FOR_SAMSUNG, info_clk.a);
 	info->pdata->power_on();
 
 	if (value == FWUPDATE) {
@@ -3184,85 +3310,83 @@ static ssize_t camerafw_file_cmd_store(struct device *dev,
 	}
 
 	info->pdata->power_off();
-	tegra_camera_disable_vi();
-	tegra_camera_disable_csi();
+	filp_close(fp, current->files);
 	return size;
 }
-static DEVICE_ATTR(camerafw, 0660, camerafw_file_cmd_show, camerafw_file_cmd_store);
+static DEVICE_ATTR(rear_camfw, 0660, rear_camfw_file_cmd_show
+		, rear_camfw_file_cmd_store);
 
 #ifdef FACTORY_TEST
-static ssize_t cameraflash_file_cmd_show(struct device *dev,
+static ssize_t rear_flash_file_cmd_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	/*Reserved*/
 	return 0;
 }
 
-static ssize_t cameraflash_file_cmd_store(struct device *dev,
+static ssize_t rear_flash_file_cmd_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	int value;
 	int err = 0;
-	struct tegra_camera_clk_info info_clk;
 
 	sscanf(buf, "%d", &value);
 
 	if (value == FACTORY_FLASH_OFF) {
 		printk(KERN_INFO "[Factory flash]OFF\n");
 		err = m5mo_write_table_Isp(info, mode_flash_off, NULL);
-		if(err < 0) {
-			pr_err("%s fail, line is%d\n",
-					__func__, __LINE__);
-		}		
-		info->pdata->power_off();
-		tegra_camera_disable_vi();
-		tegra_camera_disable_csi();
-	} else {
-		tegra_camera_enable_vi();
-		info_clk.id = TEGRA_CAMERA_MODULE_VI;
-		info_clk.clk_id = TEGRA_CAMERA_VI_SENSOR_CLK;
-		info_clk.rate = 24000000;
-		tegra_camera_clk_set_rate(&info_clk);
-		tegra_camera_enable_csi();
-		info->pdata->power_on();
-		printk(KERN_INFO "[Factory flash]ON\n");
-		err = m5mo_write_table_Isp(info, mode_isp_start, NULL);
-		if(err < 0) {
+		if (err < 0) {
 			pr_err("%s fail, line is%d\n",
 					__func__, __LINE__);
 		}
-		err = m5mo_write_table_Isp(info, mode_flash_torch, NULL);		
-		if(err < 0) {
+		info->pdata->power_off();
+		filp_close(fp, current->files);
+	} else {
+		fp = filp_open("/dev/tegra_camera", O_RDONLY, 0);
+		info_clk.b.id = TEGRA_CAMERA_MODULE_VI;
+		info_clk.b.clk_id = TEGRA_CAMERA_VI_SENSOR_CLK;
+		info_clk.b.rate = 24000000;
+		fp->f_op->unlocked_ioctl(fp, TEGRA_CAMERA_IOCTL_SENSOR_FW_FOR_SAMSUNG, info_clk.a);
+		info->pdata->power_on();
+		printk(KERN_INFO "[Factory flash]ON\n");
+		err = m5mo_write_table_Isp(info, mode_isp_start, NULL);
+		if (err < 0) {
+			pr_err("%s fail, line is%d\n",
+					__func__, __LINE__);
+		}
+		err = m5mo_write_table_Isp(info, mode_flash_torch, NULL);
+		if (err < 0) {
 			pr_err("%s fail, line is%d\n",
 					__func__, __LINE__);
 		}
 	}
-	
 	return size;
 }
 
-static DEVICE_ATTR(cameraflash, 0660, cameraflash_file_cmd_show, cameraflash_file_cmd_store);
+static DEVICE_ATTR(rear_flash, 0660, rear_flash_file_cmd_show
+		, rear_flash_file_cmd_store);
 
-static ssize_t camtype_file_cmd_show(struct device *dev,
+static ssize_t rear_camtype_file_cmd_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	char camType[] = "SONY_IMX105_M5MO";
-	
+
 	return sprintf(buf, "%s", camType);
 }
 
-static ssize_t camtype_file_cmd_store(struct device *dev,
+static ssize_t rear_camtype_file_cmd_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
-{	
+{
 	return size;
 }
 
-static DEVICE_ATTR(camtype, 0660, camtype_file_cmd_show, camtype_file_cmd_store);
+static DEVICE_ATTR(rear_camtype, 0660, rear_camtype_file_cmd_show
+		, rear_camtype_file_cmd_store);
 #endif
 
 static int m5mo_open(struct inode *inode, struct file *file)
 {
-	int status;
+	int status = 0;
 	u8 sysmode = 0;
 
 	FUNC_ENTR;
@@ -3277,24 +3401,26 @@ static int m5mo_open(struct inode *inode, struct file *file)
 
 	if (info->pdata && info->pdata->power_on)
 		info->pdata->power_on();
-
+/*
 	status = m5mo_write_table_Isp(info, mode_isp_moderead, &sysmode);
 	if (status < 0) {
 		info->pdata->power_off();
 		info->power_status = false;
 	}
-
+*/
 	info->mode = SYSTEM_INITIALIZE_MODE;
 	dtpTest = M5MO_DTP_TEST_OFF;
 	read_fw_cnt = 0;
-	
+	cur_cammod = 0;
+	enable_scene = 0;
+
 	return status;
 }
 
 int m5mo_release(struct inode *inode, struct file *file)
 {
 	FUNC_ENTR;
-	
+
 	if (info->pdata && info->pdata->power_off) {
 		info->pdata->power_off();
 		info->power_status = false;
@@ -3302,7 +3428,7 @@ int m5mo_release(struct inode *inode, struct file *file)
 	}
 	file->private_data = NULL;
 	read_fw_cnt = 0;
-	
+
 	return 0;
 }
 
@@ -3329,70 +3455,79 @@ static int m5mo_probe(struct i2c_client *client,
 	char m5mo_pmic_name[20] = "m5mo_pmic";
 	FUNC_ENTR;
 
-	pr_debug("%s , %x probing i2c(%lu)", id->name, client->addr, id->driver_data);
+	pr_debug("%s , %x probing i2c(%lu)", id->name, client->addr
+			, id->driver_data);
 
 	if (strcmp(m5mo_name, id->name) == 0)
 		dev = 0;
 	if (strcmp(m5mo_pmic_name, id->name) == 0)
 		dev = 1;
-	
+
 	switch (dev) {
-		case 0:
-			info = kzalloc(sizeof(*info), GFP_KERNEL);
-			if (!info) {
-				pr_err("m5mo: Unable to allocate memory!\n");
-				return -ENOMEM;
-			}
-			info->i2c_client_isp = client;
-			if (!info->i2c_client_isp) {
-				pr_err("m5mo: Unknown I2C client!\n");
-				err = -ENODEV;
-				goto probeerr;
-			}
-			info->pdata = client->dev.platform_data;
-			if (!info->pdata) {
-				pr_err("m5mo: Unknown platform data!\n");
-				err = -ENODEV;
-				goto probeerr;
-			}
-			err = misc_register(&m5mo_device);
-			if (err) {
-				pr_err("m5mo: Unable to register misc device!\n");
-				goto probeerr;
-			}
+	case 0:
+		info = kzalloc(sizeof(*info), GFP_KERNEL);
+		if (!info) {
+			pr_err("m5mo: Unable to allocate memory!\n");
+			return -ENOMEM;
+		}
+		info->i2c_client_isp = client;
+		if (!info->i2c_client_isp) {
+			pr_err("m5mo: Unknown I2C client!\n");
+			err = -ENODEV;
+			goto probeerr;
+		}
+		info->pdata = client->dev.platform_data;
+		if (!info->pdata) {
+			pr_err("m5mo: Unknown platform data!\n");
+			err = -ENODEV;
+			goto probeerr;
+		}
+		err = misc_register(&m5mo_device);
+		if (err) {
+			pr_err("m5mo: Unable to register misc device!\n");
+			goto probeerr;
+		}
 
-			m5mo_dev = device_create(sec_class, NULL, 0, NULL, "sec_cam");
-			if (IS_ERR(m5mo_dev)) {
-				pr_err("Failed to create device!");
-				goto probeerr;
-			}
-			if (device_create_file(m5mo_dev, &dev_attr_camerafw) < 0) {
-				pr_err("Failed to create device file!(%s)!\n", dev_attr_camerafw.attr.name);
-				goto probeerr;
-			}
+		m5mo_dev = device_create(camera_class, NULL, 0, NULL
+					, "rear");
+		if (IS_ERR(m5mo_dev)) {
+			pr_err("Failed to create device!");
+			goto probeerr;
+		}
+		if (device_create_file(m5mo_dev, &dev_attr_rear_camfw)
+				< 0) {
+			pr_err("Failed to create device file!(%s)!\n"
+					, dev_attr_rear_camfw.attr.name);
+			goto probeerr;
+		}
 #ifdef FACTORY_TEST
-			if (device_create_file(m5mo_dev, &dev_attr_cameraflash) < 0) {
-				printk("Failed to create device file!(%s)!\n", dev_attr_cameraflash.attr.name);
-				goto probeerr;
-			}
+		if (device_create_file(m5mo_dev, &dev_attr_rear_flash)
+				< 0) {
+			pr_debug("Failed to create device file!(%s)!\n"
+				, dev_attr_rear_flash.attr.name);
+			goto probeerr;
+		}
 
-			if (device_create_file(m5mo_dev, &dev_attr_camtype) < 0) {
-				printk("Failed to create device file!(%s)!\n", dev_attr_camtype.attr.name);
-				goto probeerr;
-			}
+		if (device_create_file(m5mo_dev, &dev_attr_rear_camtype)
+				< 0) {
+			pr_debug("Failed to create device file!(%s)!\n"
+					, dev_attr_rear_camtype.attr.name);
+			goto probeerr;
+		}
 #endif
-			reg_mipi_1v2 = regulator_get(NULL, "VAP_MIPI_1V2");
+		reg_mipi_1v2 = regulator_get(NULL, "VAP_MIPI_1V2");
 
-			if (IS_ERR(reg_mipi_1v2)) {
-				printk(KERN_INFO "%s: VAP_MIPI_1V2 regulator not found\n", __func__);
-				reg_mipi_1v2 = NULL;
-			}
-			
-			break;
+		if (IS_ERR(reg_mipi_1v2)) {
+			pr_err("%s: VAP_MIPI_1V2 regulator not found\n"
+					, __func__);
+			reg_mipi_1v2 = NULL;
+		}
 
-		case 1:
-			i2c_client_pmic = client;
-			break;
+		break;
+
+	case 1:
+		i2c_client_pmic = client;
+		break;
 	}
 	i2c_set_clientdata(client, info);
 
@@ -3409,7 +3544,7 @@ static int m5mo_remove(struct i2c_client *client)
 	info = i2c_get_clientdata(client);
 	misc_deregister(&m5mo_device);
 	kfree(info);
-	device_remove_file(m5mo_dev, &dev_attr_camerafw);
+	device_remove_file(m5mo_dev, &dev_attr_rear_camfw);
 	return 0;
 }
 

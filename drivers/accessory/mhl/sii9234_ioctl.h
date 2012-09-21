@@ -4,7 +4,7 @@
  *
  * File Name : sii9234_ioctl.h
  *
- * Author    : Woojong Yoo 
+ * Author    : Woojong Yoo
  *		woojong.yoo@samsung.com
  *
  * Description: Source file for MHL sii9234 Transciever
@@ -17,4 +17,3 @@
 #define MHL_SWITCH_OFF		_IO(MHL_MAGIC_NUMBER, 1)
 #define MHL_HW_RESET		_IO(MHL_MAGIC_NUMBER, 2)
 #define MHL_INIT		_IO(MHL_MAGIC_NUMBER, 3)
-

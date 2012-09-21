@@ -317,7 +317,7 @@ struct s5k4ecgx_mode {
 
 int s5k4ecgx_write_table_8(struct i2c_client *client,
 			      const struct s5k4ecgx_reg_8 *table);
-			      
+
 #ifdef __KERNEL__
 
 struct s5k4ecgx_platform_data {
@@ -329,5 +329,3 @@ struct s5k4ecgx_platform_data {
 #endif /* __KERNEL__ */
 
 #endif  /* __S5K4ECGX_H__ */
-
-

@@ -167,31 +167,31 @@
 #define MAX8907C_SEQCNT  1
 #define MAX8907C_VOUT    2
 #ifdef CONFIG_MACH_N1
-#define MAX8907_TSC_IRQ				0x00
-#define MAX8907_TSC_IRQ_MASK		0x01
-#define MAX8907_TSC_CNFG1			0x02
-#define MAX8907_ADC_RES_CNFG1		0x06
-#define MAX8907_ADC_AVG_CNFG1		0x07
-#define MAX8907_ADC_ACQ_CNFG1		0x08
-#define MAX8907_ADC_ACQ_CNFG2		0x09
-#define MAX8907_ADC_SCHED			0x10
-#define MAX8907_ADC_RES_AUX1_MSB	0x60
-#define MAX8907_ADC_RES_AUX1_LSB	0x61
-#define MAX8907_ADC_RES_AUX2_MSB	0x62
-#define MAX8907_ADC_RES_AUX2_LSB	0x63
-#define MAX8907_ADC_RES_END			0x6f
-#define MAX8907_ADC_CMD_AUX2M_OFF	0xC8
-#define MAX8907_ADC_CMD_AUX2M_OFF	0xC8
-#define MAX8907_ADC_CMD_AUX1M_OFF	0xC0
-#define MAX8907_ADC_CMD_AUX2M_ON	0xC9
+#define MAX8907_TSC_IRQ             0x00
+#define MAX8907_TSC_IRQ_MASK        0x01
+#define MAX8907_TSC_CNFG1           0x02
+#define MAX8907_ADC_RES_CNFG1       0x06
+#define MAX8907_ADC_AVG_CNFG1       0x07
+#define MAX8907_ADC_ACQ_CNFG1       0x08
+#define MAX8907_ADC_ACQ_CNFG2       0x09
+#define MAX8907_ADC_SCHED           0x10
+#define MAX8907_ADC_RES_AUX1_MSB    0x60
+#define MAX8907_ADC_RES_AUX1_LSB    0x61
+#define MAX8907_ADC_RES_AUX2_MSB    0x62
+#define MAX8907_ADC_RES_AUX2_LSB    0x63
+#define MAX8907_ADC_RES_END         0x6f
+#define MAX8907_ADC_CMD_AUX2M_OFF   0xC8
+#define MAX8907_ADC_CMD_AUX2M_OFF   0xC8
+#define MAX8907_ADC_CMD_AUX1M_OFF   0xC0
+#define MAX8907_ADC_CMD_AUX2M_ON    0xC9
 #endif
 
 /* mask bit fields */
 #define MAX8907C_MASK_LDO_SEQ           0x1C
 #define MAX8907C_MASK_LDO_EN            0x01
 #ifdef CONFIG_MACH_N1
-#define MAX8907C_MASK_LDO_ON_CNT		0xF0
-#define MAX8907C_MASK_LDO_OFF_CNT		0x0F
+#define MAX8907C_MASK_LDO_ON_CNT        0xF0
+#define MAX8907C_MASK_LDO_OFF_CNT       0x0F
 #endif
 #define MAX8907C_MASK_VBBATTCV          0x03
 #define MAX8907C_MASK_OUT5V_VINEN       0x10
@@ -220,12 +220,12 @@
 #define RTC_I2C_ADDR			0x68
 
 #ifdef CONFIG_MACH_N1
-#define MAX8907C_MASK_ALARM0_WAKE	0x02
-#define MAX8907C_MASK_ALARM1_WAKE	0x04
+#define MAX8907C_MASK_ALARM0_WAKE   0x02
+#define MAX8907C_MASK_ALARM1_WAKE   0x04
 
-#define ADC_I2C_ADDR			0x47
-#define MAX8907C_MASK_RSTINEN		0x20
-#define MAX8907C_MASK_HRDRSTEN		0x7F
+#define ADC_I2C_ADDR            0x47
+#define MAX8907C_MASK_RSTINEN       0x20
+#define MAX8907C_MASK_HRDRSTEN      0x7F
 #endif
 
 /*
@@ -272,7 +272,7 @@ struct max8907c {
 	struct i2c_client 	*i2c_power;
 	struct i2c_client 	*i2c_rtc;
 #ifdef CONFIG_MACH_N1
-	struct i2c_client	*i2c_adc;
+    struct i2c_client   *i2c_adc;
 #endif
 	int			irq_base;
 	int			core_irq;
@@ -288,6 +288,7 @@ struct max8907c_platform_data {
 	struct platform_device **subdevs;
 	int irq_base;
 	int (*max8907c_setup)(void);
+	bool use_power_off;
 };
 
 #ifdef CONFIG_MACH_N1
@@ -297,7 +298,7 @@ extern int max8907c_print_regs(void);
 int max8907c_power_off(void);
 int max8907c_adc_read_aux2(int *mili_volt);
 int max8907c_adc_read_aux1(int *aux1value);
-	
+
 int max8907c_send_cmd(struct i2c_client *i2c, u8 cmd);
 #endif
 int max8907c_reg_read(struct i2c_client *i2c, u8 reg);
@@ -315,7 +316,6 @@ int max8907c_irq_resume(struct i2c_client *i2c);
 int max8907c_suspend(struct i2c_client *i2c, pm_message_t state);
 int max8907c_resume(struct i2c_client *i2c);
 #endif
-
 int max8907c_power_off(void);
 void max8907c_deep_sleep(int enter);
 int max8907c_pwr_en_config(void);

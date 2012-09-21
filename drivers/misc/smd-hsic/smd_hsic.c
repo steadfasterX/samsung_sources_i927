@@ -694,8 +694,8 @@ wait_active:
 		case RPM_SUSPENDED:
 			r = pm_runtime_resume(dev);
 			if (!r && dev->power.timer_expires == 0
-			 		&& dev->power.request_pending == false) {
-	                			pr_err("%s:run time idle\n", __func__);
+					&& dev->power.request_pending == false) {
+						pr_err("%s:run time idle\n", __func__);
 					pm_runtime_idle(dev);
 			} else if (r < 0) {
 				pr_err("%s : pm_runtime_resume failed : %d\n", __func__, r);
@@ -939,7 +939,7 @@ void add_head_txurb(struct list_head *list, struct urb *urb)
 {
 	unsigned long flags;
 	struct smd_usbdev *usbdev = &g_usbdev;
-	
+
 	spin_lock_irqsave(&usbdev->lock, flags);
 	list_add(&urb->urb_list, list);
 	spin_unlock_irqrestore(&usbdev->lock, flags);

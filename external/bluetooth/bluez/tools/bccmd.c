@@ -35,6 +35,17 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
+/* SS_BLUEZ_BT(changeon.park) 2012.01.17 */
+#include <sys/stat.h>
+#include <fcntl.h>
+
+void read_default_bdaddr(int transport, uint16_t stores);
+int write_bdaddr(int transport, uint16_t stores, char *optarg);
+
+#include <cutils/log.h>
+#include <cutils/properties.h>
+/* SS_BLUEZ_BT(changeon.park) end */
+
 #include "csr.h"
 
 #define CSR_TRANSPORT_UNKNOWN	0
@@ -59,7 +70,7 @@
 #define CSR_TYPE_ARRAY		CSR_TYPE_COMPLEX
 #define CSR_TYPE_BDADDR		CSR_TYPE_COMPLEX
 
-static inline int transport_open(int transport, char *device)
+static inline int transport_open(int transport, char *device, speed_t bcsp_rate)
 {
 	switch (transport) {
 	case CSR_TRANSPORT_HCI:
@@ -69,7 +80,7 @@ static inline int transport_open(int transport, char *device)
 		return csr_open_usb(device);
 #endif
 	case CSR_TRANSPORT_BCSP:
-		return csr_open_bcsp(device);
+		return csr_open_bcsp(device, bcsp_rate);
 	case CSR_TRANSPORT_H4:
 		return csr_open_h4(device);
 	case CSR_TRANSPORT_3WIRE:
@@ -605,6 +616,57 @@ static int cmd_memtypes(int transport, int argc, char *argv[])
 	return 0;
 }
 
+/* SS_BLUEZ_BT(changeon.park) 2012.01.13 */
+static int cmd_inquiry_priority(int transport, int argc, char *argv[])
+{
+	uint8_t array[8];
+	uint16_t on;
+
+	OPT_HELP(1, NULL);
+
+	printf("cmd_inquiry_priority \n");
+	on = atoi(argv[0]);
+
+	if (on)
+		on = 1;
+
+	printf("inquiry priority = %s \n", on? "low":"default");
+
+	memset(array, 0, sizeof(array));
+	array[0] = on & 0xff;
+	array[1] = on >> 8;
+
+	return transport_write(transport, CSR_VARID_INQ_PRI, array, 8);
+}
+
+static void cmd_dut(int transport, int argc, char *argv[])
+{  
+	evt_cmd_complete rp;  
+	struct hci_request rq;  
+	int dd;
+	
+	dd = hci_open_dev(0);
+	if (dd < 0) {
+		fprintf(stderr, "Can't open device hci0: %s (%d)\n", strerror(errno), errno); 
+	return; 
+	}
+	memset(&rq, 0, sizeof(rq));
+	rq.ogf = 0x06;
+	rq.ocf = 0x0003;
+	rq.rparam = NULL;
+	rq.rlen = 0;
+
+	if (hci_send_req(dd, &rq, 1000) < 0) 
+	{ 
+		fprintf(stderr, "Can't send DUT packet : %s (%d)\n", strerror(errno), errno); exit(1); 
+	}       
+
+	printf("DUT(Device Under Test) mode enabled.\n");  
+
+ return; 
+}
+/* SS_BLUEZ_BT(changeon.park) end */
+
 static struct option pskey_options[] = {
 	{ "stores",	1, 0, 's' },
 	{ "reset",	0, 0, 'r' },
@@ -1039,9 +1101,33 @@ static int cmd_psload(int transport, int argc, char *argv[])
 		size = sizeof(array) - 6;
 	}
 
-	if (reset)
-		transport_write(transport, CSR_VARID_WARM_RESET, NULL, 0);
+/* SS_BLUEZ_BT(changeon.park) 2012.01.17 */
+	read_default_bdaddr(transport, stores);
+/* SS_BLUEZ_BT(changeon.park) end */
 
+	if (reset)
+	{
+		err = transport_write(transport, CSR_VARID_WARM_RESET, NULL, 0);
+/* SS_BLUETOOTH(is80.hwang) 2012.02.10 */
+//for CSR BT Initialization  
+		LOGI("Warmreset %s.",err < 0 ? "failed" : "done");
+		LOGI("[BCCMD]command done. CSR_TRANSPORT_BCSP");
+
+		transport_close(CSR_TRANSPORT_BCSP);
+
+		LOGI("[BCCMD]transport_close done. CSR_TRANSPORT_BCSP");
+
+		usleep(50000);
+
+		LOGI("Launch HCI.");
+
+		if (property_set("ctl.start", "hciattach") < 0) {
+			LOGE("Failed to start hciattach");
+			}
+
+		LOGI("[BCCMD]start hciattach done.");
+/* SS_BLUETOOTH(is80.hwang) End */
+	}
 	return 0;
 }
 
@@ -1095,6 +1181,10 @@ static struct {
 	{ "psread",    cmd_psread,    NULL,                  "Read all PS keys"               },
 	{ "psload",    cmd_psload,    "<file>",              "Load all PS keys from PSR file" },
 	{ "pscheck",   cmd_pscheck,   "<file>",              "Check PSR file"                 },
+/* SS_BLUEZ_BT(changeon.park) 2012.01.13 */
+	{ "dut",       cmd_dut,       "0",                   "Enable DUT mode"                },
+	{ "inqpri",    cmd_inquiry_priority,   "<value>",              "Set Inq Priority"                 },
+/* SS_BLUEZ_BT(changeon.park) end */
 	{ NULL }
 };
 
@@ -1109,6 +1199,7 @@ static void usage(void)
 	printf("Options:\n"
 		"\t-t <transport>     Select the transport\n"
 		"\t-d <device>        Select the device\n"
+		"\t-b <bcsp rate>     Select the bcsp transfer rate\n"
 		"\t-h, --help         Display help\n"
 		"\n");
 
@@ -1137,6 +1228,7 @@ static void usage(void)
 static struct option main_options[] = {
 	{ "transport",	1, 0, 't' },
 	{ "device",	1, 0, 'd' },
+	{ "bcsprate", 1, 0, 'b'},
 	{ "help",	0, 0, 'h' },
 	{ 0, 0, 0, 0 }
 };
@@ -1145,8 +1237,9 @@ int main(int argc, char *argv[])
 {
 	char *device = NULL;
 	int i, err, opt, transport = CSR_TRANSPORT_HCI;
+	speed_t bcsp_rate = B38400;
 
-	while ((opt=getopt_long(argc, argv, "+t:d:i:h", main_options, NULL)) != EOF) {
+	while ((opt=getopt_long(argc, argv, "+t:d:i:b:h", main_options, NULL)) != EOF) {
 		switch (opt) {
 		case 't':
 			if (!strcasecmp(optarg, "hci"))
@@ -1171,7 +1264,39 @@ int main(int argc, char *argv[])
 		case 'i':
 			device = strdup(optarg);
 			break;
-
+		case 'b':
+			switch (atoi(optarg)) {
+			case 9600: bcsp_rate = B9600; break;
+			case 19200: bcsp_rate = B19200; break;
+			case 38400: bcsp_rate = B38400; break;
+			case 57600: bcsp_rate = B57600; break;
+			case 115200: bcsp_rate = B115200; break;
+			case 230400: bcsp_rate = B230400; break;
+			case 460800: bcsp_rate = B460800; break;
+			case 500000: bcsp_rate = B500000; break;
+			case 576000: bcsp_rate = B576000; break;
+			case 921600: bcsp_rate = B921600; break;
+			case 1000000: bcsp_rate = B1000000; break;
+			case 1152000: bcsp_rate = B1152000; break;
+			case 1500000: bcsp_rate = B1500000; break;
+			case 2000000: bcsp_rate = B2000000; break;
+#ifdef B2500000
+			case 2500000: bcsp_rate = B2500000; break;
+#endif
+#ifdef B3000000
+			case 3000000: bcsp_rate = B3000000; break;
+#endif
+#ifdef B3500000
+			case 3500000: bcsp_rate = B3500000; break;
+#endif
+#ifdef B4000000
+			case 4000000: bcsp_rate = B4000000; break;
+#endif
+			default:
+				printf("Unknown BCSP baud rate specified, defaulting to 38400bps\n");
+				bcsp_rate = B38400;
+			}
+			break;
 		case 'h':
 		default:
 			usage();
@@ -1188,11 +1313,10 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (transport_open(transport, device) < 0)
+	if (transport_open(transport, device, bcsp_rate) < 0)
 		exit(1);
 
-	if (device)
-		free(device);
+	free(device);
 
 	for (i = 0; commands[i].str; i++) {
 		if (strcasecmp(commands[i].str, argv[0]))
@@ -1201,6 +1325,7 @@ int main(int argc, char *argv[])
 		err = commands[i].func(transport, argc, argv);
 
 		transport_close(transport);
+		printf("transport_close done.\n"); //SS_BLUETOOTH(is80.hwang) 2012.02.10 : for CSR BT Initialization
 
 		if (err < 0) {
 			fprintf(stderr, "Can't execute command: %s (%d)\n",
@@ -1217,3 +1342,85 @@ int main(int argc, char *argv[])
 
 	exit(1);
 }
+
+/* SS_BLUEZ_BT(changeon.park) 2012.01.17 */
+void read_default_bdaddr(int transport, uint16_t stores)
+{
+	int sz;
+	int fd;
+	char path[PROPERTY_VALUE_MAX];
+	char bdaddr[18];
+	int len = 17;
+	memset(bdaddr, 0, (len + 1) * sizeof(char));
+
+#if 0
+	property_get("ro.bt.bdaddr_path", path, "");
+	if (path[0] == 0)
+		return;
+#endif
+	fd = fopen("/efs/bluetooth/bt_addr", "r");
+	if (!fd) {
+		fprintf(stderr, "open(%s) failed: %s (%d)", path, strerror(errno),
+				errno);
+		return;
+	}
+
+	sz = fread(bdaddr, 1, len, fd);
+	bdaddr[len]='\0'; //bgkim ei30 prvent for GT-P6800
+	if (sz < 0) {
+		fprintf(stderr, "read(%s) failed: %s (%d)", path, strerror(errno),
+				errno);
+		fclose(fd);
+		return;
+	} else if (sz != len) {
+		fprintf(stderr, "read(%s) unexpected size %d", path, sz);
+		fclose(fd);
+		return;
+	}
+	fclose(fd); //+neo 2011.05.13.
+
+	printf("Read default bdaddr of %s\n", bdaddr);
+	write_bdaddr(transport, stores, bdaddr);
+}
+
+int write_bdaddr(int transport, uint16_t stores, char *optarg)
+{
+	int bd_addr[6];
+	int i, err, reset = 0;
+	uint8_t array[128];
+	uint16_t pskey = CSR_PSKEY_BDADDR, length = 4;
+
+	sscanf(optarg, "%02X:%02X:%02X:%02X:%02X:%02X",
+		&bd_addr[5], &bd_addr[4], &bd_addr[3],
+		&bd_addr[2], &bd_addr[1], &bd_addr[0]);
+
+	memset(array, 0, sizeof(array));
+
+	printf("Writing Bluetooth Address to PSKey ");
+
+	fflush(stdout);
+
+	array[0] = pskey & 0xff;
+	array[1] = pskey >> 8;
+	array[2] = length & 0xff;
+	array[3] = length >> 8;
+	array[4] = stores & 0xff;
+	array[5] = stores >> 8;
+	array[6] = bd_addr[2];
+	array[7] = 0x00; 
+	array[8] = bd_addr[0];
+	array[9] = bd_addr[1]; 
+	array[10] = bd_addr[3];
+	array[11] = 0x00;
+	array[12] = bd_addr[4];
+	array[13] = bd_addr[5];
+
+	err = transport_write(transport, CSR_VARID_PS, array, (length + 3) * 2);
+
+	printf("%s\n", err < 0 ? "failed" : "done");
+
+	memset(array, 0, sizeof(array));
+
+	return(0);
+}
+/* SS_BLUEZ_BT(changeon.park) end */

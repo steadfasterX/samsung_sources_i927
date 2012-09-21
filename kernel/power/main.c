@@ -17,9 +17,6 @@
 
 DEFINE_MUTEX(pm_mutex);
 
-unsigned int pm_flags;
-EXPORT_SYMBOL(pm_flags);
-
 #ifdef CONFIG_PM_SLEEP
 
 /* Routines for PM-transition notifications */
@@ -40,23 +37,9 @@ EXPORT_SYMBOL_GPL(unregister_pm_notifier);
 
 int pm_notifier_call_chain(unsigned long val)
 {
-#ifdef CONFIG_MACH_N1
-	int ret;
-	int nr_calls = 0;
-	ret = __blocking_notifier_call_chain(&pm_chain_head, val, NULL, -1, &nr_calls);
-	if ((ret & NOTIFY_STOP_MASK) == NOTIFY_STOP_MASK) {
-		pr_notice("pm notifier call chain(%d) might be stopped by returning 0x%x in %dth callback\n", val, ret, nr_calls);
-		if (val == PM_POST_SUSPEND) {
-			/* notifier call chain for PM_POST_SUSPEND never be stopped. */
-			/* insert here strong debug routine */
-			WARN((val == PM_POST_SUSPEND), KERN_ERR "PM_POST_SUSPEND pm notifier call chain was stopped!!!\n");
-		}
-	}
-	return (ret == NOTIFY_BAD) ? -EINVAL : 0;
-#else
-	return (blocking_notifier_call_chain(&pm_chain_head, val, NULL)
-			== NOTIFY_BAD) ? -EINVAL : 0;
-#endif
+	int ret = blocking_notifier_call_chain(&pm_chain_head, val, NULL);
+
+	return notifier_to_errno(ret);
 }
 
 /* If set, devices may be suspended and resumed asynchronously. */
@@ -253,7 +236,7 @@ power_attr(state);
  * writing to 'state'.  It first should read from 'wakeup_count' and store
  * the read value.  Then, after carrying out its own preparations for the system
  * transition to a sleep state, it should write the stored value to
- * 'wakeup_count'.  If that fails, at least one wakeup event has occured since
+ * 'wakeup_count'.  If that fails, at least one wakeup event has occurred since
  * 'wakeup_count' was read and 'state' should not be written to.  Otherwise, it
  * is allowed to write to 'state', but the transition will be aborted if there
  * are any wakeup events detected after 'wakeup_count' was written to.
@@ -263,18 +246,18 @@ static ssize_t wakeup_count_show(struct kobject *kobj,
 				struct kobj_attribute *attr,
 				char *buf)
 {
-	unsigned long val;
+	unsigned int val;
 
-	return pm_get_wakeup_count(&val) ? sprintf(buf, "%lu\n", val) : -EINTR;
+	return pm_get_wakeup_count(&val) ? sprintf(buf, "%u\n", val) : -EINTR;
 }
 
 static ssize_t wakeup_count_store(struct kobject *kobj,
 				struct kobj_attribute *attr,
 				const char *buf, size_t n)
 {
-	unsigned long val;
+	unsigned int val;
 
-	if (sscanf(buf, "%lu", &val) == 1) {
+	if (sscanf(buf, "%u", &val) == 1) {
 		if (pm_save_wakeup_count(val))
 			return n;
 	}
@@ -307,17 +290,153 @@ pm_trace_store(struct kobject *kobj, struct kobj_attribute *attr,
 }
 
 power_attr(pm_trace);
+
+static ssize_t pm_trace_dev_match_show(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       char *buf)
+{
+	return show_trace_dev_match(buf, PAGE_SIZE);
+}
+
+static ssize_t
+pm_trace_dev_match_store(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t n)
+{
+	return -EINVAL;
+}
+
+power_attr(pm_trace_dev_match);
+
 #endif /* CONFIG_PM_TRACE */
 
 #ifdef CONFIG_USER_WAKELOCK
 power_attr(wake_lock);
 power_attr(wake_unlock);
 #endif
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
+static int cpufreq_min_limit_val = -1;
+static int cpufreq_max_limit_val = -1;
+static int cpufreq_min_locked;
+DEFINE_MUTEX(cpufreq_min_mutex);
+
+static void cpufreq_min_limit(const char *buf, size_t count)
+{
+	int ret, temp;
+	unsigned int cpu_lv;
+
+	mutex_lock(&cpufreq_min_mutex);
+
+	temp = cpufreq_min_limit_val;
+	ret = sscanf(buf, "%d", &cpufreq_min_limit_val);
+	if (ret != 1) {
+		pr_warn("%s: invalid format(%d)\n", __func__, ret);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (cpufreq_min_limit_val == -1) {
+		if (cpufreq_min_locked) {
+			tegra_cpu_unlock_speed();
+			cpufreq_min_locked = 0;
+			ret = 0;
+		} else {
+			pr_warn("%s: there is no min limit!\n", __func__);
+			ret = -EINVAL;
+		}
+		goto out;
+	}
+
+	pr_debug("%s: limit freq=%d\n", __func__, cpufreq_min_limit_val);
+	cpu_lv = tegra_cpu_round(cpufreq_min_limit_val);
+	cpufreq_min_limit_val = cpu_lv;
+
+	if (cpu_lv < 0)
+		goto out;
+
+	if (cpufreq_min_locked)
+		tegra_cpu_unlock_speed();
+
+	tegra_cpu_lock_speed(cpu_lv, 0);
+	cpufreq_min_locked = 1;
+
+out:
+	if (ret < 0)
+		cpufreq_min_limit_val = temp;
+
+	mutex_unlock(&cpufreq_min_mutex);
+	return;
+}
+
+static ssize_t cpufreq_min_limit_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", cpufreq_min_limit_val);
+}
+
+static ssize_t cpufreq_min_limit_store(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					const char *buf, size_t n)
+{
+	cpufreq_min_limit(buf, 0);
+	return n;
+}
+
+static ssize_t cpufreq_max_limit_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", cpufreq_max_limit_val);
+}
+
+static ssize_t cpufreq_max_limit_store(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					const char *buf, size_t n)
+{
+	pr_warn("%s: Not supported\n", __func__);
+	return n;
+}
+
+static ssize_t cpufreq_table_show(struct kobject *kobj,
+			struct kobj_attribute *attr, char *buf)
+{
+	ssize_t len = 0;
+	int i;
+	int cpu_idx = 0;
+	struct cpufreq_frequency_table *table;
+
+	table = cpufreq_frequency_get_table(0);
+
+	while (table[cpu_idx].frequency != CPUFREQ_TABLE_END)
+		cpu_idx++;
+
+	for (i = cpu_idx-1; table[i].frequency != CPUFREQ_TABLE_END; i--) {
+		unsigned int freq = table[i].frequency;
+		len += sprintf(buf + len, "%u ", freq);
+	}
+	if (i < 0)
+		len--;
+
+	len += sprintf(buf + len, "\n");
+	return len;
+}
+
+static ssize_t cpufreq_table_store(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					const char *buf, size_t n)
+{
+	pr_warn("%s: Not supported\n", __func__);
+	return n;
+}
+
+power_attr(cpufreq_min_limit);
+power_attr(cpufreq_max_limit);
+power_attr(cpufreq_table);
+#endif
 
 static struct attribute * g[] = {
 	&state_attr.attr,
 #ifdef CONFIG_PM_TRACE
 	&pm_trace_attr.attr,
+	&pm_trace_dev_match_attr.attr,
 #endif
 #ifdef CONFIG_PM_SLEEP
 	&pm_async_attr.attr,
@@ -329,6 +448,11 @@ static struct attribute * g[] = {
 	&wake_lock_attr.attr,
 	&wake_unlock_attr.attr,
 #endif
+#endif
+#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
+		&cpufreq_min_limit_attr.attr,
+		&cpufreq_max_limit_attr.attr,
+		&cpufreq_table_attr.attr,
 #endif
 	NULL,
 };
@@ -343,7 +467,7 @@ EXPORT_SYMBOL_GPL(pm_wq);
 
 static int __init pm_start_workqueue(void)
 {
-	pm_wq = create_freezeable_workqueue("pm");
+	pm_wq = alloc_workqueue("pm", WQ_FREEZABLE, 0);
 
 	return pm_wq ? 0 : -ENOMEM;
 }
@@ -356,6 +480,8 @@ static int __init pm_init(void)
 	int error = pm_start_workqueue();
 	if (error)
 		return error;
+	hibernate_image_size_init();
+	hibernate_reserved_size_init();
 	power_kobj = kobject_create_and_add("power", NULL);
 	if (!power_kobj)
 		return -ENOMEM;

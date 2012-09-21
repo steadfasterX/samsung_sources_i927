@@ -24,16 +24,15 @@
 #include <linux/i2c-gpio.h>
 #include <linux/max17043_battery.h>
 #include <linux/power_supply.h>
+#include <linux/slab.h>
 #include <linux/mfd/wm8994/wm8994_pdata.h>
 #include <linux/sec_jack.h>
 #include <mach/gpio.h>
-#include <mach/tegra_das.h>
+
 #include "gpio-names.h"
 #include <mach/gpio-n1.h>
 #include <linux/fsa9480.h>
-#ifdef CONFIG_PN544
-#include <linux/pn544.h>
-#endif
+
 #include <linux/switch.h>
 #include <linux/power_supply.h>
 #include <mach/sec_battery.h>
@@ -46,7 +45,10 @@
 #include <linux/usb/otg.h>
 #include <linux/delay.h>
 #include <mach/usb_phy.h>
+#include <mach/thermal.h>
 #include "board-n1.h"
+#include <mach/tegra_das.h>
+#include <mach/otg_def.h>
 
 #define GPIO_AUDIO_I2C_SDA TEGRA_GPIO_PG3
 #define GPIO_AUDIO_I2C_SCL TEGRA_GPIO_PI0
@@ -115,15 +117,15 @@ static struct platform_device tegra_gpio_i2c8_device = {
 };
 
 static void *das_base = IO_ADDRESS(TEGRA_APB_MISC_BASE);
- 
+
 static inline unsigned long das_readl(unsigned long offset)
 {
-        return readl(das_base + offset);
+	return readl(das_base + offset);
 }
- 
+
 static inline void das_writel(unsigned long value, unsigned long offset)
 {
-        writel(value, das_base + offset);
+	writel(value, das_base + offset);
 }
 
 static void tegra_set_dap_connection(u8 value)
@@ -132,107 +134,148 @@ static void tegra_set_dap_connection(u8 value)
 
 	pr_info("Board N1 : %s : %d\n", __func__, value);
 
-	switch(value)
-	{
-		case dap_connection_codec_slave: // pcm_slave
-			das_writel(DAP_CTRL_SEL_DAP3, APB_MISC_DAS_DAP_CTRL_SEL_1);
-			das_writel((DAP_MS_SEL_MASTER | DAP_CTRL_SEL_DAP2),
-				APB_MISC_DAS_DAP_CTRL_SEL_2);
-			break;
-		case dap_connection_codec_master: // pcm_master
-			das_writel(DAP_MS_SEL_MASTER | DAP_CTRL_SEL_DAP3, APB_MISC_DAS_DAP_CTRL_SEL_1);
-			das_writel((DAP_CTRL_SEL_DAP2), APB_MISC_DAS_DAP_CTRL_SEL_2);
-			break;
-		case dap_connection_bt_call: 
-			//DAP1
-			reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_0);
-			reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK << DAP_MS_SEL_SHIFT);
-			reg_val |= (1 << DAP_MS_SEL_SHIFT); //DAP1 master
-			reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK << DAP_CTRL_SEL_SHIFT);
-			reg_val |= (DAP_CTRL_SEL_DAC1 << DAP_CTRL_SEL_SHIFT); //DAP1<-DAC1
-			das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_0);
+	switch (value) {
+	case dap_connection_codec_slave: /* pcm_slave */
+		das_writel(DAP_CTRL_SEL_DAP3,
+			APB_MISC_DAS_DAP_CTRL_SEL_1);
+		das_writel((DAP_MS_SEL_MASTER | DAP_CTRL_SEL_DAP2),
+			APB_MISC_DAS_DAP_CTRL_SEL_2);
+		break;
+	case dap_connection_codec_master: /* pcm_master */
+		das_writel(DAP_MS_SEL_MASTER |
+			DAP_CTRL_SEL_DAP3, APB_MISC_DAS_DAP_CTRL_SEL_1);
+		das_writel((DAP_CTRL_SEL_DAP2),
+			APB_MISC_DAS_DAP_CTRL_SEL_2);
+		break;
+	case dap_connection_bt_call:
+		/* DAP1 */
+		reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_0);
+		reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK
+			<< DAP_MS_SEL_SHIFT);
+		reg_val |= (1 << DAP_MS_SEL_SHIFT); /* DAP1 master */
+		reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK
+			<< DAP_CTRL_SEL_SHIFT);
+		reg_val |= (DAP_CTRL_SEL_DAC1
+			<< DAP_CTRL_SEL_SHIFT); /* DAP1<-DAC1 */
+		das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_0);
 
-			//DAP2
-			reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_1);
-			reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK << DAP_MS_SEL_SHIFT);
-			reg_val |= (0 << DAP_MS_SEL_SHIFT);//DAP2 slave
-			reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK << DAP_CTRL_SEL_SHIFT);
-			reg_val |= (DAP_CTRL_SEL_DAP3 << DAP_CTRL_SEL_SHIFT);//DAP2<-DAP3
-			das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_1);
+		/* DAP2 */
+		reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_1);
+		reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK
+			<< DAP_MS_SEL_SHIFT);
+		reg_val |= (0 << DAP_MS_SEL_SHIFT); /* DAP2 slave */
+		reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK
+			<< DAP_CTRL_SEL_SHIFT);
+		reg_val |= (DAP_CTRL_SEL_DAP3
+			<< DAP_CTRL_SEL_SHIFT); /*DAP2<-DAP3 */
+		das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_1);
 
-			//DAP3
-			reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_2);
-			reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK << DAP_MS_SEL_SHIFT);
-			reg_val |= (1 << DAP_MS_SEL_SHIFT);//DAP3 master
-			reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK << DAP_CTRL_SEL_SHIFT);
-			reg_val |= (DAP_CTRL_SEL_DAP4 << DAP_CTRL_SEL_SHIFT);//DAP3<-DAP4
-			das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_2);
+		/* DAP3 */
+		reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_2);
+		reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK
+			<< DAP_MS_SEL_SHIFT);
+		reg_val |= (1 << DAP_MS_SEL_SHIFT); /* DAP3 master */
+		reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK
+			<< DAP_CTRL_SEL_SHIFT);
+		reg_val |= (DAP_CTRL_SEL_DAP4
+			<< DAP_CTRL_SEL_SHIFT); /* DAP3<-DAP4 */
+		das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_2);
 
-			//DAP4
-			reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_3);
-			reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK << DAP_MS_SEL_SHIFT);
-			reg_val |= (0 << DAP_MS_SEL_SHIFT);//DAP4 slave
-			reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK << DAP_CTRL_SEL_SHIFT);
-			reg_val |= (DAP_CTRL_SEL_DAP2 << DAP_CTRL_SEL_SHIFT);//DAP4<-DAP2
-			das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_3);
+		/* DAP4 */
+		reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_3);
+		reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK
+			<< DAP_MS_SEL_SHIFT);
+		reg_val |= (0 << DAP_MS_SEL_SHIFT); /* DAP4 slave */
+		reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK
+			<< DAP_CTRL_SEL_SHIFT);
+		reg_val |= (DAP_CTRL_SEL_DAP2
+			<< DAP_CTRL_SEL_SHIFT); /* DAP4<-DAP2 */
+		das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_3);
 
-			//DAC1
-			reg_val = das_readl(APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0);
-			reg_val &= ~(DAC_SDATA2_SEL_DEFAULT_MASK << DAC_SDATA2_SEL_SHIFT);
-			reg_val |= ((DAP_CTRL_SEL_DAP1 - DAP_CTRL_SEL_DAP1) << DAC_SDATA2_SEL_SHIFT);//DAC1 <- DAP1
-			reg_val &= ~(DAC_SDATA1_SEL_DEFAULT_MASK << DAC_SDATA1_SEL_SHIFT);
-			reg_val |= ((DAP_CTRL_SEL_DAP1 - DAP_CTRL_SEL_DAP1) << DAC_SDATA1_SEL_SHIFT);//DAC1 <- DAP1
-			reg_val &= ~(DAC_CLK_SEL_DEFAULT_MASK << DAC_CLK_SEL_SHIFT);
-			reg_val |= (DAP_CTRL_SEL_DAP1 << DAC_CLK_SEL_SHIFT);// DAC1 <- DAP1
-			das_writel(reg_val, APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0);
+		/* DAC1 */
+		reg_val =
+			das_readl(APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0);
+		reg_val &= ~(DAC_SDATA2_SEL_DEFAULT_MASK
+			<< DAC_SDATA2_SEL_SHIFT);
+		reg_val |= ((DAP_CTRL_SEL_DAP1 - DAP_CTRL_SEL_DAP1)
+			<< DAC_SDATA2_SEL_SHIFT); /* DAC1 <- DAP1 */
+		reg_val &= ~(DAC_SDATA1_SEL_DEFAULT_MASK
+			<< DAC_SDATA1_SEL_SHIFT);
+		reg_val |= ((DAP_CTRL_SEL_DAP1 - DAP_CTRL_SEL_DAP1)
+			<< DAC_SDATA1_SEL_SHIFT); /* DAC1 <- DAP1 */
+		reg_val &= ~(DAC_CLK_SEL_DEFAULT_MASK
+			<< DAC_CLK_SEL_SHIFT);
+		reg_val |= (DAP_CTRL_SEL_DAP1
+			<< DAC_CLK_SEL_SHIFT); /*  DAC1 <- DAP1 */
+		das_writel(reg_val,
+			APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0);
 
-			break;
-		case dap_connection_bt_voip:
-			//DAP1
-			reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_0);
-			reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK << DAP_MS_SEL_SHIFT);
-			reg_val |= (1 << DAP_MS_SEL_SHIFT); //DAP1 master
-			reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK << DAP_CTRL_SEL_SHIFT);
-			reg_val |= (DAP_CTRL_SEL_DAC1 << DAP_CTRL_SEL_SHIFT); //DAP1<-DAC1
-			das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_0);
+		break;
+	case dap_connection_bt_voip:
+		/* DAP1 */
+		reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_0);
+		reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK
+			<< DAP_MS_SEL_SHIFT);
+		reg_val |= (1 << DAP_MS_SEL_SHIFT); /* DAP1 master */
+		reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK
+			<< DAP_CTRL_SEL_SHIFT);
+		reg_val |= (DAP_CTRL_SEL_DAC1
+			<< DAP_CTRL_SEL_SHIFT); /* DAP1<-DAC1 */
+		das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_0);
 
-			//DAP2
-			reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_1);
-			reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK << DAP_MS_SEL_SHIFT);
-			reg_val |= (1 << DAP_MS_SEL_SHIFT);//DAP2 slave
-			reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK << DAP_CTRL_SEL_SHIFT);
-			reg_val |= (DAP_CTRL_SEL_DAP4 << DAP_CTRL_SEL_SHIFT);//DAP2<-DAP3
-			das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_1);
+		/* DAP2 */
+		reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_1);
+		reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK
+			<< DAP_MS_SEL_SHIFT);
+		reg_val |= (1 << DAP_MS_SEL_SHIFT); /* DAP2 slave */
+		reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK
+			<< DAP_CTRL_SEL_SHIFT);
+		reg_val |= (DAP_CTRL_SEL_DAP4
+			<< DAP_CTRL_SEL_SHIFT); /* DAP2<-DAP3 */
+		das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_1);
 
-			//DAP4
-			reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_3);
-			reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK << DAP_MS_SEL_SHIFT);
-			reg_val |= (0 << DAP_MS_SEL_SHIFT);//DAP4 slave
-			reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK << DAP_CTRL_SEL_SHIFT);
-			reg_val |= (DAP_CTRL_SEL_DAP2 << DAP_CTRL_SEL_SHIFT);//DAP4<-DAP2
-			das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_3);
+		/* DAP4 */
+		reg_val = das_readl(APB_MISC_DAS_DAP_CTRL_SEL_3);
+		reg_val &= ~(DAP_MS_SEL_DEFAULT_MASK
+			<< DAP_MS_SEL_SHIFT);
+		reg_val |= (0 << DAP_MS_SEL_SHIFT); /* DAP4 slave */
+		reg_val &= ~(DAP_CTRL_SEL_DEFAULT_MASK
+			<< DAP_CTRL_SEL_SHIFT);
+		reg_val |= (DAP_CTRL_SEL_DAP2
+			<< DAP_CTRL_SEL_SHIFT); /* DAP4<-DAP2 */
+		das_writel(reg_val, APB_MISC_DAS_DAP_CTRL_SEL_3);
 
-			//DAC1
-			reg_val = das_readl(APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0);
-			reg_val &= ~(DAC_SDATA2_SEL_DEFAULT_MASK << DAC_SDATA2_SEL_SHIFT);
-			reg_val |= ((DAP_CTRL_SEL_DAP1 - DAP_CTRL_SEL_DAP1) << DAC_SDATA2_SEL_SHIFT);//DAC1 <- DAP1
-			reg_val &= ~(DAC_SDATA1_SEL_DEFAULT_MASK << DAC_SDATA1_SEL_SHIFT);
-			reg_val |= ((DAP_CTRL_SEL_DAP1 - DAP_CTRL_SEL_DAP1) << DAC_SDATA1_SEL_SHIFT);//DAC1 <- DAP1
-			reg_val &= ~(DAC_CLK_SEL_DEFAULT_MASK << DAC_CLK_SEL_SHIFT);
-			reg_val |= (DAP_CTRL_SEL_DAP1 << DAC_CLK_SEL_SHIFT);// DAC1 <- DAP1
-			das_writel(reg_val, APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0);
-			break;
-		case dap_connection_bt_call_nomix: 
-			das_writel(DAP_CTRL_SEL_DAP3, APB_MISC_DAS_DAP_CTRL_SEL_1);
-			das_writel(DAP_CTRL_SEL_DAP3, APB_MISC_DAS_DAP_CTRL_SEL_3);
-			das_writel((DAP_MS_SEL_MASTER | DAP_CTRL_SEL_DAP2 | DAP_CTRL_SEL_DAP4),
-				APB_MISC_DAS_DAP_CTRL_SEL_2);
-			break;
-		default :
-			pr_err("Board N1 : %s : %d is not available\n", __func__, value);
-			break;
+		/* DAC1 */
+		reg_val = das_readl(
+			APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0);
+		reg_val &= ~(DAC_SDATA2_SEL_DEFAULT_MASK
+			<< DAC_SDATA2_SEL_SHIFT);
+		reg_val |= ((DAP_CTRL_SEL_DAP1 - DAP_CTRL_SEL_DAP1)
+			<< DAC_SDATA2_SEL_SHIFT); /* DAC1 <- DAP1 */
+		reg_val &= ~(DAC_SDATA1_SEL_DEFAULT_MASK
+			<< DAC_SDATA1_SEL_SHIFT);
+		reg_val |= ((DAP_CTRL_SEL_DAP1 - DAP_CTRL_SEL_DAP1)
+			<< DAC_SDATA1_SEL_SHIFT); /* DAC1 <- DAP1 */
+		reg_val &= ~(DAC_CLK_SEL_DEFAULT_MASK
+			<< DAC_CLK_SEL_SHIFT);
+		reg_val |= (DAP_CTRL_SEL_DAP1
+			<< DAC_CLK_SEL_SHIFT); /* DAC1 <- DAP1 */
+		das_writel(reg_val, APB_MISC_DAS_DAC_INPUT_DATA_CLK_SEL_0);
+		break;
+	case dap_connection_bt_call_nomix:
+		das_writel(DAP_CTRL_SEL_DAP3,
+			APB_MISC_DAS_DAP_CTRL_SEL_1);
+		das_writel(DAP_CTRL_SEL_DAP3,
+			APB_MISC_DAS_DAP_CTRL_SEL_3);
+		das_writel((DAP_MS_SEL_MASTER |
+			DAP_CTRL_SEL_DAP2 | DAP_CTRL_SEL_DAP4),
+			APB_MISC_DAS_DAP_CTRL_SEL_2);
+		break;
+	default:
+		pr_err("Board N1 : %s : %d is not available\n",
+					__func__, value);
+		break;
 	}
-
 }
 
 static struct wm8994_platform_data wm8994_pdata = {
@@ -250,19 +293,19 @@ void wm8994_set_mic_bias(bool on)
 	gpio_set_value(GPIO_MICBIAS1_EN, on);
 }
 
-extern struct sec_jack_platform_data sec_jack_pdata;
-
 void wm8994_set_sub_mic_bias(bool on)
 {
 	pr_info("Board N1 : Enterring %s : on %d\n", __func__, on);
 
 	if (wm8994_pdata.wm8994_submic_state && !on) {
-		pr_info("%s : do not disable sub_mic_bias during recording or voicecall\n", __func__);
+		pr_info("%s : do not disable sub_mic_bias" \
+			"during recording or voicecall\n", __func__);
 		return;
 	}
 
 	if (sec_jack_pdata.jack_status == SEC_HEADSET_4POLE && !on) {
-		pr_info("%s : do not disable sub_mic_bias during 4pole headset connected\n", __func__);
+		pr_info("%s : do not disable sub_mic_bias" \
+			"during 4pole headset connected\n", __func__);
 		return;
 	}
 	gpio_set_value(GPIO_MICBIAS2_EN, on);
@@ -273,6 +316,14 @@ void wm8994_set_ear_sel(bool on)
 	pr_info("Board N1 : Enterring %s : on %d\n", __func__, on);
 	gpio_set_value(GPIO_EAR_SEL, on);
 }
+
+
+static struct i2c_board_info sec_gpio_i2c8_info[] = {
+	{
+		I2C_BOARD_INFO("wm8994", 0x34 >> 1),
+		.platform_data = &wm8994_pdata,
+	},
+};
 
 /* compass */
 static  struct  i2c_gpio_platform_data  gpio_i2c7_platdata = {
@@ -289,21 +340,21 @@ static struct platform_device n1_device_gpio_i2c7 = {
 
 static void n1_fmradio_init(int lpm_mode)
 {
-	int rst_gpio=0;
+	int rst_gpio = 0;
 	pr_info("%s :+++\n", __func__);
-	
+
 	tegra_gpio_enable(GPIO_FM_INT);
 	gpio_request(GPIO_FM_INT, "fm_int");
 	gpio_direction_input(GPIO_FM_INT);
 
-	if(system_rev<=4)
+	if (system_rev <= 4)
 		rst_gpio = GPIO_FM_RST_04;
 	else
 		rst_gpio = GPIO_FM_RST_05;
-	
+
 	tegra_gpio_enable(rst_gpio);
 	gpio_request(rst_gpio, "fm_rst");
-	if(lpm_mode && system_rev < 7)
+	if (lpm_mode && system_rev < 7)
 		gpio_direction_output(rst_gpio, 1);
 	else
 		gpio_direction_output(rst_gpio, 0);
@@ -345,8 +396,10 @@ static int charger_online(void)
 	struct power_supply *psp = power_supply_get_by_name("charger");
 	union power_supply_propval val;
 	int ret = 0;
-	if (!psp)
+	if (!psp) {
+		pr_err("%s: fail to get charger ps\n", __func__);
 		return 0;
+	}
 	ret = psp->get_property(psp, POWER_SUPPLY_PROP_ONLINE, &val);
 	if (ret)
 		return 0;
@@ -358,8 +411,10 @@ static int charger_enable(void)
 	struct power_supply *psp = power_supply_get_by_name("charger");
 	union power_supply_propval val;
 	int ret = 0;
-	if (!psp)
+	if (!psp) {
+		pr_err("%s: fail to get charger ps\n", __func__);
 		return 0;
+	}
 	ret = psp->get_property(psp, POWER_SUPPLY_PROP_STATUS, &val);
 	if (ret)
 		return 0;
@@ -370,14 +425,14 @@ static int max8907c_check_vchg(void)
 {
 	struct power_supply *psp = power_supply_get_by_name("max8907c-charger");
 	union power_supply_propval val;
-		
+
 	if (!psp) {
 		pr_err("%s: fail to get charger ps\n", __func__);
 		return -ENODEV;
 		}
-		
+
 	psp->get_property(psp, POWER_SUPPLY_PROP_STATUS, &val);
-		
+
 	return val.intval;
 }
 static int max17043_low_batt_cb(void)
@@ -393,9 +448,8 @@ static int max17043_low_batt_cb(void)
 	value.intval = POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
 	return psy->set_property(psy, POWER_SUPPLY_PROP_CAPACITY_LEVEL, &value);
 }
-
 /*	2011.03.09 1650mAh SDI from MAXIM
- * 	Test Condition
+ *	Test Condition
  *	Cell : MV504657M, 1650mAh
  *	Charging : 4.2V, 600mA, 60mA cutoff
  *	Discharging : 300mA, 3.4V cutoff
@@ -428,9 +482,15 @@ static void n1_max17043_gpio_init(void)
 
 extern enum cable_type_t set_cable_status;
 
-/*usb_switch*/
-extern struct otg_id_open_data otg_open;
-extern struct otg_detect_data otg_clk_data;
+struct gpioi2c_otg_data otg_data;
+
+void fsa9480_otg_data_init(struct otg_id_open_data *o,
+				struct otg_detect_data *d, void (*vbus_en)(int))
+{
+	otg_data.otg_open = o;
+	otg_data.otg_clk_data = d;
+	otg_data.vbus_en = vbus_en;
+}
 
 static void fsa9480_otg_cb(bool attached)
 {
@@ -441,9 +501,10 @@ static void fsa9480_otg_cb(bool attached)
 	if (attached) {
 		set_cable_status = CABLE_TYPE_NONE;
 		value.intval = POWER_SUPPLY_TYPE_BATTERY;
-		if (otg_clk_data.check_detection && otg_clk_data.clk_cause)
-			otg_clk_data.check_detection(otg_clk_data.clk_cause,
-						HOST_CAUSE);
+		if (otg_data.otg_clk_data->check_detection
+				&& otg_data.otg_clk_data->clk_cause)
+			otg_data.otg_clk_data->check_detection
+				(otg_data.otg_clk_data->clk_cause, HOST_CAUSE);
 		else
 			pr_err("%s: check_detection or clk_cause is null\n",
 						 __func__);
@@ -467,7 +528,7 @@ static void fsa9480_usb_cb(bool attached)
 	union power_supply_propval value;
 	pr_info("%s : attached(%d)\n", __func__, attached);
 
-	if (attached && !otg_open.otg_enabled) {
+	if (attached && !otg_data.otg_open->otg_enabled) {
 		set_cable_status = CABLE_TYPE_USB;
 		value.intval = POWER_SUPPLY_TYPE_USB;
 	} else {
@@ -529,20 +590,20 @@ static void fsa9480_charger_cb(bool attached)
 static int fsa9480_uart_cb(bool attached)
 {
 	int check_vcgh;
-	
+
 	check_vcgh = max8907c_check_vchg();
-	
+
 	if (attached == FSA9480_ATTACHED && check_vcgh == POWER_SUPPLY_STATUS_CHARGING)
 	{
 		fsa9480_charger_cb(FSA9480_ATTACHED);
 		return true;
-	}else if(attached == FSA9480_DETACHED && 
+	}else if(attached == FSA9480_DETACHED &&
 			check_vcgh == POWER_SUPPLY_STATUS_NOT_CHARGING &&
 			set_cable_status == CABLE_TYPE_AC ) {
 		fsa9480_charger_cb(FSA9480_DETACHED);
 		return true;
-	}	
-	return false; 		
+	}
+	return false;
 }
 static struct switch_dev switch_dock = {
 	.name = "dock",
@@ -630,21 +691,27 @@ static void fsa9480_reset_cb(void)
 static void fsa9480_set_otg_func(void (*otg_id_open)(struct fsa9480_usbsw *),
 			struct fsa9480_usbsw *data)
 {
-	otg_open.id_open = otg_id_open;
-	otg_open.otg_cb = fsa9480_otg_cb;
-	otg_open.otg_open_data = data;
-	otg_open.otg_enabled = 0;
+	otg_data.otg_open->id_open = otg_id_open;
+	otg_data.otg_open->otg_cb = fsa9480_otg_cb;
+	otg_data.otg_open->otg_open_data = data;
+	otg_data.otg_open->otg_enabled = 0;
 	if (data->dev1 & DEV_USB_OTG) {
-		if (otg_open.otg_state && otg_open.host_state) {
-			if (*otg_open.otg_state != OTG_STATE_A_HOST)
+		if (otg_data.otg_open->otg_state
+				&& otg_data.otg_open->host_state) {
+			if (*otg_data.otg_open->otg_state != OTG_STATE_A_HOST)
 				otg_id_open(data);
-			else if (*otg_open.host_state == TEGRA_USB_OVERCURRENT) {
-				tegra_usb1_power(0);
-				msleep(10);
-				tegra_usb1_power(1);
+			else if (*otg_data.otg_open->host_state
+					== TEGRA_USB_OVERCURRENT) {
+				if (otg_data.vbus_en) {
+					otg_data.vbus_en(0);
+					msleep(20);
+					otg_data.vbus_en(1);
+				} else
+					pr_err("%s: vbus_en is null\n"
+								, __func__);
 			}
 		}
-				
+
 	}
 }
 extern void n1_inform_charger_connection(int mode);
@@ -676,24 +743,6 @@ static struct platform_device tegra_gpio_i2c11_device = {
 		.platform_data = &tegra_gpio_i2c11_pdata,
 	}
 };
-
-#ifdef CONFIG_PN544
-/*pn544*/
-static struct i2c_gpio_platform_data tegra_gpio_i2c12_pdata = {
-	.sda_pin = GPIO_NFC_I2C_SDA,
-	.scl_pin = GPIO_NFC_I2C_SCL,
-	.udelay = 1, /* 200 kHz */
-	.timeout = 0, /* jiffies */
-};
-
-static struct platform_device tegra_gpio_i2c12_device = {
-	.name = "i2c-gpio",
-	.id = 12,
-	.dev = {
-		.platform_data = &tegra_gpio_i2c12_pdata,
-	}
-};
-#endif
 
 #ifdef CONFIG_MHL_SII9234
 /* HDMI - DDC */
@@ -759,27 +808,10 @@ static struct platform_device tegra_gpio_i2c17_device = {
 	}
 };
 
-
-
-#ifdef CONFIG_PN544
-static struct pn544_i2c_platform_data pn544_pdata = {
-	.irq_gpio = GPIO_NFC_IRQ,
-	.ven_gpio = GPIO_NFC_EN,
-	.firm_gpio = GPIO_NFC_FIRMWARE,
-};
-#endif
-
 static const struct i2c_board_info sec_gpio_i2c6_info[] = {
 	{
 		I2C_BOARD_INFO("Si4709", 0x20 >> 1),
 		.irq = TEGRA_GPIO_TO_IRQ(GPIO_FM_INT),
-	},
-};
-
-static struct i2c_board_info sec_gpio_i2c8_info[] = {
-	{
-		I2C_BOARD_INFO("wm8994", 0x34>>1),
-		.platform_data = &wm8994_pdata,
 	},
 };
 
@@ -805,15 +837,6 @@ static struct i2c_board_info sec_gpio_i2c11_info[] = {
 	},
 };
 
-#ifdef CONFIG_PN544
-static struct i2c_board_info sec_gpio_i2c12_info[] = {
-	{
-		I2C_BOARD_INFO("pn544", 0x2b),
-		.platform_data = &pn544_pdata,
-	},
-};
-#endif
-
 static struct i2c_board_info sec_gpio_i2c13_info[] = {
 };
 
@@ -831,8 +854,6 @@ static struct i2c_board_info sec_gpio_i2c14_info[] = {
 		I2C_BOARD_INFO("SII9234C", 0xC8>>1),
 	},
 };
-
-
 
 static void nct1008_temp_register_callbacks(
 		struct nct1008_temp_callbacks *ptr)
@@ -853,7 +874,7 @@ extern void tegra_throttling_enable(bool enable);
 static struct nct1008_platform_data n1_nct1008_pdata = {
 	.supported_hwrev = true,
 	.ext_range = true,
-	.conv_rate = 0x06,		/* 4 conversions per second (=250ms) */
+	.conv_rate = 0x04,
 	.offset = 0,
 	.hysteresis = 0,
 	.shutdown_ext_limit = 115,
@@ -886,23 +907,16 @@ int __init n1_gpio_i2c_init(int lpm_mode)
 	platform_device_register(&tegra_gpio_i2c11_device);
 	i2c_register_board_info(11, sec_gpio_i2c11_info,
 			ARRAY_SIZE(sec_gpio_i2c11_info));
-	
-#ifdef CONFIG_PN544
-	platform_device_register(&tegra_gpio_i2c12_device);
-	i2c_register_board_info(12, sec_gpio_i2c12_info,
-			ARRAY_SIZE(sec_gpio_i2c12_info));
-#endif
+
+
 
 	tegra_gpio_enable(tegra_gpio_i2c8_pdata.sda_pin);
 	tegra_gpio_enable(tegra_gpio_i2c8_pdata.scl_pin);
 
+
 	tegra_gpio_enable(tegra_gpio_i2c11_pdata.sda_pin);
 	tegra_gpio_enable(tegra_gpio_i2c11_pdata.scl_pin);
 
-#ifdef CONFIG_PN544
-	tegra_gpio_enable(tegra_gpio_i2c12_pdata.sda_pin);
-	tegra_gpio_enable(tegra_gpio_i2c12_pdata.scl_pin);
-#endif
 
 	/* nct1008 Thermal monitor */
 	n1_nct1008_init();
@@ -931,8 +945,8 @@ int __init n1_gpio_i2c_init(int lpm_mode)
 	platform_device_register(&n1_device_gpio_i2c7);
 
 	/* fmradio : si4709 */
-	if (system_rev >= 4)	{
-		n1_fmradio_init(lpm_mode);	
+	if (system_rev >= 4) {
+		n1_fmradio_init(lpm_mode);
 		platform_device_register(&n1_device_gpio_i2c6);
 		i2c_register_board_info(6, sec_gpio_i2c6_info,
 			ARRAY_SIZE(sec_gpio_i2c6_info));
@@ -940,22 +954,7 @@ int __init n1_gpio_i2c_init(int lpm_mode)
 		tegra_gpio_enable(gpio_i2c6_platdata.scl_pin);
 	}
 
-#ifdef CONFIG_MHL_SII9234
-	/* HDMI & MHL LOGIC */
-	platform_device_register(&tegra_gpio_i2c13_device);
-	i2c_register_board_info(13, sec_gpio_i2c13_info,
-			ARRAY_SIZE(sec_gpio_i2c13_info));
-	tegra_gpio_enable(tegra_gpio_i2c13_pdata.sda_pin);
-	tegra_gpio_enable(tegra_gpio_i2c13_pdata.scl_pin);
-
-	platform_device_register(&tegra_gpio_i2c14_device);
-	i2c_register_board_info(14, sec_gpio_i2c14_info,
-			ARRAY_SIZE(sec_gpio_i2c14_info));
-	tegra_gpio_enable(tegra_gpio_i2c14_pdata.sda_pin);
-	tegra_gpio_enable(tegra_gpio_i2c14_pdata.scl_pin);
-#endif
-
-	if(system_rev >= 4) {
+	if (system_rev >= 4) {
 		platform_device_register(&tegra_gpio_i2c16_device);
 		tegra_gpio_enable(tegra_gpio_i2c16_pdata.sda_pin);
 		tegra_gpio_enable(tegra_gpio_i2c16_pdata.scl_pin);
@@ -966,7 +965,7 @@ int __init n1_gpio_i2c_init(int lpm_mode)
 		tegra_gpio_enable(tegra_gpio_i2c17_pdata.sda_pin);
 		tegra_gpio_enable(tegra_gpio_i2c17_pdata.scl_pin);
 	}
-	
+
 
 	return 0;
 }

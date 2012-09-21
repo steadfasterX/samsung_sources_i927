@@ -68,7 +68,7 @@ struct nct1008_data {
 	struct i2c_client *client;
 	struct mutex mutex;
 #if defined(CONFIG_MACH_N1)
-    struct device *hwmon_dev;
+	struct device *hwmon_dev;
 #endif
 	u8 config;
 	void (*alarm_fn)(bool raised);
@@ -93,7 +93,7 @@ static ssize_t nct1008_show_temp(struct device *dev,
 	if (!dev || !buf || !attr)
 		return -EINVAL;
 
-    data = i2c_smbus_read_byte_data(g_client, STATUS_RD);
+	data = i2c_smbus_read_byte_data(g_client, STATUS_RD);
 	if (data < 0) {
 		dev_err(&g_client->dev, "%s: failed to read "
 			"temperature\n", __func__);
@@ -114,7 +114,7 @@ static ssize_t nct1008_show_temp(struct device *dev,
 
 	printk(KERN_DEBUG "[TM] local temp : %d\n", temp_value);
 
-    data = i2c_smbus_read_byte_data(g_client, EXTERNAL_TEMP_RD);
+	data = i2c_smbus_read_byte_data(g_client, EXTERNAL_TEMP_RD);
 	if (data < 0) {
 		dev_err(&g_client->dev, "%s: failed to read "
 			"temperature\n", __func__);
@@ -128,7 +128,8 @@ static ssize_t nct1008_show_temp(struct device *dev,
 static DEVICE_ATTR(temp, S_IRUGO, nct1008_show_temp, NULL);
 #endif
 
-static int nct1008_configure_sensor(struct nct1008_data* data);
+static int
+	nct1008_configure_sensor(struct nct1008_data *data);
 static void nct1008_re_enable(struct i2c_client *client);
 
 static int nct1008_update_local_temp(struct nct1008_temp_callbacks *ptr)
@@ -140,21 +141,24 @@ static int nct1008_update_local_temp(struct nct1008_temp_callbacks *ptr)
 	int extended_range_offset = 64;
 	int err;
 
-	struct nct1008_data *data = container_of(ptr, struct nct1008_data, callbacks);
+	struct nct1008_data *data = container_of(ptr,
+		struct nct1008_data, callbacks);
 	struct i2c_client *client = data->client;
 
 	config_reg = i2c_smbus_read_byte_data(client, CONFIG_RD);
-	if(config_reg == 0x0) {
-		dev_err(&client->dev, "%s: nct1008 was reset! re-init! \n", __func__);
+	if (config_reg == 0x0) {
+		dev_err(&client->dev,
+			"%s: nct1008 was reset! re-init!\n", __func__);
 
-		err = nct1008_configure_sensor(data);	/* sensor is in standby */
-		if (err < 0) {		
-			dev_err(&client->dev, "%s: nct1008_configure_sensor error(%d) \n",
+		err = nct1008_configure_sensor(data); /* sensor is in standby */
+		if (err < 0) {
+			dev_err(&client->dev,
+				"%s: nct1008_configure_sensor error(%d)\n",
 				__func__, err);
 			return -EINVAL;
 		}
 		nct1008_re_enable(client);
-		msleep(500);		/* it shoud be updated at least one time */
+		msleep(500);	/* it shoud be updated at least one time */
 	}
 
 	raw_temp_value = i2c_smbus_read_byte_data(client, STATUS_RD);
@@ -179,14 +183,20 @@ static int nct1008_update_local_temp(struct nct1008_temp_callbacks *ptr)
 	external_temp = i2c_smbus_read_byte_data(client, EXTERNAL_TEMP_RD);
 	if (external_temp < 0) {
 		dev_err(&client->dev, "%s: failed to read "
-			"temperature (%d), (%d)\n", __func__, raw_temp_value, external_temp);
+			"temperature (%d), (%d)\n", __func__,
+			raw_temp_value, external_temp);
 	}
 
 	/* REMOVE this */
 	status_reg = i2c_smbus_read_byte_data(client, STATUS_RD);
 
-	pr_info("NCT1008 : temp(%d), raw(%d), ext(%d), config(0x%02x), status(0x%02x)\n", 
-		temp_value, raw_temp_value, external_temp, config_reg, status_reg);
+	pr_info("NCT1008 : temp(%d), raw(%d), ext(%d),"
+				"config(0x%02x), status(0x%02x)\n",
+		temp_value,
+		raw_temp_value,
+		external_temp,
+		config_reg,
+		status_reg);
 
 	return temp_value;
 }
@@ -200,7 +210,7 @@ static void nct1008_re_enable(struct i2c_client *client)
 				  data->config & ~STANDBY_BIT);
 
 	ret = i2c_smbus_read_byte_data(client, CONFIG_RD);
-	pr_info("NCT1008 : Config reg = 0x%x \n", ret);
+	pr_info("NCT1008 : Config reg = 0x%x\n", ret);
 }
 
 static void nct1008_enable(struct i2c_client *client)
@@ -215,8 +225,10 @@ static void nct1008_enable(struct i2c_client *client)
 	i2c_smbus_write_byte_data(client, CONFIG_WR,
 				  data->config & ~STANDBY_BIT);
 
-//	ret = i2c_smbus_read_byte_data(client, CONFIG_RD);
-//	pr_info("NCT1008 : Config reg = 0x%x \n", ret);
+	/*
+	ret = i2c_smbus_read_byte_data(client, CONFIG_RD);
+	pr_info("NCT1008 : Config reg = 0x%x\n", ret);
+	*/
 }
 
 static void nct1008_disable(struct i2c_client *client)
@@ -227,7 +239,7 @@ static void nct1008_disable(struct i2c_client *client)
 
 	i2c_smbus_write_byte_data(client, CONFIG_WR,
 				  data->config | STANDBY_BIT);
-	
+
 	ret = i2c_smbus_read_byte_data(client, CONFIG_RD);
 
 	regulator_disable(reg);
@@ -238,7 +250,8 @@ static void nct1008_disable(struct i2c_client *client)
 
 static void nct1008_work_func(struct work_struct *work)
 {
-	struct nct1008_data *data = container_of(work, struct nct1008_data, work);
+	struct nct1008_data *data = container_of(work,
+						struct nct1008_data, work);
 	int irq = data->client->irq;
 
 	mutex_lock(&data->mutex);
@@ -283,9 +296,9 @@ static inline u8 temperature_to_value(bool extended, u8 temp)
 	return data;
 }
 
-static int nct1008_configure_sensor(struct nct1008_data* data)
+static int nct1008_configure_sensor(struct nct1008_data *data)
 {
-	struct i2c_client *client           = data->client;
+	struct i2c_client *client		   = data->client;
 	struct nct1008_platform_data *pdata = client->dev.platform_data;
 	u8 value;
 	int err;
@@ -306,25 +319,30 @@ static int nct1008_configure_sensor(struct nct1008_data* data)
 		goto error;
 
 	/* Temperature conversion rate */
-	err = i2c_smbus_write_byte_data(client, CONV_RATE_WR, pdata->conv_rate);
+	err = i2c_smbus_write_byte_data(client, CONV_RATE_WR,
+							pdata->conv_rate);
 	if (err < 0)
 		goto error;
 
 	/* External temperature h/w shutdown limit */
-	value = temperature_to_value(pdata->ext_range, pdata->shutdown_ext_limit);
+	value = temperature_to_value(pdata->ext_range,
+						pdata->shutdown_ext_limit);
 	err = i2c_smbus_write_byte_data(client, EXT_THERM_LIMIT_WR, value);
 	if (err < 0)
 		goto error;
 
 	/* Local temperature h/w shutdown limit */
-	value = temperature_to_value(pdata->ext_range, pdata->shutdown_local_limit);
+	value = temperature_to_value(pdata->ext_range,
+			pdata->shutdown_local_limit);
 	err = i2c_smbus_write_byte_data(client, LOCAL_THERM_LIMIT_WR, value);
 	if (err < 0)
 		goto error;
 
 	/* External Temperature Throttling limit */
-	value = temperature_to_value(pdata->ext_range, pdata->throttling_ext_limit);
-	err = i2c_smbus_write_byte_data(client, EXT_TEMP_HI_LIMIT_HI_BYTE, value);
+	value = temperature_to_value(pdata->ext_range,
+					pdata->throttling_ext_limit);
+	err = i2c_smbus_write_byte_data(client,
+			EXT_TEMP_HI_LIMIT_HI_BYTE, value);
 	if (err < 0)
 		goto error;
 
@@ -340,7 +358,8 @@ static int nct1008_configure_sensor(struct nct1008_data* data)
 		goto error;
 
 	/* THERM hysteresis */
-	err = i2c_smbus_write_byte_data(client, THERM_HYSTERESIS_WR, pdata->hysteresis);
+	err = i2c_smbus_write_byte_data(client,
+		THERM_HYSTERESIS_WR, pdata->hysteresis);
 	if (err < 0)
 		goto error;
 
@@ -354,11 +373,13 @@ static int __devinit nct1008_configure_irq(struct nct1008_data *data)
 {
 	INIT_WORK(&data->work, nct1008_work_func);
 
-	return request_irq(data->client->irq, nct1008_irq, IRQF_TRIGGER_RISING |
+	return request_irq(data->client->irq, nct1008_irq,
+				IRQF_TRIGGER_RISING |
 				IRQF_TRIGGER_FALLING, DRIVER_NAME, data);
 }
 
-static int __devinit nct1008_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int __devinit nct1008_probe(struct i2c_client *client,
+						const struct i2c_device_id *id)
 {
 	int err;
 	struct nct1008_data *data;
@@ -391,17 +412,19 @@ static int __devinit nct1008_probe(struct i2c_client *client, const struct i2c_d
 			data->pdata->register_callbacks(&data->callbacks);
 
 #if defined(CONFIG_MACH_N1)
-    g_client = client;
-    data->hwmon_dev = hwmon_device_register(&client->dev);
-    if (IS_ERR(data->hwmon_dev)) {
+	g_client = client;
+	data->hwmon_dev = hwmon_device_register(&client->dev);
+	if (IS_ERR(data->hwmon_dev)) {
 		err = PTR_ERR(data->hwmon_dev);
 		dev_err(&client->dev, "%s: hwmon_device_register "
 			"failed\n", __func__);
 		goto error;
-    }
+	}
 
-    if (device_create_file(data->hwmon_dev, &dev_attr_temp) < 0) {
-		pr_err("Failed to create device file(%s)!\n", dev_attr_temp.attr.name);
+	if (device_create_file(data->hwmon_dev,
+				&dev_attr_temp) < 0) {
+		pr_err("Failed to create device file(%s)!\n",
+			dev_attr_temp.attr.name);
 		goto error;
 	}
 #endif
@@ -477,5 +500,5 @@ static void __exit nct1008_exit(void)
 MODULE_DESCRIPTION("Temperature sensor driver for OnSemi NCT1008");
 MODULE_LICENSE("GPL");
 
-module_init (nct1008_init);
-module_exit (nct1008_exit);
+module_init(nct1008_init);
+module_exit(nct1008_exit);

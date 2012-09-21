@@ -27,17 +27,20 @@
 #include <linux/pwm_backlight.h>
 #include <linux/spi/spi.h>
 #include <linux/earlysuspend.h>
-#include <mach/nvhost.h>
+#include <linux/nvhost.h>
+#include <linux/spi-tegra.h>
 #include <mach/nvmap.h>
 #include <mach/irqs.h>
 #include <mach/iomap.h>
 #include <mach/dc.h>
 #include <mach/fb.h>
+#include <mach/gpio-bose.h>
 
 #include "devices.h"
 #include "gpio-names.h"
 #include "board.h"
 
+#define MULTIPLE_SPI_WRITE 1
 #define n1_lvds_reset TEGRA_GPIO_PC1
 
 #define LCD_ONOFF_TEST 1 //LCD on/off test
@@ -70,6 +73,240 @@ EXPORT_SYMBOL(muxtex_temp);
 extern void amoled_set_backlight_in_resume(void);
 #endif
 
+#if MULTIPLE_SPI_WRITE
+// N1_ICS : for better performance
+u16 panel_init_data[] = {
+	//Panel Condition Set
+	0x0F8,
+	0x101,
+	0x127,
+	0x127,
+	0x107,
+	0x107,
+	0x154,
+	0x19F,
+	0x163,
+	0x186,
+	0x11A,
+	0x133,
+	0x10D,
+	0x100,
+	0x100,
+
+	//Display Condition Set
+	//Display Control Set
+	0x0F2,
+	0x102,
+	0x103,
+	0x11C,
+	0x110,
+	0x110,
+
+	0x0F7,
+	0x100,
+	0x100,
+	0x100,
+
+	//Gamma Condition Set
+	//Gamma Setting
+	0x0FA,
+	0x102,
+	0x118,
+	0x108,
+	0x124,
+	0x170,
+	0x16E,
+	0x14E,
+	0x1BC,
+	0x1C0,
+	0x1AF,
+	0x1B3,
+	0x1B8,
+	0x1A5,
+	0x1C5,
+	0x1C7,
+	0x1BB,
+	0x100,
+	0x1B9,
+	0x100,
+	0x1B8,
+	0x100,
+	0x1FC,
+
+	// Gamma Set Update
+	0x0FA,
+	0x103,
+
+	//ETC Condition Set
+	0x0F6,
+	0x100,
+	0x18E,
+	0x107,
+
+	0x0B3,
+	0x16C,
+
+	0x0B5,
+	0x12C,
+	0x112,
+	0x10C,
+	0x10A,
+	0x110,
+	0x10E,
+	0x117,
+	0x113,
+	0x11F,
+	0x11A,
+	0x12A,
+	0x124,
+	0x11F,
+	0x11B,
+	0x11A,
+	0x117,
+	0x12B,
+	0x126,
+	0x122,
+	0x120,
+	0x13A,
+	0x134,
+	0x130,
+	0x12C,
+	0x129,
+	0x126,
+	0x125,
+	0x123,
+	0x121,
+	0x120,
+	0x11E,
+	0x11E,
+
+	0x0B6,
+	0x100,
+	0x100,
+	0x111,
+	0x122,
+	0x133,
+	0x144,
+	0x144,
+	0x144,
+	0x155,
+	0x155,
+	0x166,
+	0x166,
+	0x166,
+	0x166,
+	0x166,
+	0x166,
+
+	0x0B7,
+	0x12C,
+	0x112,
+	0x10C,
+	0x10A,
+	0x110,
+	0x10E,
+	0x117,
+	0x113,
+	0x11F,
+	0x11A,
+	0x12A,
+	0x124,
+	0x11F,
+	0x11B,
+	0x11A,
+	0x117,
+	0x12B,
+	0x126,
+	0x122,
+	0x120,
+	0x13A,
+	0x134,
+	0x130,
+	0x12C,
+	0x129,
+	0x126,
+	0x125,
+	0x123,
+	0x121,
+	0x120,
+	0x11E,
+	0x11E,
+
+	0x0B8,
+	0x100,
+	0x100,
+	0x111,
+	0x122,
+	0x133,
+	0x144,
+	0x144,
+	0x144,
+	0x155,
+	0x155,
+	0x166,
+	0x166,
+	0x166,
+	0x166,
+	0x166,
+	0x166,
+
+	0x0B9,
+	0x12C,
+	0x112,
+	0x10C,
+	0x10A,
+	0x110,
+	0x10E,
+	0x117,
+	0x113,
+	0x11F,
+	0x11A,
+	0x12A,
+	0x124,
+	0x11F,
+	0x11B,
+	0x11A,
+	0x117,
+	0x12B,
+	0x126,
+	0x122,
+	0x120,
+	0x13A,
+	0x134,
+	0x130,
+	0x12C,
+	0x129,
+	0x126,
+	0x125,
+	0x123,
+	0x121,
+	0x120,
+	0x11E,
+	0x11E,
+
+	0x0BA,
+	0x100,
+	0x100,
+	0x111,
+	0x122,
+	0x133,
+	0x144,
+	0x144,
+	0x144,
+	0x155,
+	0x155,
+	0x166,
+	0x166,
+	0x166,
+	0x166,
+	0x166,
+	0x166,
+
+//Sleep Out Command
+	0x011,
+};
+#endif
+
 #if defined (CONFIG_MACH_BOSE_ATT)
 int n1_spi_write(u8 addr, u8 data)
 #else
@@ -79,17 +316,15 @@ static int n1_spi_write(u8 addr, u8 data)
 {
 	struct spi_message m;
 	struct spi_transfer xfer;
-
-	u8 w[2];
+	u16 msg;
 	int ret;
 
 	spi_message_init(&m);
 
 	memset(&xfer, 0, sizeof(xfer));
 
-	w[0] = addr;
-	w[1] = data;
-	xfer.tx_buf = &w;
+	msg = (addr << 8) | data; /* byte order is changed in K39 */
+	xfer.tx_buf = &msg;
 
 	xfer.bits_per_word = 9;
 	xfer.len = 2;
@@ -102,10 +337,43 @@ static int n1_spi_write(u8 addr, u8 data)
 
 	return ret;
 }
-
 #if defined (CONFIG_MACH_BOSE_ATT)
 EXPORT_SYMBOL(n1_spi_write);
 #endif
+
+#if MULTIPLE_SPI_WRITE
+#if defined (CONFIG_MACH_BOSE_ATT)
+int n1_spi_multiple_write(u16 *buf)
+#else
+static int n1_spi_multiple_write(u16 *buf)
+#endif
+{
+	struct spi_message m;
+	struct spi_transfer xfer;
+	int ret;
+
+	spi_message_init(&m);
+
+	memset(&xfer, 0, sizeof(xfer));
+
+	xfer.tx_buf = buf;
+
+	xfer.bits_per_word = 9;
+	xfer.len = sizeof(panel_init_data);
+	spi_message_add_tail(&xfer, &m);
+
+	ret = spi_sync(n1_disp1_spi, &m);
+
+	if (ret < 0)
+		dev_warn(&n1_disp1_spi->dev, "failed to multiple write\n");
+
+	return ret;
+}
+#if defined (CONFIG_MACH_BOSE_ATT)
+EXPORT_SYMBOL(n1_spi_multiple_write);
+#endif
+#endif /* MULTIPLE_SPI_WRITE */
+
 
 #if n1_ld9040
 
@@ -113,9 +381,15 @@ EXPORT_SYMBOL(n1_spi_write);
 
 static int n1_panel_enable(void)
 {
-	regulator_enable(reg_lcd_1v8);
+	int ret;
+
+	ret = regulator_enable(reg_lcd_1v8);
+	if (ret < 0)
+		printk(KERN_ERR "%s: ret(%d) L:%d\n", __func__, ret, __LINE__);
 	msleep(1);
-	regulator_enable(reg_lcd_3v0);
+	ret = regulator_enable(reg_lcd_3v0);
+	if (ret < 0)
+		printk(KERN_ERR "%s: ret(%d) L:%d\n", __func__, ret, __LINE__);
 	msleep(1);
 
 	msleep(25);
@@ -123,294 +397,296 @@ static int n1_panel_enable(void)
 	/* take panel out of reset */
 	gpio_set_value(n1_lvds_reset, 1);
 
-	  //Wait 10ms
-	  msleep( 10 );
-	
+	//Wait 10ms
+	msleep( 10 );
+
 	printk("n1_panel_enable..%d\n",__LINE__);
-	
-	  //Panel Condition Set
+
+#if MULTIPLE_SPI_WRITE
+	// N1_ICS : for better performance
+	n1_spi_multiple_write(panel_init_data);
+#else
+	  //Panel Condition Set (15)
 	  {
-		  n1_spi_write( 0, 0xF8 ); 
-		  n1_spi_write( 1, 0x01 ); 
-		  n1_spi_write( 1, 0x27 );  
-		  n1_spi_write( 1, 0x27 );  
-		  n1_spi_write( 1, 0x07 );  
-		  n1_spi_write( 1, 0x07 );  
-		  n1_spi_write( 1, 0x54 );  
-		  n1_spi_write( 1, 0x9F );  
-		  n1_spi_write( 1, 0x63 );  
-		  n1_spi_write( 1, 0x86 );  
-//		  n1_spi_write( 1, 0x8F );  		  
-		  n1_spi_write( 1, 0x1A );  
-		  n1_spi_write( 1, 0x33 );  
-		  n1_spi_write( 1, 0x0D );  
-		  n1_spi_write( 1, 0x00 );  
-		  n1_spi_write( 1, 0x00 );  
+		  n1_spi_write( 0, 0xF8 );
+		  n1_spi_write( 1, 0x01 );
+		  n1_spi_write( 1, 0x27 );
+		  n1_spi_write( 1, 0x27 );
+		  n1_spi_write( 1, 0x07 );
+		  n1_spi_write( 1, 0x07 );
+		  n1_spi_write( 1, 0x54 );
+		  n1_spi_write( 1, 0x9F );
+		  n1_spi_write( 1, 0x63 );
+		  n1_spi_write( 1, 0x86 );
+//		  n1_spi_write( 1, 0x8F );
+		  n1_spi_write( 1, 0x1A );
+		  n1_spi_write( 1, 0x33 );
+		  n1_spi_write( 1, 0x0D );
+		  n1_spi_write( 1, 0x00 );
+		  n1_spi_write( 1, 0x00 );
 	  }
-	
-	  //Display Condition Set
+
+	  //Display Condition Set (10)
 	  {
 		  //1) Display Control Set
-		  n1_spi_write( 0, 0xF2 ); 
-		  n1_spi_write( 1, 0x02 ); 
-		  n1_spi_write( 1, 0x03 ); 
-		  n1_spi_write( 1, 0x1C ); 
-		  n1_spi_write( 1, 0x10 ); 
+		  n1_spi_write( 0, 0xF2 );
+		  n1_spi_write( 1, 0x02 );
+		  n1_spi_write( 1, 0x03 );
+		  n1_spi_write( 1, 0x1C );
 		  n1_spi_write( 1, 0x10 );
-	
-		  n1_spi_write( 0, 0xF7 ); 
+		  n1_spi_write( 1, 0x10 );
+
+		  n1_spi_write( 0, 0xF7 );
 		  n1_spi_write( 1, 0x00 );
-		  //n1_spi_write( 1, 0x03 ); //In order to have vertical flip 
-		  n1_spi_write( 1, 0x00 ); 
-		  n1_spi_write( 1, 0x00 ); 
-	
+		  //n1_spi_write( 1, 0x03 ); //In order to have vertical flip
+		  n1_spi_write( 1, 0x00 );
+		  n1_spi_write( 1, 0x00 );
+
 	  }
-	  
+
 	  //Gamma Condition Set
 	  {
 		  {
-			  //1) Gamma Setting
-	
-			  n1_spi_write( 0, 0xFA ); 
-			  n1_spi_write( 1, 0x02 ); 
-			  n1_spi_write( 1, 0x18 ); 
-			  n1_spi_write( 1, 0x08 ); 
-			  n1_spi_write( 1, 0x24 ); 
-			  n1_spi_write( 1, 0x70 ); 
-			  n1_spi_write( 1, 0x6E ); 
-			  n1_spi_write( 1, 0x4E ); 
-			  n1_spi_write( 1, 0xBC ); 
-			  n1_spi_write( 1, 0xC0 ); 
-			  n1_spi_write( 1, 0xAF ); 
-			  n1_spi_write( 1, 0xB3 ); 
-			  n1_spi_write( 1, 0xB8 ); 
-			  n1_spi_write( 1, 0xA5 ); 
-			  n1_spi_write( 1, 0xC5 ); 
-			  n1_spi_write( 1, 0xC7 ); 
-			  n1_spi_write( 1, 0xBB ); 
-			  n1_spi_write( 1, 0x00 ); 
-			  n1_spi_write( 1, 0xB9 ); 
-			  n1_spi_write( 1, 0x00 ); 
-			  n1_spi_write( 1, 0xB8 ); 
-			  n1_spi_write( 1, 0x00 ); 
-			  n1_spi_write( 1, 0xFC ); 
-	
+			  //1) Gamma Setting (23)
+
+			  n1_spi_write( 0, 0xFA );
+			  n1_spi_write( 1, 0x02 );
+			  n1_spi_write( 1, 0x18 );
+			  n1_spi_write( 1, 0x08 );
+			  n1_spi_write( 1, 0x24 );
+			  n1_spi_write( 1, 0x70 );
+			  n1_spi_write( 1, 0x6E );
+			  n1_spi_write( 1, 0x4E );
+			  n1_spi_write( 1, 0xBC );
+			  n1_spi_write( 1, 0xC0 );
+			  n1_spi_write( 1, 0xAF );
+			  n1_spi_write( 1, 0xB3 );
+			  n1_spi_write( 1, 0xB8 );
+			  n1_spi_write( 1, 0xA5 );
+			  n1_spi_write( 1, 0xC5 );
+			  n1_spi_write( 1, 0xC7 );
+			  n1_spi_write( 1, 0xBB );
+			  n1_spi_write( 1, 0x00 );
+			  n1_spi_write( 1, 0xB9 );
+			  n1_spi_write( 1, 0x00 );
+			  n1_spi_write( 1, 0xB8 );
+			  n1_spi_write( 1, 0x00 );
+			  n1_spi_write( 1, 0xFC );
+
 		  }
 		  {
-			  //2) Gamma Set Update
-			  n1_spi_write( 0, 0xFA ); 
-//			  n1_spi_write( 1, 0x01 ); 
+			  //2) Gamma Set Update (2)
+			  n1_spi_write( 0, 0xFA );
+//			  n1_spi_write( 1, 0x01 );
 			n1_spi_write( 1, 0x03 );
 		  }
 	  }
-	
-	  //ETC Condition Set
+
+	  //ETC Condition Set (156)
 	  {
 		  {
-			  //1)
-	  
-			  n1_spi_write( 0, 0xF6 ); 
-			  n1_spi_write( 1, 0x00 ); 
-			  n1_spi_write( 1, 0x8E ); 
-			  n1_spi_write( 1, 0x07 ); 
+			  //1) : 4
+
+			  n1_spi_write( 0, 0xF6 );
+			  n1_spi_write( 1, 0x00 );
+			  n1_spi_write( 1, 0x8E );
+			  n1_spi_write( 1, 0x07 );
 		  }
 		  {
-			  //2)
-			  n1_spi_write( 0, 0xB3 ); 
-			  n1_spi_write( 1, 0x6C ); 
+			  //2) : 2
+			  n1_spi_write( 0, 0xB3 );
+			  n1_spi_write( 1, 0x6C );
 		  }
 		  {
-			  //3)
-			  n1_spi_write( 0, 0xB5 ); 
-			  n1_spi_write( 1, 0x2C ); 
-			  n1_spi_write( 1, 0x12 ); 
-			  n1_spi_write( 1, 0x0C ); 
-			  n1_spi_write( 1, 0x0A ); 
-			  n1_spi_write( 1, 0x10 ); 
-			  n1_spi_write( 1, 0x0E ); 
-			  n1_spi_write( 1, 0x17 ); 
-			  n1_spi_write( 1, 0x13 ); 
-			  n1_spi_write( 1, 0x1F ); 
-			  n1_spi_write( 1, 0x1A ); 
-			  n1_spi_write( 1, 0x2A ); 
-			  n1_spi_write( 1, 0x24 ); 
-			  n1_spi_write( 1, 0x1F ); 
-			  n1_spi_write( 1, 0x1B ); 
-			  n1_spi_write( 1, 0x1A ); 
-			  n1_spi_write( 1, 0x17 ); 
-			  n1_spi_write( 1, 0x2B ); 
-			  n1_spi_write( 1, 0x26 ); 
-			  n1_spi_write( 1, 0x22 ); 
-			  n1_spi_write( 1, 0x20 ); 
-			  n1_spi_write( 1, 0x3A ); 
-			  n1_spi_write( 1, 0x34 ); 
-			  n1_spi_write( 1, 0x30 ); 
-			  n1_spi_write( 1, 0x2C ); 
-			  n1_spi_write( 1, 0x29 ); 
-			  n1_spi_write( 1, 0x26 ); 
-			  n1_spi_write( 1, 0x25 ); 
-			  n1_spi_write( 1, 0x23 ); 
-			  n1_spi_write( 1, 0x21 ); 
-			  n1_spi_write( 1, 0x20 ); 
-			  n1_spi_write( 1, 0x1E ); 
-			  n1_spi_write( 1, 0x1E ); 
-		  }
-		  {
-			  //4)
-	
-			  n1_spi_write( 0, 0xB6 ); 
-			  n1_spi_write( 1, 0x00 ); 
-			  n1_spi_write( 1, 0x00 ); 
-			  n1_spi_write( 1, 0x11 ); 
-			  n1_spi_write( 1, 0x22 ); 
-			  n1_spi_write( 1, 0x33 ); 
-			  n1_spi_write( 1, 0x44 ); 
-			  n1_spi_write( 1, 0x44 ); 
-			  n1_spi_write( 1, 0x44 ); 
-			  n1_spi_write( 1, 0x55 ); 
-			  n1_spi_write( 1, 0x55 ); 
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 );
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 ); 
-		  }
-		  {
-			  //5)
-	
-			  n1_spi_write( 0, 0xB7 ); 
-			  n1_spi_write( 1, 0x2C ); 
-			  n1_spi_write( 1, 0x12 ); 
-			  n1_spi_write( 1, 0x0C ); 
-			  n1_spi_write( 1, 0x0A ); 
-			  n1_spi_write( 1, 0x10 ); 
-			  n1_spi_write( 1, 0x0E ); 
-			  n1_spi_write( 1, 0x17 ); 
-			  n1_spi_write( 1, 0x13 ); 
-			  n1_spi_write( 1, 0x1F ); 
-			  n1_spi_write( 1, 0x1A ); 
-			  n1_spi_write( 1, 0x2A ); 
-			  n1_spi_write( 1, 0x24 ); 
+			  //3) : 33
+			  n1_spi_write( 0, 0xB5 );
+			  n1_spi_write( 1, 0x2C );
+			  n1_spi_write( 1, 0x12 );
+			  n1_spi_write( 1, 0x0C );
+			  n1_spi_write( 1, 0x0A );
+			  n1_spi_write( 1, 0x10 );
+			  n1_spi_write( 1, 0x0E );
+			  n1_spi_write( 1, 0x17 );
+			  n1_spi_write( 1, 0x13 );
 			  n1_spi_write( 1, 0x1F );
-			  n1_spi_write( 1, 0x1B ); 
-			  n1_spi_write( 1, 0x1A ); 
-			  n1_spi_write( 1, 0x17 ); 
-			  n1_spi_write( 1, 0x2B ); 
-			  n1_spi_write( 1, 0x26 ); 
-			  n1_spi_write( 1, 0x22 ); 
-			  n1_spi_write( 1, 0x20 ); 
-			  n1_spi_write( 1, 0x3A ); 
-			  n1_spi_write( 1, 0x34 ); 
-			  n1_spi_write( 1, 0x30 ); 
-			  n1_spi_write( 1, 0x2C ); 
-			  n1_spi_write( 1, 0x29 ); 
-			  n1_spi_write( 1, 0x26 ); 
-			  n1_spi_write( 1, 0x25 ); 
-			  n1_spi_write( 1, 0x23 ); 
-			  n1_spi_write( 1, 0x21 ); 
-			  n1_spi_write( 1, 0x20 ); 
-			  n1_spi_write( 1, 0x1E ); 
-			  n1_spi_write( 1, 0x1E ); 
-		  }
-		  {
-			  //6)
-	
-			  n1_spi_write( 0, 0xB8 ); 
-			  n1_spi_write( 1, 0x00 ); 
-			  n1_spi_write( 1, 0x00 ); 
-			  n1_spi_write( 1, 0x11 ); 
-			  n1_spi_write( 1, 0x22 ); 
-			  n1_spi_write( 1, 0x33 ); 
-			  n1_spi_write( 1, 0x44 ); 
-			  n1_spi_write( 1, 0x44 ); 
-			  n1_spi_write( 1, 0x44 ); 
-			  n1_spi_write( 1, 0x55 ); 
-			  n1_spi_write( 1, 0x55 ); 
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 );
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 ); 
-		  }
-		  {
-			  //7)
-	
-			  n1_spi_write( 0, 0xB9 ); 
-			  n1_spi_write( 1, 0x2C ); 
-			  n1_spi_write( 1, 0x12 ); 
-			  n1_spi_write( 1, 0x0C ); 
-			  n1_spi_write( 1, 0x0A ); 
-			  n1_spi_write( 1, 0x10 ); 
-			  n1_spi_write( 1, 0x0E ); 
-			  n1_spi_write( 1, 0x17 ); 
-			  n1_spi_write( 1, 0x13 ); 
-			  n1_spi_write( 1, 0x1F ); 
-			  n1_spi_write( 1, 0x1A ); 
-			  n1_spi_write( 1, 0x2A ); 
-			  n1_spi_write( 1, 0x24 ); 
+			  n1_spi_write( 1, 0x1A );
+			  n1_spi_write( 1, 0x2A );
+			  n1_spi_write( 1, 0x24 );
 			  n1_spi_write( 1, 0x1F );
-			  n1_spi_write( 1, 0x1B ); 
-			  n1_spi_write( 1, 0x1A ); 
-			  n1_spi_write( 1, 0x17 ); 
-			  n1_spi_write( 1, 0x2B ); 
-			  n1_spi_write( 1, 0x26 ); 
-			  n1_spi_write( 1, 0x22 ); 
-			  n1_spi_write( 1, 0x20 ); 
-			  n1_spi_write( 1, 0x3A ); 
-			  n1_spi_write( 1, 0x34 ); 
-			  n1_spi_write( 1, 0x30 ); 
-			  n1_spi_write( 1, 0x2C ); 
-			  n1_spi_write( 1, 0x29 ); 
-			  n1_spi_write( 1, 0x26 ); 
-			  n1_spi_write( 1, 0x25 ); 
-			  n1_spi_write( 1, 0x23 ); 
-			  n1_spi_write( 1, 0x21 ); 
-			  n1_spi_write( 1, 0x20 ); 
-			  n1_spi_write( 1, 0x1E ); 
-			  n1_spi_write( 1, 0x1E ); 
+			  n1_spi_write( 1, 0x1B );
+			  n1_spi_write( 1, 0x1A );
+			  n1_spi_write( 1, 0x17 );
+			  n1_spi_write( 1, 0x2B );
+			  n1_spi_write( 1, 0x26 );
+			  n1_spi_write( 1, 0x22 );
+			  n1_spi_write( 1, 0x20 );
+			  n1_spi_write( 1, 0x3A );
+			  n1_spi_write( 1, 0x34 );
+			  n1_spi_write( 1, 0x30 );
+			  n1_spi_write( 1, 0x2C );
+			  n1_spi_write( 1, 0x29 );
+			  n1_spi_write( 1, 0x26 );
+			  n1_spi_write( 1, 0x25 );
+			  n1_spi_write( 1, 0x23 );
+			  n1_spi_write( 1, 0x21 );
+			  n1_spi_write( 1, 0x20 );
+			  n1_spi_write( 1, 0x1E );
+			  n1_spi_write( 1, 0x1E );
+		  }
+		  {
+			  //4) : 17
+
+			  n1_spi_write( 0, 0xB6 );
+			  n1_spi_write( 1, 0x00 );
+			  n1_spi_write( 1, 0x00 );
+			  n1_spi_write( 1, 0x11 );
+			  n1_spi_write( 1, 0x22 );
+			  n1_spi_write( 1, 0x33 );
+			  n1_spi_write( 1, 0x44 );
+			  n1_spi_write( 1, 0x44 );
+			  n1_spi_write( 1, 0x44 );
+			  n1_spi_write( 1, 0x55 );
+			  n1_spi_write( 1, 0x55 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+		  }
+		  {
+			  //5) : 33
+
+			  n1_spi_write( 0, 0xB7 );
+			  n1_spi_write( 1, 0x2C );
+			  n1_spi_write( 1, 0x12 );
+			  n1_spi_write( 1, 0x0C );
+			  n1_spi_write( 1, 0x0A );
+			  n1_spi_write( 1, 0x10 );
+			  n1_spi_write( 1, 0x0E );
+			  n1_spi_write( 1, 0x17 );
+			  n1_spi_write( 1, 0x13 );
+			  n1_spi_write( 1, 0x1F );
+			  n1_spi_write( 1, 0x1A );
+			  n1_spi_write( 1, 0x2A );
+			  n1_spi_write( 1, 0x24 );
+			  n1_spi_write( 1, 0x1F );
+			  n1_spi_write( 1, 0x1B );
+			  n1_spi_write( 1, 0x1A );
+			  n1_spi_write( 1, 0x17 );
+			  n1_spi_write( 1, 0x2B );
+			  n1_spi_write( 1, 0x26 );
+			  n1_spi_write( 1, 0x22 );
+			  n1_spi_write( 1, 0x20 );
+			  n1_spi_write( 1, 0x3A );
+			  n1_spi_write( 1, 0x34 );
+			  n1_spi_write( 1, 0x30 );
+			  n1_spi_write( 1, 0x2C );
+			  n1_spi_write( 1, 0x29 );
+			  n1_spi_write( 1, 0x26 );
+			  n1_spi_write( 1, 0x25 );
+			  n1_spi_write( 1, 0x23 );
+			  n1_spi_write( 1, 0x21 );
+			  n1_spi_write( 1, 0x20 );
+			  n1_spi_write( 1, 0x1E );
+			  n1_spi_write( 1, 0x1E );
+		  }
+		  {
+			  //6) : 17
+
+			  n1_spi_write( 0, 0xB8 );
+			  n1_spi_write( 1, 0x00 );
+			  n1_spi_write( 1, 0x00 );
+			  n1_spi_write( 1, 0x11 );
+			  n1_spi_write( 1, 0x22 );
+			  n1_spi_write( 1, 0x33 );
+			  n1_spi_write( 1, 0x44 );
+			  n1_spi_write( 1, 0x44 );
+			  n1_spi_write( 1, 0x44 );
+			  n1_spi_write( 1, 0x55 );
+			  n1_spi_write( 1, 0x55 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+		  }
+		  {
+			  //7) : 33
+
+			  n1_spi_write( 0, 0xB9 );
+			  n1_spi_write( 1, 0x2C );
+			  n1_spi_write( 1, 0x12 );
+			  n1_spi_write( 1, 0x0C );
+			  n1_spi_write( 1, 0x0A );
+			  n1_spi_write( 1, 0x10 );
+			  n1_spi_write( 1, 0x0E );
+			  n1_spi_write( 1, 0x17 );
+			  n1_spi_write( 1, 0x13 );
+			  n1_spi_write( 1, 0x1F );
+			  n1_spi_write( 1, 0x1A );
+			  n1_spi_write( 1, 0x2A );
+			  n1_spi_write( 1, 0x24 );
+			  n1_spi_write( 1, 0x1F );
+			  n1_spi_write( 1, 0x1B );
+			  n1_spi_write( 1, 0x1A );
+			  n1_spi_write( 1, 0x17 );
+			  n1_spi_write( 1, 0x2B );
+			  n1_spi_write( 1, 0x26 );
+			  n1_spi_write( 1, 0x22 );
+			  n1_spi_write( 1, 0x20 );
+			  n1_spi_write( 1, 0x3A );
+			  n1_spi_write( 1, 0x34 );
+			  n1_spi_write( 1, 0x30 );
+			  n1_spi_write( 1, 0x2C );
+			  n1_spi_write( 1, 0x29 );
+			  n1_spi_write( 1, 0x26 );
+			  n1_spi_write( 1, 0x25 );
+			  n1_spi_write( 1, 0x23 );
+			  n1_spi_write( 1, 0x21 );
+			  n1_spi_write( 1, 0x20 );
+			  n1_spi_write( 1, 0x1E );
+			  n1_spi_write( 1, 0x1E );
 		  }
 		 {
-			  //8)
-	
-			  n1_spi_write( 0, 0xBA ); 
-			  n1_spi_write( 1, 0x00 ); 
-			  n1_spi_write( 1, 0x00 ); 
-			  n1_spi_write( 1, 0x11 ); 
-			  n1_spi_write( 1, 0x22 ); 
-			  n1_spi_write( 1, 0x33 ); 
-			  n1_spi_write( 1, 0x44 ); 
-			  n1_spi_write( 1, 0x44 ); 
-			  n1_spi_write( 1, 0x44 ); 
-			  n1_spi_write( 1, 0x55 ); 
-			  n1_spi_write( 1, 0x55 ); 
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 ); 
+			  //8) : 17
+
+			  n1_spi_write( 0, 0xBA );
+			  n1_spi_write( 1, 0x00 );
+			  n1_spi_write( 1, 0x00 );
+			  n1_spi_write( 1, 0x11 );
+			  n1_spi_write( 1, 0x22 );
+			  n1_spi_write( 1, 0x33 );
+			  n1_spi_write( 1, 0x44 );
+			  n1_spi_write( 1, 0x44 );
+			  n1_spi_write( 1, 0x44 );
+			  n1_spi_write( 1, 0x55 );
+			  n1_spi_write( 1, 0x55 );
 			  n1_spi_write( 1, 0x66 );
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 ); 
-			  n1_spi_write( 1, 0x66 ); 
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
+			  n1_spi_write( 1, 0x66 );
 		  }
 	  }
-	
-	
-	
-	  //Sleep Out Command
+
+	  //Sleep Out Command : 1
 	  {
-		  n1_spi_write( 0, 0x11 ); 
+		  n1_spi_write( 0, 0x11 );
 	  }
-	  
+#endif	/* MUTIPLE_SPI_WRITE */
+
 	printk("n1_panel_enable..%d\n",__LINE__);
 
-	  msleep( 120 );
-	
-//	muxtex_temp = 2 ;
-	  //Display On Command
-	  {
-		 n1_spi_write( 0, 0x29 ); 
-	  }
+	msleep(120);
 
+//	muxtex_temp = 2 ;
+	  //Display On Command : 1
+	{
+		n1_spi_write( 0, 0x29 );
+	}
 
 	return 0;
 }
@@ -446,13 +722,13 @@ static int n1_panel_enable(void)
 	n1_spi_write( 1, 0x0A );
 	n1_spi_write( 1, 0x10 );
 	n1_spi_write( 1, 0x10 );
-	
+
 	//SEQ_GTCON
 	n1_spi_write( 0, 0xF7 );
 	n1_spi_write( 1, 0x09 );
 	n1_spi_write( 1, 0x00 );
 	n1_spi_write( 1, 0x00 );
-	
+
 	//SEQ_PANEL_CONDITION
 	n1_spi_write( 0, 0xF8 );
 	n1_spi_write( 1, 0x05 );
@@ -475,13 +751,13 @@ static int n1_panel_enable(void)
 	n1_spi_write( 1, 0x07 );
 	n1_spi_write( 1, 0x20 );
 	n1_spi_write( 1, 0x20 );
-	n1_spi_write( 1, 0x20 );	
+	n1_spi_write( 1, 0x20 );
 	n1_spi_write( 1, 0x00 );
-	n1_spi_write( 1, 0x00 );	
+	n1_spi_write( 1, 0x00 );
 	//SEQ_SLPOUT
 	n1_spi_write( 0, 0x11 );
 	n1_spi_write( 1, 0x09 );
-	
+
     mdelay(120);//Wait 120ms
 
 
@@ -494,7 +770,7 @@ static int n1_panel_enable(void)
 	n1_spi_write( 1, 0x15 );
 	n1_spi_write( 1, 0x15 );
 	n1_spi_write( 1, 0x15 );
-	
+
 	//SEQ_PWR_CTRL_SM2
 	n1_spi_write( 0, 0xF4 );
 	n1_spi_write( 1, 0x0A );
@@ -503,7 +779,7 @@ static int n1_panel_enable(void)
 	n1_spi_write( 1, 0x6A );
 	n1_spi_write( 1, 0x44 );
 	n1_spi_write( 1, 0x02 );
-	
+
 	//SEQ_GAMMA_SET1_SM2
 	n1_spi_write( 0, 0xF9 );
 	n1_spi_write( 1, 0x2E );
@@ -527,7 +803,7 @@ static int n1_panel_enable(void)
 	n1_spi_write( 1, 0xBC );
 	n1_spi_write( 1, 0x00 );
 	n1_spi_write( 1, 0xB4 );
-	
+
 	//SEQ_GAMMA_CTRL
 	n1_spi_write( 0, 0xFB );
 	n1_spi_write( 1, 0x02 );
@@ -556,11 +832,11 @@ static int n1_panel_enable(void)
 		n1_spi_write( 0, 0x36 );
 		if(system_rev==0 || system_rev==-1)
 		{
-			n1_spi_write( 1, 0x44 ); 
+			n1_spi_write( 1, 0x44 );
 		}
 		else
 		{
-			n1_spi_write( 1, 0xD4 ); 
+			n1_spi_write( 1, 0xD4 );
 		}
 	}
 
@@ -579,13 +855,15 @@ static int n1_panel_enable(void)
 	}
 
 //	gpio_set_value(GPIO_LCD_LDO_LED_EN, 1);
-	
+
 	return 0;
 }
 #endif
 
 static int n1_panel_disable(void)
 {
+	int ret;
+
 	//Display off
 	{
 		n1_spi_write( 0, 0x28 );
@@ -605,11 +883,17 @@ static int n1_panel_disable(void)
 	gpio_set_value(n1_lvds_reset, 0);
 
 	usleep_range(5000, 6000);//5ms
-	regulator_disable(reg_lcd_3v0);
-	regulator_disable(reg_lcd_1v8);
+	ret = regulator_disable(reg_lcd_3v0);
+	if (ret < 0)
+		printk(KERN_ERR "%s: ret(%d) L:%d\n", __func__, ret, __LINE__);
+	ret = regulator_disable(reg_lcd_1v8);
+	if (ret < 0)
+		printk(KERN_ERR "%s: ret(%d) L:%d\n", __func__, ret, __LINE__);
 #if defined (CONFIG_MACH_BOSE_ATT)
 	muxtex_temp = 0 ;
 #endif
+
+	//Display off
 	return 0;
 }
 
@@ -617,7 +901,7 @@ static void n1_panel_config_pins(void)
 {
     tegra_gpio_enable(TEGRA_GPIO_PN4);
     gpio_request(TEGRA_GPIO_PN4, "SFIO_LCD_NCS");
-    gpio_direction_output(TEGRA_GPIO_PN4, 0); 
+    gpio_direction_output(TEGRA_GPIO_PN4, 0);
     tegra_gpio_enable(TEGRA_GPIO_PZ4);
     gpio_request(TEGRA_GPIO_PZ4, "SFIO_LCD_SCLK");
     gpio_direction_output(TEGRA_GPIO_PZ4, 0);
@@ -652,7 +936,7 @@ static int panel_n1_spi_resume(struct spi_device *spi)
     n1_panel_reconfig_pins();
     n1_panel_enable();
 	amoled_set_backlight_in_resume();
-	
+
 	return 0;
 }
 
@@ -731,9 +1015,12 @@ static int panel_n1_spi_probe(struct spi_device *spi)
 {
 	int ret;
 
+#if 0
+// N1_ICS
 	spi->bits_per_word = 9;
 	spi->mode = SPI_MODE_3;
 	spi->max_speed_hz = 1000000;
+#endif
 
 	ret = spi_setup(spi);
 	if (ret < 0) {
@@ -751,8 +1038,8 @@ static int panel_n1_spi_probe(struct spi_device *spi)
 //LCD_ONOFF_TEST, LCD_TYPE
 	tune_lcd_dev = device_create(sec_class, NULL, 0, NULL, "sec_tune_lcd");
 
-	if (IS_ERR(tune_lcd_dev)) 
-    	{
+	if (IS_ERR(tune_lcd_dev))
+	{
 		printk("Failed to create device!");
 		ret = -1;
 	}
@@ -778,7 +1065,9 @@ static int panel_n1_spi_probe(struct spi_device *spi)
 		printk(KERN_INFO "%s: VLCD_1V8 regulator not found\n", __func__);
 		reg_lcd_1v8 = NULL;
 	} else {
-		regulator_set_voltage(reg_lcd_1v8, 1800*1000,1800*1000);
+		ret = regulator_set_voltage(reg_lcd_1v8, 1800*1000,1800*1000);
+		if (ret < 0)
+			printk(KERN_ERR "%s: ret(%d) L:%d\n", __func__, ret, __LINE__);
 //		regulator_enable(reg_lcd_1v8);
 	}
 
@@ -787,7 +1076,9 @@ static int panel_n1_spi_probe(struct spi_device *spi)
 		printk(KERN_INFO "%s: VLCD_3V0 regulator not found\n", __func__);
 		reg_lcd_3v0 = NULL;
 	} else {
-		regulator_set_voltage(reg_lcd_3v0, 3000*1000,3000*1000);
+		ret = regulator_set_voltage(reg_lcd_3v0, 3000*1000,3000*1000);
+		if (ret < 0)
+			printk(KERN_ERR "%s: ret(%d) L:%d\n", __func__, ret, __LINE__);
 //		regulator_enable(reg_lcd_3v0);
 	}
 
@@ -799,7 +1090,7 @@ static int panel_n1_spi_probe(struct spi_device *spi)
 	n1_panel_early_suspend.suspend = panel_n1_spi_suspend;
 	n1_panel_early_suspend.resume = panel_n1_spi_resume;
 	register_early_suspend(&n1_panel_early_suspend);
-	
+
 	n1_panel_enable();
 	muxtex_temp = 2 ;
 
@@ -819,7 +1110,7 @@ static struct spi_driver panel_n1_spi_driver = {
 	},
 	.probe = panel_n1_spi_probe,
 	.remove = __devexit_p(panel_n1_spi_remove),
-#if !(defined CONFIG_HAS_EARLYSUSPEND)	
+#if !(defined CONFIG_HAS_EARLYSUSPEND)
 	.suspend = panel_n1_spi_suspend,
 	.resume = panel_n1_spi_resume,
 #endif

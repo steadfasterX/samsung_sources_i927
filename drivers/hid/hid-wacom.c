@@ -18,6 +18,8 @@
  * any later version.
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/device.h>
 #include <linux/hid.h>
 #include <linux/module.h>
@@ -141,8 +143,8 @@ static void wacom_poke(struct hid_device *hdev, u8 speed)
 	 * Note that if the raw queries fail, it's not a hard failure and it
 	 * is safe to continue
 	 */
-	dev_warn(&hdev->dev, "failed to poke device, command %d, err %d\n",
-				rep_data[0], ret);
+	hid_warn(hdev, "failed to poke device, command %d, err %d\n",
+		 rep_data[0], ret);
 	return;
 }
 
@@ -172,7 +174,7 @@ static ssize_t wacom_store_speed(struct device *dev,
 		return -EINVAL;
 }
 
-static DEVICE_ATTR(speed, S_IRUGO | S_IWUGO,
+static DEVICE_ATTR(speed, S_IRUGO | S_IWUSR | S_IWGRP,
 		wacom_show_speed, wacom_store_speed);
 
 static int wacom_raw_event(struct hid_device *hdev, struct hid_report *report,
@@ -312,7 +314,7 @@ static int wacom_probe(struct hid_device *hdev,
 
 	wdata = kzalloc(sizeof(*wdata), GFP_KERNEL);
 	if (wdata == NULL) {
-		dev_err(&hdev->dev, "can't alloc wacom descriptor\n");
+		hid_err(hdev, "can't alloc wacom descriptor\n");
 		return -ENOMEM;
 	}
 
@@ -321,20 +323,20 @@ static int wacom_probe(struct hid_device *hdev,
 	/* Parse the HID report now */
 	ret = hid_parse(hdev);
 	if (ret) {
-		dev_err(&hdev->dev, "parse failed\n");
+		hid_err(hdev, "parse failed\n");
 		goto err_free;
 	}
 
 	ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
 	if (ret) {
-		dev_err(&hdev->dev, "hw start failed\n");
+		hid_err(hdev, "hw start failed\n");
 		goto err_free;
 	}
 
 	ret = device_create_file(&hdev->dev, &dev_attr_speed);
 	if (ret)
-		dev_warn(&hdev->dev,
-			"can't create sysfs speed attribute err: %d\n", ret);
+		hid_warn(hdev,
+			 "can't create sysfs speed attribute err: %d\n", ret);
 
 	/* Set Wacom mode 2 with high reporting speed */
 	wacom_poke(hdev, 1);
@@ -349,13 +351,9 @@ static int wacom_probe(struct hid_device *hdev,
 
 	ret = power_supply_register(&hdev->dev, &wdata->battery);
 	if (ret) {
-		dev_warn(&hdev->dev,
-			"can't create sysfs battery attribute, err: %d\n", ret);
-		/*
-		 * battery attribute is not critical for the tablet, but if it
-		 * failed then there is no need to create ac attribute
-		 */
-		goto move_on;
+		hid_warn(hdev, "can't create sysfs battery attribute, err: %d\n",
+			 ret);
+		goto err_battery;
 	}
 
 	wdata->ac.properties = wacom_ac_props;
@@ -367,19 +365,15 @@ static int wacom_probe(struct hid_device *hdev,
 
 	ret = power_supply_register(&hdev->dev, &wdata->ac);
 	if (ret) {
-		dev_warn(&hdev->dev,
-			"can't create ac battery attribute, err: %d\n", ret);
-		/*
-		 * ac attribute is not critical for the tablet, but if it
-		 * failed then we don't want to battery attribute to exist
-		 */
-		power_supply_unregister(&wdata->battery);
+		hid_warn(hdev,
+			 "can't create ac battery attribute, err: %d\n", ret);
+		goto err_ac;
 	}
-
-move_on:
 #endif
 	hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
 	input = hidinput->input;
+
+	__set_bit(INPUT_PROP_POINTER, input->propbit);
 
 	/* Basics */
 	input->evbit[0] |= BIT(EV_KEY) | BIT(EV_ABS) | BIT(EV_REL);
@@ -414,6 +408,13 @@ move_on:
 
 	return 0;
 
+#ifdef CONFIG_HID_WACOM_POWER_SUPPLY
+err_ac:
+	power_supply_unregister(&wdata->battery);
+err_battery:
+	device_remove_file(&hdev->dev, &dev_attr_speed);
+	hid_hw_stop(hdev);
+#endif
 err_free:
 	kfree(wdata);
 	return ret;
@@ -424,6 +425,7 @@ static void wacom_remove(struct hid_device *hdev)
 #ifdef CONFIG_HID_WACOM_POWER_SUPPLY
 	struct wacom_data *wdata = hid_get_drvdata(hdev);
 #endif
+	device_remove_file(&hdev->dev, &dev_attr_speed);
 	hid_hw_stop(hdev);
 
 #ifdef CONFIG_HID_WACOM_POWER_SUPPLY
@@ -454,7 +456,7 @@ static int __init wacom_init(void)
 
 	ret = hid_register_driver(&wacom_driver);
 	if (ret)
-		printk(KERN_ERR "can't register wacom driver\n");
+		pr_err("can't register wacom driver\n");
 	return ret;
 }
 

@@ -279,7 +279,7 @@ struct m5mo_mode {
 	unsigned char PreviewActive;
 	unsigned char VideoActive;
 	unsigned char HalfPress;
-	unsigned int StillCount;	
+	unsigned int StillCount;
 	enum m5mo_cam_mode camcordmode;
 	enum m5mo_vt_mode vtcallmode;
 };
@@ -319,4 +319,3 @@ struct m5mo_platform_data {
 #endif /* __KERNEL__ */
 
 #endif  /* __m5mo_H__ */
-

@@ -122,11 +122,11 @@ int Si4709_dev_init(struct i2c_client *client)
 
 	mutex_lock(&(Si4709_dev.lock));
 
-	Si4709_dev.client = client; 
+	Si4709_dev.client = client;
 
 #ifdef CONFIG_MACH_N1
 	Si4709_dev_int = GPIO_FM_INT;
-	Si4709_dev_irq = gpio_to_irq(GPIO_FM_INT); 
+	Si4709_dev_irq = gpio_to_irq(GPIO_FM_INT);
 	if(system_rev <=4)
 		Si4709_dev_rst = GPIO_FM_RST_04;
 	else
@@ -147,7 +147,7 @@ int Si4709_dev_init(struct i2c_client *client)
 	debug("Si4709_dev_init FM_RESET=%d", gpio_get_value(Si4709_dev_rst));
 	mdelay(1);
 	gpio_set_value(Si4709_dev_rst, 1);
-	debug("Si4709_dev_init FM_RESET=%d", gpio_get_value(Si4709_dev_rst));	
+	debug("Si4709_dev_init FM_RESET=%d", gpio_get_value(Si4709_dev_rst));
 	mdelay(2);
 
 #ifdef CONFIG_MACH_N1
@@ -363,7 +363,7 @@ int Si4709_dev_powerup(void)
 		}
 	} else
 		debug("Device already Powered-ON");
-	
+
 	enable_irq(Si4709_dev_irq);
 
 	mutex_unlock(&(Si4709_dev.lock));
@@ -434,7 +434,7 @@ int Si4709_dev_resume(void)
 #if 0
 	s3c_gpio_cfgpin(Si4709_dev_int, S3C_GPIO_SFN(0xF));
 	s3c_gpio_setpull(Si4709_dev_int, S3C_GPIO_PULL_UP);
-	set_irq_type(Si4709_dev_irq, IRQ_TYPE_EDGE_FALLING);
+	irq_set_irq_type(Si4709_dev_irq, IRQ_TYPE_EDGE_FALLING);
 #endif
 
 	enable_irq(Si4709_dev_irq);
@@ -2102,7 +2102,7 @@ static int powerup(void)
 	debug("powerup FM_RESET=%d", gpio_get_value(Si4709_dev_rst));
 	mdelay(1);
 	gpio_set_value(Si4709_dev_rst, 1);
-	debug("powerup FM_RESET=%d", gpio_get_value(Si4709_dev_rst));	
+	debug("powerup FM_RESET=%d", gpio_get_value(Si4709_dev_rst));
 	mdelay(2);
 
 #if 0

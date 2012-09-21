@@ -27,7 +27,7 @@
 
 
 #define KERNEL_SEC_DUMP_AP_DEAD_INDICATOR      0xABCD00C9    // AP -> CP : AP Crash Ind
-#define KERNEL_SEC_DUMP_AP_DEAD_ACK      0xCACAEDED   // CP -> AP : CP ready for uplaod mode. 
+#define KERNEL_SEC_DUMP_AP_DEAD_ACK      0xCACAEDED   // CP -> AP : CP ready for uplaod mode.
 
 #define KERNEL_SEC_DEBUG_CAUSE_STR_LEN   65 //it's longer than DPRAM_ERR_MSG_LEN, in dpram.h
 #define KERNEL_SEC_DEBUG_LEVEL_LOW	(0x574F4C44)
@@ -35,7 +35,7 @@
 #define KERNEL_SEC_DEBUG_LEVEL_HIGH	(0x47494844)
 
 //WDOG register
-#define S3C_PA_WDT                  0xE2700000		
+#define S3C_PA_WDT                  0xE2700000
 
 // klaatu - schedule log
 #define SCHED_LOG_MAX 2000
@@ -59,7 +59,7 @@ extern sched_log_t gExcpTaskLog[SCHED_LOG_MAX];
 extern unsigned int gExcpTaskLogIdx;
 
 typedef struct tag_mmu_info
-{	
+{
 	int SCTLR;
 	int TTBR0;
 	int TTBR1;
@@ -106,7 +106,7 @@ typedef struct
 	/* PC & CPSR */
 	unsigned int pc;
 	unsigned int cpsr;
-	
+
 	/* USR/SYS */
 	unsigned int r13_usr;
 	unsigned int r14_usr;
@@ -260,8 +260,8 @@ extern int kernel_sec_get_debug_level(void);
 extern kernel_sec_path_type kernel_sec_get_path(kernel_sec_port_type port_type);
 extern bool kernel_sec_set_path(kernel_sec_port_type port_type, kernel_sec_path_type path_type);
 
-extern void dump_all_task_info();
-extern void dump_cpu_stat();
+extern void dump_all_task_info(void);
+extern void dump_cpu_stat(void);
 
 
 #define KERNEL_SEC_LEN_BUILD_TIME 16

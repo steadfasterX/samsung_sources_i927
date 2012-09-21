@@ -25,12 +25,12 @@ enum otg_mode {
 	NOTIFY_TEST_MODE,
 };
 
-enum booster_power{
+enum booster_power {
 	NOTIFY_POWER_OFF,
 	NOTIFY_POWER_ON,
 };
 
-enum set_command{
+enum set_command {
 	NOTIFY_SET_OFF,
 	NOTIFY_SET_ON,
 };
@@ -46,7 +46,8 @@ struct host_notify_dev {
 	void		(*set_booster)(int);
 };
 
-extern void host_state_notify(struct host_notify_dev *ndev, int state);
+extern void host_state_notify(struct host_notify_dev *ndev,
+			int state, bool force);
 extern int host_notify_dev_register(struct host_notify_dev *ndev);
 extern void host_notify_dev_unregister(struct host_notify_dev *ndev);
 

@@ -21,7 +21,6 @@
 #include <asm/mach/arch.h>
 
 #include <mach/map.h>
-#include <mach/regs-fb.h>
 #include <mach/regs-gpio.h>
 #include <mach/s3c6410.h>
 
@@ -29,10 +28,11 @@
 #include <plat/devs.h>
 #include <plat/fb.h>
 #include <plat/gpio-cfg.h>
+#include <plat/regs-fb-v4.h>
 
 #include "mach-smartq.h"
 
-static struct gpio_led smartq5_leds[] __initdata = {
+static struct gpio_led smartq5_leds[] = {
 	{
 		.name			= "smartq5:green",
 		.active_low		= 1,
@@ -146,8 +146,6 @@ static void __init smartq5_machine_init(void)
 
 MACHINE_START(SMARTQ5, "SmartQ 5")
 	/* Maintainer: Maurus Cuelenaere <mcuelenaere AT gmail DOT com> */
-	.phys_io	= S3C_PA_UART & 0xfff00000,
-	.io_pg_offst	= (((u32)S3C_VA_UART) >> 18) & 0xfffc,
 	.boot_params	= S3C64XX_PA_SDRAM + 0x100,
 	.init_irq	= s3c6410_init_irq,
 	.map_io		= smartq_map_io,

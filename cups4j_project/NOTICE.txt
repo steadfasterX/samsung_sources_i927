@@ -1,0 +1,4 @@
+Steps to build
+1. Please import attached Cups4j library to eclipse.
+2. Build the project in eclipse.
+

@@ -3,13 +3,13 @@
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
  * Copyright (C) 1999-2011, Broadcom Corporation
- * 
+ *
  *         Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
  * available at http://www.broadcom.com/licenses/GPLv2.php, with the
  * following added to such license:
- * 
+ *
  *      As a special exception, the copyright holders of this software give you
  * permission to link this software with independent modules, and to copy and
  * distribute the resulting executable under terms of your choice, provided that
@@ -17,7 +17,7 @@
  * the license of that module.  An independent module is a module which is not
  * derived from this software.  The special exception does not apply to any
  * modifications of the software.
- * 
+ *
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
@@ -901,7 +901,7 @@ _dhd_set_multicast_list(dhd_info_t *dhd, int ifidx)
 	netif_addr_lock_bh(dev);
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
-	cnt = netdev_mc_count(dev);	
+	cnt = netdev_mc_count(dev);
 #else
 	cnt = dev->mc_count;
 #endif
@@ -1483,8 +1483,8 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt)
 					DHD_ERROR(("%s: ARP %d\n", __FUNCTION__, dump_data[0x15]));
 				}
 			}
-			else if (dump_data[0] & 1) 
-				DHD_ERROR(("%s: MULTICAST: %02X:%02X:%02X:%02X:%02X:%02X\n", 
+			else if (dump_data[0] & 1)
+				DHD_ERROR(("%s: MULTICAST: %02X:%02X:%02X:%02X:%02X:%02X\n",
 					__FUNCTION__, dump_data[0], dump_data[1], dump_data[2], dump_data[3], dump_data[4], dump_data[5]));
 
 			if (protocol == ETHER_TYPE_802_1X) {
@@ -2571,7 +2571,7 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 	 * Save the dhd_info into the priv
 	 */
 	memcpy(netdev_priv(net), &dhd, sizeof(dhd));
-	
+
 #if defined(CONFIG_MACH_GODIN) && defined(CONFIG_WIFI_CONTROL_FUNC)
 	g_bus = bus;
 #endif
@@ -3068,7 +3068,7 @@ dhd_detach(dhd_pub_t *dhdp)
 #endif /* BGBRD */
 			wait_for_completion(&dhd->watchdog_exited);
 		}
-#if (defined(CONFIG_MACH_SAMSUNG_P3) || defined(CONFIG_MACH_N1)) 
+#if (defined(CONFIG_MACH_SAMSUNG_P3) || defined(CONFIG_MACH_N1))
 		mdelay(50);
 #endif
 		if (dhd->dpc_pid >= 0)
@@ -3139,7 +3139,7 @@ dhd_detach(dhd_pub_t *dhdp)
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_PM_SLEEP)
 		unregister_pm_notifier(&dhd_sleep_pm_notifier);
-#endif 
+#endif
 	/* && defined(CONFIG_PM_SLEEP) */
 	#ifdef CONFIG_HAS_WAKELOCK
 		wake_lock_destroy(&dhd->wl_wifi);
@@ -3167,7 +3167,7 @@ dhd_module_cleanup(void)
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
 	dhd_bus_unregister();
-	
+
 #if defined(CONFIG_MACH_GODIN) && defined(CONFIG_WIFI_CONTROL_FUNC)
 		wifi_del_dev();
 #endif
@@ -3216,7 +3216,7 @@ dhd_module_init(void)
 		wifi_del_dev();
 		goto fail_1;
 	}
-	
+
 #else
 	/* Call customer gpio to turn on power with WL_REG_ON signal */
 	dhd_customer_gpio_wlan_ctrl(WLAN_POWER_ON);
@@ -3320,7 +3320,7 @@ dhd_os_ioctl_resp_wait(dhd_pub_t *pub, uint *condition, bool *pending)
 	add_wait_queue(&dhd->ioctl_resp_wait, &wait);
 	set_current_state(TASK_INTERRUPTIBLE);
 
-	/* Memory barrier to support multi-processing 
+	/* Memory barrier to support multi-processing
 	 * As the variable "condition", which points to dhd->rxlen (dhd_bus_rxctl[dhd_sdio.c])
 	 * Can be changed by another processor.
 	 */
@@ -3612,9 +3612,9 @@ dhd_wl_host_event(dhd_info_t *dhd, int *ifidx, void *pktdata,
 	 * Wireless ext is on primary interface only
 	 */
 #if SOFTAP
-    if (dhd->iflist[*ifidx]->net && ((event->bsscfgidx == 0) 
-   	    || (ap_fw_loaded == TRUE)))
-#else 
+    if (dhd->iflist[*ifidx]->net && ((event->bsscfgidx == 0)
+	    || (ap_fw_loaded == TRUE)))
+#else
     if (dhd->iflist[*ifidx]->net && (event->bsscfgidx == 0))
 #endif /* SOFTAP*/
 		wl_iw_event(dhd->iflist[*ifidx]->net, event, *data);
@@ -4556,4 +4556,3 @@ dhd_pub_t *dhd_get_pub(struct net_device *dev)
 	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
 	return &dhd->pub;
 }
-

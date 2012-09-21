@@ -3,7 +3,7 @@
  *  BlueZ - Bluetooth protocol stack for Linux
  *
  *  Copyright (C) 2000-2002  Maxim Krasnyansky <maxk@qualcomm.com>
- *  Copyright (C) 2003-2007  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2003-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -31,17 +31,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-#include <bluetooth/l2cap.h>
-
-#include "parser.h"
-#include "sdp.h"
+#include "parser/parser.h"
+#include "parser/sdp.h"
+#include "lib/hci.h"
+#include "lib/l2cap.h"
 
 typedef struct {
 	uint16_t handle;
@@ -57,6 +52,7 @@ typedef struct {
 	uint16_t psm;
 	uint16_t num;
 	uint8_t mode;
+	uint8_t ext_ctrl;
 } cid_info;
 #define CID_TABLE_SIZE 20
 
@@ -64,6 +60,33 @@ static cid_info cid_table[2][CID_TABLE_SIZE];
 
 #define SCID cid_table[0]
 #define DCID cid_table[1]
+
+/* Can we move this to l2cap.h? */
+struct features {
+	char	*name;
+	int	flag;
+};
+
+static struct features l2cap_features[] = {
+	{ "Flow control mode",			L2CAP_FEAT_FLOWCTL	},
+	{ "Retransmission mode",		L2CAP_FEAT_RETRANS	},
+	{ "Bi-directional QoS",			L2CAP_FEAT_BIDIR_QOS	},
+	{ "Enhanced Retransmission mode",	L2CAP_FEAT_ERTM		},
+	{ "Streaming mode",			L2CAP_FEAT_STREAMING	},
+	{ "FCS Option",				L2CAP_FEAT_FCS		},
+	{ "Extended Flow Specification",	L2CAP_FEAT_EXT_FLOW	},
+	{ "Fixed Channels",			L2CAP_FEAT_FIXED_CHAN	},
+	{ "Extended Window Size",		L2CAP_FEAT_EXT_WINDOW	},
+	{ "Unicast Connectless Data Reception",	L2CAP_FEAT_UCD		},
+	{ 0 }
+};
+
+static struct features l2cap_fix_chan[] = {
+	{ "L2CAP Signalling Channel",		L2CAP_FC_L2CAP		},
+	{ "L2CAP Connless",			L2CAP_FC_CONNLESS	},
+	{ "AMP Manager Protocol",		L2CAP_FC_A2MP		},
+	{ 0 }
+};
 
 static struct frame *add_handle(uint16_t handle)
 {
@@ -154,46 +177,68 @@ static void del_handle(uint16_t handle)
 			}
 	}
 }
-static uint16_t get_psm(int in, uint16_t cid)
+static uint16_t get_psm(int in, uint16_t handle, uint16_t cid)
 {
 	register cid_info *table = cid_table[in];
 	register int i;
 
 	for (i = 0; i < CID_TABLE_SIZE; i++)
-		if (table[i].cid == cid)
+		if (table[i].handle == handle && table[i].cid == cid)
 			return table[i].psm;
 	return parser.defpsm;
 }
 
-static uint16_t get_num(int in, uint16_t cid)
+static uint16_t get_num(int in, uint16_t handle, uint16_t cid)
 {
 	register cid_info *table = cid_table[in];
 	register int i;
 
 	for (i = 0; i < CID_TABLE_SIZE; i++)
-		if (table[i].cid == cid)
+		if (table[i].handle == handle && table[i].cid == cid)
 			return table[i].num;
 	return 0;
 }
 
-static void set_mode(int in, uint16_t cid, uint8_t mode)
+static void set_mode(int in, uint16_t handle, uint16_t cid, uint8_t mode)
 {
 	register cid_info *table = cid_table[in];
 	register int i;
 
 	for (i = 0; i < CID_TABLE_SIZE; i++)
-		if (table[i].cid == cid)
+		if (table[i].handle == handle && table[i].cid == cid)
 			table[i].mode = mode;
 }
 
-static uint8_t get_mode(int in, uint16_t cid)
+static uint8_t get_mode(int in, uint16_t handle, uint16_t cid)
 {
 	register cid_info *table = cid_table[in];
 	register int i;
 
 	for (i = 0; i < CID_TABLE_SIZE; i++)
-		if (table[i].cid == cid)
+		if (table[i].handle == handle && table[i].cid == cid)
 			return table[i].mode;
+	return 0;
+}
+
+static void set_ext_ctrl(int in, uint16_t handle, uint16_t cid,
+							uint8_t ext_ctrl)
+{
+	register cid_info *table = cid_table[in];
+	register int i;
+
+	for (i = 0; i < CID_TABLE_SIZE; i++)
+		if (table[i].handle == handle && table[i].cid == cid)
+			table[i].ext_ctrl = ext_ctrl;
+}
+
+static uint8_t get_ext_ctrl(int in, uint16_t handle, uint16_t cid)
+{
+	register cid_info *table = cid_table[in];
+	register int i;
+
+	for (i = 0; i < CID_TABLE_SIZE; i++)
+		if (table[i].handle == handle && table[i].cid == cid)
+			return table[i].ext_ctrl;
 	return 0;
 }
 
@@ -259,14 +304,18 @@ static char *status2str(uint16_t status)
 static char *confresult2str(uint16_t result)
 {
 	switch (result) {
-	case 0x0000:
+	case L2CAP_CONF_SUCCESS:
 		return "Success";
-	case 0x0001:
+	case L2CAP_CONF_UNACCEPT:
 		return "Failure - unacceptable parameters";
-	case 0x0002:
+	case L2CAP_CONF_REJECT:
 		return "Failure - rejected (no reason provided)";
-	case 0x0003:
+	case L2CAP_CONF_UNKNOWN:
 		return "Failure - unknown options";
+	case L2CAP_CONF_PENDING:
+		return "Pending";
+	case L2CAP_CONF_EFS_REJECT:
+		return "Failure - flowspec reject";
 	default:
 		return "Reserved";
 	}
@@ -286,11 +335,11 @@ static char *inforesult2str(uint16_t result)
 static char *type2str(uint8_t type)
 {
 	switch (type) {
-	case 0x00:
+	case L2CAP_SERVTYPE_NOTRAFFIC:
 		return "No traffic";
-	case 0x01:
-		return "Best effort";
-	case 0x02:
+	case L2CAP_SERVTYPE_BESTEFFORT:
+		return "Best Effort";
+	case L2CAP_SERVTYPE_GUARANTEED:
 		return "Guaranteed";
 	default:
 		return "Reserved";
@@ -306,6 +355,22 @@ static char *mode2str(uint8_t mode)
 		return "Retransmission";
 	case 0x02:
 		return "Flow control";
+	case 0x03:
+		return "Enhanced Retransmission";
+	case 0x04:
+		return "Streaming";
+	default:
+		return "Reserved";
+	}
+}
+
+static char *fcs2str(uint8_t fcs)
+{
+	switch (fcs) {
+	case 0x00:
+		return "No FCS";
+	case 0x01:
+		return "CRC16 Check";
 	default:
 		return "Reserved";
 	}
@@ -314,13 +379,13 @@ static char *mode2str(uint8_t mode)
 static char *sar2str(uint8_t sar)
 {
 	switch (sar) {
-	case 0x00:
+	case L2CAP_SAR_UNSEGMENTED:
 		return "Unsegmented";
-	case 0x01:
+	case L2CAP_SAR_START:
 		return "Start";
-	case 0x02:
+	case L2CAP_SAR_END:
 		return "End";
-	case 0x03:
+	case L2CAP_SAR_CONTINUE:
 		return "Continuation";
 	default:
 		return "Bad SAR";
@@ -331,13 +396,14 @@ static char *sar2str(uint8_t sar)
 static char *supervisory2str(uint8_t supervisory)
 {
 	switch (supervisory) {
-	case 0x00:
+	case L2CAP_SUPER_RR:
 		return "Receiver Ready (RR)";
-	case 0x01:
+	case L2CAP_SUPER_REJ:
 		return "Reject (REJ)";
-	case 0x02:
-	case 0x03:
-		return "Reserved Supervisory";
+	case L2CAP_SUPER_RNR:
+		return "Receiver Not Ready (RNR)";
+	case L2CAP_SUPER_SREJ:
+		return "Select Reject (SREJ)";
 	default:
 		return "Bad Supervisory";
 	}
@@ -393,7 +459,7 @@ static inline void conn_rsp(int level, struct frame *frm)
 
 	switch (h->result) {
 	case L2CAP_CR_SUCCESS:
-		if ((psm = get_psm(!frm->in, scid)))
+		if ((psm = get_psm(!frm->in, frm->handle, scid)))
 			add_cid(frm->in, frm->handle, dcid, psm);
 		break;
 
@@ -420,15 +486,16 @@ static inline void conn_rsp(int level, struct frame *frm)
 		printf("\n");
 }
 
-static void conf_rfc(void *ptr, int len, int in, uint16_t cid)
+static void conf_rfc(void *ptr, int len, int in, uint16_t handle,
+								uint16_t cid)
 {
 	uint8_t mode;
 
 	mode = *((uint8_t *) ptr);
-	set_mode(in, cid, mode);
+	set_mode(in, handle, cid, mode);
 
 	printf("RFC 0x%02x (%s", mode, mode2str(mode));
-	if (mode == 0x01 || mode == 0x02) {
+	if (mode >= 0x01 && mode <= 0x04) {
 		uint8_t txwin, maxtrans;
 		uint16_t rto, mto, mps;
 		txwin = *((uint8_t *) (ptr + 1));
@@ -442,8 +509,39 @@ static void conf_rfc(void *ptr, int len, int in, uint16_t cid)
 	printf(")");
 }
 
-static void conf_opt(int level, void *ptr, int len, int in, uint16_t cid)
+static void conf_efs(void *ptr)
 {
+	uint8_t id, ser_type;
+	uint16_t max_sdu;
+	uint32_t sdu_itime, access_lat, flush_to;
+
+	id = get_val(ptr, sizeof(id));
+	ser_type = get_val(ptr + 1, sizeof(ser_type));
+	max_sdu = get_val(ptr + 2, sizeof(max_sdu));
+	sdu_itime = get_val(ptr + 4, sizeof(sdu_itime));
+	access_lat = get_val(ptr + 8, sizeof(access_lat));
+	flush_to = get_val(ptr + 12, sizeof(flush_to));
+
+	printf("EFS (Id 0x%02x, SerType %s, MaxSDU 0x%04x, SDUitime 0x%08x, "
+			"AccLat 0x%08x, FlushTO 0x%08x)",
+			id, type2str(ser_type), max_sdu, sdu_itime,
+			access_lat, flush_to);
+}
+
+static void conf_fcs(void *ptr, int len)
+{
+	uint8_t fcs;
+
+	fcs = *((uint8_t *) ptr);
+	printf("FCS Option");
+	if (len > 0)
+		printf(" 0x%2.2x (%s)", fcs, fcs2str(fcs));
+}
+
+static void conf_opt(int level, void *ptr, int len, int in, uint16_t handle,
+								uint16_t cid)
+{
+	int indent = 0;
 	p_indent(level, 0);
 	while (len > 0) {
 		l2cap_conf_opt *h = ptr;
@@ -454,9 +552,14 @@ static void conf_opt(int level, void *ptr, int len, int in, uint16_t cid)
 		if (h->type & 0x80)
 			printf("[");
 
+		if (indent++) {
+			printf("\n");
+			p_indent(level, 0);
+		}
+
 		switch (h->type & 0x7f) {
 		case L2CAP_CONF_MTU:
-			set_mode(in, cid, 0x00);
+			set_mode(in, handle, cid, 0x00);
 			printf("MTU");
 			if (h->len > 0)
 				printf(" %d", get_val(h->val, h->len));
@@ -475,7 +578,22 @@ static void conf_opt(int level, void *ptr, int len, int in, uint16_t cid)
 			break;
 
 		case L2CAP_CONF_RFC:
-			conf_rfc(h->val, h->len, in, cid);
+			conf_rfc(h->val, h->len, in, handle, cid);
+			break;
+
+		case L2CAP_CONF_FCS:
+			conf_fcs(h->val, h->len);
+			break;
+
+		case L2CAP_CONF_EFS:
+			conf_efs(h->val);
+			break;
+
+		case L2CAP_CONF_EWS:
+			printf("EWS");
+			if (h->len > 0)
+				printf(" %d", get_val(h->val, h->len));
+			set_ext_ctrl(in, handle, cid, 1);
 			break;
 
 		default:
@@ -510,6 +628,15 @@ static void conf_list(int level, uint8_t *list, int len)
 		case L2CAP_CONF_RFC:
 			printf("RFC ");
 			break;
+		case L2CAP_CONF_FCS:
+			printf("FCS ");
+			break;
+		case L2CAP_CONF_EFS:
+			printf("EFS ");
+			break;
+		case L2CAP_CONF_EWS:
+			printf("EWS ");
+			break;
 		default:
 			printf("%2.2x ", list[i] & 0x7f);
 			break;
@@ -531,7 +658,8 @@ static inline void conf_req(int level, l2cap_cmd_hdr *cmd, struct frame *frm)
 			dcid, btohs(h->flags), clen);
 
 	if (clen > 0)
-		conf_opt(level + 1, h->data, clen, frm->in, dcid);
+		conf_opt(level + 1, h->data, clen, frm->in, frm->handle,
+									dcid);
 }
 
 static inline void conf_rsp(int level, l2cap_cmd_hdr *cmd, struct frame *frm)
@@ -555,7 +683,8 @@ static inline void conf_rsp(int level, l2cap_cmd_hdr *cmd, struct frame *frm)
 		if (result == 0x0003)
 			conf_list(level + 1, h->data, clen);
 		else
-			conf_opt(level + 1, h->data, clen, frm->in, scid);
+			conf_opt(level + 1, h->data, clen, frm->in,
+							frm->handle, scid);
 	} else {
 		p_indent(level + 1, frm);
 		printf("%s\n", confresult2str(result));
@@ -609,6 +738,8 @@ static inline void echo_rsp(int level, l2cap_cmd_hdr *cmd, struct frame *frm)
 static void info_opt(int level, int type, void *ptr, int len)
 {
 	uint32_t mask;
+	uint64_t fc_mask;
+	int i;
 
 	p_indent(level, 0);
 
@@ -619,20 +750,22 @@ static void info_opt(int level, int type, void *ptr, int len)
 	case 0x0002:
 		mask = get_val(ptr, len);
 		printf("Extended feature mask 0x%4.4x\n", mask);
-		if (parser.flags & DUMP_VERBOSE) {
-			if (mask & 0x01) {
-				p_indent(level + 1, 0);
-				printf("Flow control mode\n");
-			}
-			if (mask & 0x02) {
-				p_indent(level + 1, 0);
-				printf("Retransmission mode\n");
-			}
-			if (mask & 0x04) {
-				p_indent(level + 1, 0);
-				printf("Bi-directional QoS\n");
-			}
-		}
+		if (parser.flags & DUMP_VERBOSE)
+			for (i=0; l2cap_features[i].name; i++)
+				if (mask & l2cap_features[i].flag) {
+					p_indent(level + 1, 0);
+					printf("%s\n", l2cap_features[i].name);
+				}
+		break;
+	case 0x0003:
+		fc_mask = bt_get_le64(ptr);
+		printf("Fixed channel list 0x%8.8" PRIx64 "\n", fc_mask);
+		if (parser.flags & DUMP_VERBOSE)
+			for (i=0; l2cap_fix_chan[i].name; i++)
+				if (fc_mask & l2cap_fix_chan[i].flag) {
+					p_indent(level + 1, 0);
+					printf("%s\n", l2cap_fix_chan[i].name);
+				}
 		break;
 	default:
 		printf("Unknown (len %d)\n", len);
@@ -670,6 +803,71 @@ static inline void info_rsp(int level, l2cap_cmd_hdr *cmd, struct frame *frm)
 	}
 }
 
+static void l2cap_ctrl_ext_parse(int level, struct frame *frm, uint32_t ctrl)
+{
+	p_indent(level, frm);
+
+	printf("%s:", ctrl & L2CAP_EXT_CTRL_FRAME_TYPE ? "S-frame" : "I-frame");
+
+	if (ctrl & L2CAP_EXT_CTRL_FRAME_TYPE) {
+		printf(" %s", supervisory2str((ctrl & L2CAP_EXT_CTRL_SUPERVISE_MASK) >>
+					L2CAP_EXT_CTRL_SUPER_SHIFT));
+
+		if (ctrl & L2CAP_EXT_CTRL_POLL)
+			printf(" P-bit");
+	} else {
+		uint8_t sar = (ctrl & L2CAP_EXT_CTRL_SAR_MASK) >>
+			L2CAP_EXT_CTRL_SAR_SHIFT;
+		printf(" %s", sar2str(sar));
+		if (sar == L2CAP_SAR_START) {
+			uint16_t len;
+			len = btohs(bt_get_unaligned((uint16_t *) frm->ptr));
+			frm->ptr += L2CAP_SDULEN_SIZE;
+			frm->len -= L2CAP_SDULEN_SIZE;
+			printf(" (len %d)", len);
+		}
+		printf(" TxSeq %d", (ctrl & L2CAP_EXT_CTRL_TXSEQ_MASK) >>
+				L2CAP_EXT_CTRL_TXSEQ_SHIFT);
+	}
+
+	printf(" ReqSeq %d", (ctrl & L2CAP_EXT_CTRL_REQSEQ_MASK) >>
+			L2CAP_EXT_CTRL_REQSEQ_SHIFT);
+
+	if (ctrl & L2CAP_EXT_CTRL_FINAL)
+		printf(" F-bit");
+}
+
+static void l2cap_ctrl_parse(int level, struct frame *frm, uint32_t ctrl)
+{
+	p_indent(level, frm);
+
+	printf("%s:", ctrl & L2CAP_CTRL_FRAME_TYPE ? "S-frame" : "I-frame");
+
+	if (ctrl & 0x01) {
+		printf(" %s", supervisory2str((ctrl & L2CAP_CTRL_SUPERVISE_MASK) >>
+					L2CAP_CTRL_SUPER_SHIFT));
+
+		if (ctrl & L2CAP_CTRL_POLL)
+			printf(" P-bit");
+	} else {
+		uint8_t sar = (ctrl & L2CAP_CTRL_SAR_MASK) >> L2CAP_CTRL_SAR_SHIFT;
+		printf(" %s", sar2str(sar));
+		if (sar == L2CAP_SAR_START) {
+			uint16_t len;
+			len = btohs(bt_get_unaligned((uint16_t *) frm->ptr));
+			frm->ptr += L2CAP_SDULEN_SIZE;
+			frm->len -= L2CAP_SDULEN_SIZE;
+			printf(" (len %d)", len);
+		}
+		printf(" TxSeq %d", (ctrl & L2CAP_CTRL_TXSEQ_MASK) >> L2CAP_CTRL_TXSEQ_SHIFT);
+	}
+
+	printf(" ReqSeq %d", (ctrl & L2CAP_CTRL_REQSEQ_MASK) >> L2CAP_CTRL_REQSEQ_SHIFT);
+
+	if (ctrl & L2CAP_CTRL_FINAL)
+		printf(" F-bit");
+}
+
 static void l2cap_parse(int level, struct frame *frm)
 {
 	l2cap_hdr *hdr = (void *)frm->ptr;
@@ -698,11 +896,11 @@ static void l2cap_parse(int level, struct frame *frm)
 			case L2CAP_COMMAND_REJ:
 				command_rej(level, frm);
 				break;
-			
+
 			case L2CAP_CONN_REQ:
 				conn_req(level, frm);
 				break;
-	
+
 			case L2CAP_CONN_RSP:
 				conn_rsp(level, frm);
 				break;
@@ -722,7 +920,7 @@ static void l2cap_parse(int level, struct frame *frm)
 			case L2CAP_DISCONN_RSP:
 				disconn_rsp(level, frm);
 				break;
-	
+
 			case L2CAP_ECHO_REQ:
 				echo_req(level, hdr, frm);
 				break;
@@ -766,51 +964,59 @@ static void l2cap_parse(int level, struct frame *frm)
 		p_indent(level, frm);
 		printf("L2CAP(c): len %d psm %d\n", dlen, psm);
 		raw_dump(level, frm);
+	} else if (cid == 0x04) {
+		if (!p_filter(FILT_ATT))
+			att_dump(level, frm);
+		else
+			raw_dump(level + 1, frm);
+	} else if (cid == 0x06) {
+		if (!p_filter(FILT_SMP))
+			smp_dump(level, frm);
+		else
+			raw_dump(level + 1, frm);
 	} else {
 		/* Connection oriented channel */
 
-		uint8_t mode = get_mode(!frm->in, cid);
-		uint16_t psm = get_psm(!frm->in, cid);
-		uint16_t ctrl = 0, fcs = 0;
-		uint32_t proto;
+		uint8_t mode = get_mode(!frm->in, frm->handle, cid);
+		uint8_t ext_ctrl = get_ext_ctrl(!frm->in, frm->handle, cid);
+		uint16_t psm = get_psm(!frm->in, frm->handle, cid);
+		uint16_t fcs = 0;
+		uint32_t proto, ctrl = 0;
 
 		frm->cid = cid;
-		frm->num = get_num(!frm->in, cid);
+		frm->num = get_num(!frm->in, frm->handle, cid);
 
 		if (mode > 0) {
-			ctrl = btohs(bt_get_unaligned((uint16_t *) frm->ptr));
-			frm->ptr += 2;
-			frm->len -= 4;
+			if (ext_ctrl) {
+				ctrl = get_val(frm->ptr, 4);
+				frm->ptr += 4;
+				frm->len -= 6;
+			} else {
+				ctrl = get_val(frm->ptr, 2);
+				frm->ptr += 2;
+				frm->len -= 4;
+			}
 			fcs = btohs(bt_get_unaligned((uint16_t *) (frm->ptr + frm->len)));
 		}
 
 		if (!p_filter(FILT_L2CAP)) {
 			p_indent(level, frm);
 			printf("L2CAP(d): cid 0x%4.4x len %d", cid, dlen);
-			if (mode > 0)
-				printf(" ctrl 0x%4.4x fcs 0x%4.4x", ctrl, fcs);
+			if (mode > 0) {
+				if (ext_ctrl)
+					printf(" ext_ctrl 0x%8.8x fcs 0x%4.4x", ctrl, fcs);
+				else
+					printf(" ctrl 0x%4.4x fcs 0x%4.4x", ctrl, fcs);
+			}
+
 			printf(" [psm %d]\n", psm);
 			level++;
 			if (mode > 0) {
-				p_indent(level, frm);
-				printf("%s:", ctrl & 0x01 ? "S-frame" : "I-frame");
-				if (ctrl & 0x01) {
-					printf(" %s", supervisory2str((ctrl & 0x0c) >> 2));
-				} else {
-					uint8_t sar = (ctrl & 0xc000) >> 14;
-					printf(" %s", sar2str(sar));
-					if (sar == 1) {
-						uint16_t len;
-						len = btohs(bt_get_unaligned((uint16_t *) frm->ptr));
-						frm->ptr += 2;
-						frm->len -= 2;
-						printf(" (len %d)", len);
-					}
-					printf(" TxSeq %d", (ctrl & 0x7e) >> 1);
-				}
-				printf(" ReqSeq %d", (ctrl & 0x3f00) >> 8);
-				if (ctrl & 0x80)
-					printf(" Retransmission Disable");
+				if (ext_ctrl)
+					l2cap_ctrl_ext_parse(level, frm, ctrl);
+				else
+					l2cap_ctrl_parse(level, frm, ctrl);
+
 				printf("\n");
 			}
 		}
@@ -859,6 +1065,13 @@ static void l2cap_parse(int level, struct frame *frm)
 				raw_dump(level + 1, frm);
 			break;
 
+		case 0x1f:
+			if (!p_filter(FILT_ATT))
+				att_dump(level, frm);
+			else
+				raw_dump(level + 1, frm);
+			break;
+
 		default:
 			proto = get_proto(frm->handle, psm, 0);
 
@@ -895,11 +1108,17 @@ void l2cap_dump(int level, struct frame *frm)
 	l2cap_hdr *hdr;
 	uint16_t dlen;
 
-	if (frm->flags & ACL_START) {
+	if ((frm->flags & ACL_START) || frm->flags == ACL_START_NO_FLUSH) {
 		hdr  = frm->ptr;
 		dlen = btohs(hdr->len);
 
-		if (frm->len == (dlen + L2CAP_HDR_SIZE)) {
+		if (dlen + L2CAP_HDR_SIZE < (int) frm->len) {
+			/* invalid frame */
+			raw_dump(level,frm);
+			return;
+		}
+
+		if ((int) frm->len == (dlen + L2CAP_HDR_SIZE)) {
 			/* Complete frame */
 			l2cap_parse(level, frm);
 			return;

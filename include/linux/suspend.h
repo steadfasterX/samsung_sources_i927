@@ -92,6 +92,13 @@ typedef int __bitwise suspend_state_t;
  *	@enter() and @wake(), even if any of them fails.  It is executed after
  *	a failing @prepare.
  *
+ * @suspend_again: Returns whether the system should suspend again (true) or
+ *	not (false). If the platform wants to poll sensors or execute some
+ *	code during suspended without invoking userspace and most of devices,
+ *	suspend_again callback is the place assuming that periodic-wakeup or
+ *	alarm-wakeup is already setup. This allows to execute some codes while
+ *	being kept suspended in the view of userland and devices.
+ *
  * @end: Called by the PM core right after resuming devices, to indicate to
  *	the platform that the system has returned to the working state or
  *	the transition to the sleep state has been aborted.
@@ -113,6 +120,7 @@ struct platform_suspend_ops {
 	int (*enter)(suspend_state_t state);
 	void (*wake)(void);
 	void (*finish)(void);
+	bool (*suspend_again)(void);
 	void (*end)(void);
 	void (*recover)(void);
 };
@@ -122,7 +130,7 @@ struct platform_suspend_ops {
  * suspend_set_ops - set platform dependent suspend operations
  * @ops: The new suspend operations to set.
  */
-extern void suspend_set_ops(struct platform_suspend_ops *ops);
+extern void suspend_set_ops(const struct platform_suspend_ops *ops);
 extern int suspend_valid_only_mem(suspend_state_t state);
 
 /**
@@ -147,7 +155,7 @@ extern int pm_suspend(suspend_state_t state);
 #else /* !CONFIG_SUSPEND */
 #define suspend_valid_only_mem	NULL
 
-static inline void suspend_set_ops(struct platform_suspend_ops *ops) {}
+static inline void suspend_set_ops(const struct platform_suspend_ops *ops) {}
 static inline int pm_suspend(suspend_state_t state) { return -ENOSYS; }
 #endif /* !CONFIG_SUSPEND */
 
@@ -245,35 +253,28 @@ extern void swsusp_set_page_free(struct page *);
 extern void swsusp_unset_page_free(struct page *);
 extern unsigned long get_safe_page(gfp_t gfp_mask);
 
-extern void hibernation_set_ops(struct platform_hibernation_ops *ops);
+extern void hibernation_set_ops(const struct platform_hibernation_ops *ops);
 extern int hibernate(void);
 extern bool system_entering_hibernation(void);
 #else /* CONFIG_HIBERNATION */
+static inline void register_nosave_region(unsigned long b, unsigned long e) {}
+static inline void register_nosave_region_late(unsigned long b, unsigned long e) {}
 static inline int swsusp_page_is_forbidden(struct page *p) { return 0; }
 static inline void swsusp_set_page_free(struct page *p) {}
 static inline void swsusp_unset_page_free(struct page *p) {}
 
-static inline void hibernation_set_ops(struct platform_hibernation_ops *ops) {}
+static inline void hibernation_set_ops(const struct platform_hibernation_ops *ops) {}
 static inline int hibernate(void) { return -ENOSYS; }
 static inline bool system_entering_hibernation(void) { return false; }
 #endif /* CONFIG_HIBERNATION */
 
-#ifdef CONFIG_SUSPEND_NVS
-extern int suspend_nvs_register(unsigned long start, unsigned long size);
-extern int suspend_nvs_alloc(void);
-extern void suspend_nvs_free(void);
-extern void suspend_nvs_save(void);
-extern void suspend_nvs_restore(void);
-#else /* CONFIG_SUSPEND_NVS */
-static inline int suspend_nvs_register(unsigned long a, unsigned long b)
-{
-	return 0;
-}
-static inline int suspend_nvs_alloc(void) { return 0; }
-static inline void suspend_nvs_free(void) {}
-static inline void suspend_nvs_save(void) {}
-static inline void suspend_nvs_restore(void) {}
-#endif /* CONFIG_SUSPEND_NVS */
+/* Hibernation and suspend events */
+#define PM_HIBERNATION_PREPARE	0x0001 /* Going to hibernate */
+#define PM_POST_HIBERNATION	0x0002 /* Hibernation finished */
+#define PM_SUSPEND_PREPARE	0x0003 /* Going to suspend the system */
+#define PM_POST_SUSPEND		0x0004 /* Suspend finished */
+#define PM_RESTORE_PREPARE	0x0005 /* Going to restore a saved image */
+#define PM_POST_RESTORE		0x0006 /* Restore failed */
 
 #ifdef CONFIG_PM_SLEEP
 void save_processor_state(void);
@@ -292,9 +293,9 @@ extern int unregister_pm_notifier(struct notifier_block *nb);
 /* drivers/base/power/wakeup.c */
 extern bool events_check_enabled;
 
-extern bool pm_check_wakeup_events(void);
-extern bool pm_get_wakeup_count(unsigned long *count);
-extern bool pm_save_wakeup_count(unsigned long count);
+extern bool pm_wakeup_pending(void);
+extern bool pm_get_wakeup_count(unsigned int *count);
+extern bool pm_save_wakeup_count(unsigned int count);
 #else /* !CONFIG_PM_SLEEP */
 
 static inline int register_pm_notifier(struct notifier_block *nb)
@@ -308,18 +309,13 @@ static inline int unregister_pm_notifier(struct notifier_block *nb)
 }
 
 #define pm_notifier(fn, pri)	do { (void)(fn); } while (0)
+
+static inline bool pm_wakeup_pending(void) { return false; }
 #endif /* !CONFIG_PM_SLEEP */
 
 extern struct mutex pm_mutex;
 
-#ifndef CONFIG_HIBERNATION
-static inline void register_nosave_region(unsigned long b, unsigned long e)
-{
-}
-static inline void register_nosave_region_late(unsigned long b, unsigned long e)
-{
-}
-
+#ifndef CONFIG_HIBERNATE_CALLBACKS
 static inline void lock_system_sleep(void) {}
 static inline void unlock_system_sleep(void) {}
 

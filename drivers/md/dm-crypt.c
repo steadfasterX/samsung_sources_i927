@@ -26,7 +26,6 @@
 #include <linux/device-mapper.h>
 
 #define DM_MSG_PREFIX "crypt"
-#define MESG_STR(x) x, sizeof(x)
 
 /*
  * context holding the current state of a multi-part conversion
@@ -108,7 +107,7 @@ struct crypt_config {
 	struct workqueue_struct *crypt_queue;
 
 	char *cipher;
-	char *cipher_mode;
+	char *cipher_string;
 
 	struct crypt_iv_operations *iv_gen_ops;
 	union {
@@ -973,15 +972,15 @@ static void crypt_encode_key(char *hex, u8 *key, unsigned int size)
 
 static int crypt_set_key(struct crypt_config *cc, char *key)
 {
-	unsigned key_size = strlen(key) >> 1;
-
-	if (cc->key_size && cc->key_size != key_size)
+	/* The key size may not be changed. */
+	if (cc->key_size != (strlen(key) >> 1))
 		return -EINVAL;
 
-	cc->key_size = key_size; /* initial settings */
+	/* Hyphen (which gives a key_size of zero) means there is no key. */
+	if (!cc->key_size && strcmp(key, "-"))
+		return -EINVAL;
 
-	if ((!key_size && strcmp(key, "-")) ||
-	   (key_size && crypt_decode_key(cc->key, key, key_size) < 0))
+	if (cc->key_size && crypt_decode_key(cc->key, key, cc->key_size) < 0)
 		return -EINVAL;
 
 	set_bit(DM_CRYPT_KEY_VALID, &cc->flags);
@@ -1030,7 +1029,7 @@ static void crypt_dtr(struct dm_target *ti)
 		dm_put_device(ti, cc->dev);
 
 	kzfree(cc->cipher);
-	kzfree(cc->cipher_mode);
+	kzfree(cc->cipher_string);
 
 	/* Must zero key material before freeing */
 	kzfree(cc);
@@ -1050,6 +1049,10 @@ static int crypt_ctr_cipher(struct dm_target *ti,
 		return -EINVAL;
 	}
 
+	cc->cipher_string = kstrdup(cipher_in, GFP_KERNEL);
+	if (!cc->cipher_string)
+		goto bad_mem;
+
 	/*
 	 * Legacy dm-crypt cipher specification
 	 * cipher-mode-iv:ivopts
@@ -1061,12 +1064,6 @@ static int crypt_ctr_cipher(struct dm_target *ti,
 	if (!cc->cipher)
 		goto bad_mem;
 
-	if (tmp) {
-		cc->cipher_mode = kstrdup(tmp, GFP_KERNEL);
-		if (!cc->cipher_mode)
-			goto bad_mem;
-	}
-
 	chainmode = strsep(&tmp, "-");
 	ivopts = strsep(&tmp, "-");
 	ivmode = strsep(&ivopts, ":");
@@ -1074,10 +1071,11 @@ static int crypt_ctr_cipher(struct dm_target *ti,
 	if (tmp)
 		DMWARN("Ignoring unexpected additional cipher options");
 
-	/* Compatibility mode for old dm-crypt mappings */
+	/*
+	 * For compatibility with the original dm-crypt mapping format, if
+	 * only the cipher name is supplied, use cbc-plain.
+	 */
 	if (!chainmode || (!strcmp(chainmode, "plain") && !ivmode)) {
-		kfree(cc->cipher_mode);
-		cc->cipher_mode = kstrdup("cbc-plain", GFP_KERNEL);
 		chainmode = "cbc";
 		ivmode = "plain";
 	}
@@ -1178,11 +1176,17 @@ bad_mem:
 static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 {
 	struct crypt_config *cc;
-	unsigned int key_size;
+	unsigned int key_size, opt_params;
 	unsigned long long tmpll;
 	int ret;
+	struct dm_arg_set as;
+	const char *opt_string;
 
-	if (argc != 5) {
+	static struct dm_arg _args[] = {
+		{0, 1, "Invalid number of feature args"},
+	};
+
+	if (argc < 5) {
 		ti->error = "Not enough arguments";
 		return -EINVAL;
 	}
@@ -1194,6 +1198,7 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		ti->error = "Cannot allocate encryption context";
 		return -ENOMEM;
 	}
+	cc->key_size = key_size;
 
 	ti->private = cc;
 	ret = crypt_ctr_cipher(ti, argv[0], argv[1]);
@@ -1251,6 +1256,30 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	}
 	cc->start = tmpll;
 
+	argv += 5;
+	argc -= 5;
+
+	/* Optional parameters */
+	if (argc) {
+		as.argc = argc;
+		as.argv = argv;
+
+		ret = dm_read_arg_group(_args, &as, &opt_params, &ti->error);
+		if (ret)
+			goto bad;
+
+		opt_string = dm_shift_arg(&as);
+
+		if (opt_params == 1 && opt_string &&
+		    !strcasecmp(opt_string, "allow_discards"))
+			ti->num_discard_requests = 1;
+		else if (opt_params) {
+			ret = -EINVAL;
+			ti->error = "Invalid feature arguments";
+			goto bad;
+		}
+	}
+
 	ret = -ENOMEM;
 	cc->io_queue = create_singlethread_workqueue("kcryptd_io");
 	if (!cc->io_queue) {
@@ -1265,6 +1294,8 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	}
 
 	ti->num_flush_requests = 1;
+	ti->discard_zeroes_data_unsupported = 1;
+
 	return 0;
 
 bad:
@@ -1278,9 +1309,16 @@ static int crypt_map(struct dm_target *ti, struct bio *bio,
 	struct dm_crypt_io *io;
 	struct crypt_config *cc;
 
-	if (unlikely(bio_empty_barrier(bio))) {
+	/*
+	 * If bio is REQ_FLUSH or REQ_DISCARD, just bypass crypt queues.
+	 * - for REQ_FLUSH device-mapper core ensures that no IO is in-flight
+	 * - for REQ_DISCARD caller must use flush if IO ordering matters
+	 */
+	if (unlikely(bio->bi_rw & (REQ_FLUSH | REQ_DISCARD))) {
 		cc = ti->private;
 		bio->bi_bdev = cc->dev->bdev;
+		if (bio_sectors(bio))
+			bio->bi_sector = cc->start + dm_target_offset(ti, bio->bi_sector);
 		return DM_MAPIO_REMAPPED;
 	}
 
@@ -1306,10 +1344,7 @@ static int crypt_status(struct dm_target *ti, status_type_t type,
 		break;
 
 	case STATUSTYPE_TABLE:
-		if (cc->cipher_mode)
-			DMEMIT("%s-%s ", cc->cipher, cc->cipher_mode);
-		else
-			DMEMIT("%s ", cc->cipher);
+		DMEMIT("%s ", cc->cipher_string);
 
 		if (cc->key_size > 0) {
 			if ((maxlen - sz) < ((cc->key_size << 1) + 1))
@@ -1325,6 +1360,10 @@ static int crypt_status(struct dm_target *ti, status_type_t type,
 
 		DMEMIT(" %llu %s %llu", (unsigned long long)cc->iv_offset,
 				cc->dev->name, (unsigned long long)cc->start);
+
+		if (ti->num_discard_requests)
+			DMEMIT(" 1 allow_discards");
+
 		break;
 	}
 	return 0;
@@ -1368,12 +1407,12 @@ static int crypt_message(struct dm_target *ti, unsigned argc, char **argv)
 	if (argc < 2)
 		goto error;
 
-	if (!strnicmp(argv[0], MESG_STR("key"))) {
+	if (!strcasecmp(argv[0], "key")) {
 		if (!test_bit(DM_CRYPT_SUSPENDED, &cc->flags)) {
 			DMWARN("not suspended during key manipulation.");
 			return -EINVAL;
 		}
-		if (argc == 3 && !strnicmp(argv[1], MESG_STR("set"))) {
+		if (argc == 3 && !strcasecmp(argv[1], "set")) {
 			ret = crypt_set_key(cc, argv[2]);
 			if (ret)
 				return ret;
@@ -1381,7 +1420,7 @@ static int crypt_message(struct dm_target *ti, unsigned argc, char **argv)
 				ret = cc->iv_gen_ops->init(cc);
 			return ret;
 		}
-		if (argc == 2 && !strnicmp(argv[1], MESG_STR("wipe"))) {
+		if (argc == 2 && !strcasecmp(argv[1], "wipe")) {
 			if (cc->iv_gen_ops && cc->iv_gen_ops->wipe) {
 				ret = cc->iv_gen_ops->wipe(cc);
 				if (ret)
@@ -1421,7 +1460,7 @@ static int crypt_iterate_devices(struct dm_target *ti,
 
 static struct target_type crypt_target = {
 	.name   = "crypt",
-	.version = {1, 7, 0},
+	.version = {1, 8, 0},
 	.module = THIS_MODULE,
 	.ctr    = crypt_ctr,
 	.dtr    = crypt_dtr,

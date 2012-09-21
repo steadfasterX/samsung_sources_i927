@@ -56,6 +56,8 @@ struct sec_jack_platform_data {
 	bool	send_end_active_high;
 	int jack_status;
 };
+
+extern struct sec_jack_platform_data sec_jack_pdata;
 #endif
 
 #endif

@@ -21,7 +21,7 @@
 
 #include "board-n1.h"
 #include "tegra2_emc.h"
-
+#include "board.h"
 
 static const struct tegra_emc_table n1_emc_tables_samsung[] = {
 	{

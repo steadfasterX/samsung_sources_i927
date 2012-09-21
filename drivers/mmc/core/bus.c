@@ -14,6 +14,7 @@
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/pm_runtime.h>
 
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
@@ -22,13 +23,16 @@
 #include "sdio_cis.h"
 #include "bus.h"
 
-#define dev_to_mmc_card(d)	container_of(d, struct mmc_card, dev)
 #define to_mmc_driver(d)	container_of(d, struct mmc_driver, drv)
+
+#ifdef CONFIG_MMC_TEST
+static struct mmc_driver *mmc_test_drv;
+#endif
 
 static ssize_t mmc_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	struct mmc_card *card = dev_to_mmc_card(dev);
+	struct mmc_card *card = mmc_dev_to_card(dev);
 
 	switch (card->type) {
 	case MMC_TYPE_MMC:
@@ -62,7 +66,7 @@ static int mmc_bus_match(struct device *dev, struct device_driver *drv)
 static int
 mmc_bus_uevent(struct device *dev, struct kobj_uevent_env *env)
 {
-	struct mmc_card *card = dev_to_mmc_card(dev);
+	struct mmc_card *card = mmc_dev_to_card(dev);
 	const char *type;
 	int retval = 0;
 
@@ -105,7 +109,14 @@ mmc_bus_uevent(struct device *dev, struct kobj_uevent_env *env)
 static int mmc_bus_probe(struct device *dev)
 {
 	struct mmc_driver *drv = to_mmc_driver(dev->driver);
-	struct mmc_card *card = dev_to_mmc_card(dev);
+	struct mmc_card *card = mmc_dev_to_card(dev);
+
+#ifdef CONFIG_MMC_TEST
+	/*
+	 * Hack: Explicitly invoking mmc_test probe to co-exist with mmcblk driver.
+	 */
+	mmc_test_drv->probe(card);
+#endif
 
 	return drv->probe(card);
 }
@@ -113,34 +124,61 @@ static int mmc_bus_probe(struct device *dev)
 static int mmc_bus_remove(struct device *dev)
 {
 	struct mmc_driver *drv = to_mmc_driver(dev->driver);
-	struct mmc_card *card = dev_to_mmc_card(dev);
+	struct mmc_card *card = mmc_dev_to_card(dev);
 
 	drv->remove(card);
 
 	return 0;
 }
 
-static int mmc_bus_suspend(struct device *dev, pm_message_t state)
+static int mmc_bus_pm_suspend(struct device *dev)
 {
 	struct mmc_driver *drv = to_mmc_driver(dev->driver);
-	struct mmc_card *card = dev_to_mmc_card(dev);
+	struct mmc_card *card = mmc_dev_to_card(dev);
 	int ret = 0;
+	pm_message_t state = { PM_EVENT_SUSPEND };
 
 	if (dev->driver && drv->suspend)
 		ret = drv->suspend(card, state);
 	return ret;
 }
 
-static int mmc_bus_resume(struct device *dev)
+static int mmc_bus_pm_resume(struct device *dev)
 {
 	struct mmc_driver *drv = to_mmc_driver(dev->driver);
-	struct mmc_card *card = dev_to_mmc_card(dev);
+	struct mmc_card *card = mmc_dev_to_card(dev);
 	int ret = 0;
 
 	if (dev->driver && drv->resume)
 		ret = drv->resume(card);
 	return ret;
 }
+
+#ifdef CONFIG_PM_RUNTIME
+static int mmc_runtime_suspend(struct device *dev)
+{
+	struct mmc_card *card = mmc_dev_to_card(dev);
+
+	return mmc_power_save_host(card->host);
+}
+
+static int mmc_runtime_resume(struct device *dev)
+{
+	struct mmc_card *card = mmc_dev_to_card(dev);
+
+	return mmc_power_restore_host(card->host);
+}
+
+static int mmc_runtime_idle(struct device *dev)
+{
+	return pm_runtime_suspend(dev);
+}
+#endif /* CONFIG_PM_RUNTIME */
+
+static const struct dev_pm_ops mmc_bus_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(mmc_bus_pm_suspend, mmc_bus_pm_resume)
+	SET_RUNTIME_PM_OPS(mmc_runtime_suspend, mmc_runtime_resume, mmc_runtime_idle)
+};
 
 static struct bus_type mmc_bus_type = {
 	.name		= "mmc",
@@ -149,8 +187,7 @@ static struct bus_type mmc_bus_type = {
 	.uevent		= mmc_bus_uevent,
 	.probe		= mmc_bus_probe,
 	.remove		= mmc_bus_remove,
-	.suspend	= mmc_bus_suspend,
-	.resume		= mmc_bus_resume,
+	.pm		= &mmc_bus_pm_ops,
 };
 
 int mmc_register_bus(void)
@@ -170,6 +207,10 @@ void mmc_unregister_bus(void)
 int mmc_register_driver(struct mmc_driver *drv)
 {
 	drv->drv.bus = &mmc_bus_type;
+#ifdef CONFIG_MMC_TEST
+	if (!strcmp(drv->drv.name, "mmc_test"))
+		mmc_test_drv = drv;
+#endif
 	return driver_register(&drv->drv);
 }
 
@@ -189,7 +230,7 @@ EXPORT_SYMBOL(mmc_unregister_driver);
 
 static void mmc_release_card(struct device *dev)
 {
-	struct mmc_card *card = dev_to_mmc_card(dev);
+	struct mmc_card *card = mmc_dev_to_card(dev);
 
 	sdio_free_common_cis(card);
 
@@ -238,8 +279,12 @@ int mmc_add_card(struct mmc_card *card)
 		break;
 	case MMC_TYPE_SD:
 		type = "SD";
-		if (mmc_card_blockaddr(card))
-			type = "SDHC";
+		if (mmc_card_blockaddr(card)) {
+			if (mmc_card_ext_capacity(card))
+				type = "SDXC";
+			else
+				type = "SDHC";
+		}
 		break;
 	case MMC_TYPE_SDIO:
 		type = "SDIO";
@@ -255,24 +300,27 @@ int mmc_add_card(struct mmc_card *card)
 	}
 
 	if (mmc_host_is_spi(card->host)) {
-		printk(KERN_INFO "%s: new %s%s card on SPI\n",
+		printk(KERN_INFO "%s: new %s%s%s card on SPI\n",
 			mmc_hostname(card->host),
 			mmc_card_highspeed(card) ? "high speed " : "",
+			mmc_card_ddr_mode(card) ? "DDR " : "",
 			type);
 	} else {
-		printk(KERN_INFO "%s: new %s%s card at address %04x\n",
+		printk(KERN_INFO "%s: new %s%s%s card at address %04x\n",
 			mmc_hostname(card->host),
-			mmc_card_highspeed(card) ? "high speed " : "",
+			mmc_sd_card_uhs(card) ? "ultra high speed " :
+			(mmc_card_highspeed(card) ? "high speed " : ""),
+			mmc_card_ddr_mode(card) ? "DDR " : "",
 			type, card->rca);
 	}
-
-	ret = device_add(&card->dev);
-	if (ret)
-		return ret;
 
 #ifdef CONFIG_DEBUG_FS
 	mmc_add_card_debugfs(card);
 #endif
+
+	ret = device_add(&card->dev);
+	if (ret)
+		return ret;
 
 	mmc_card_set_present(card);
 

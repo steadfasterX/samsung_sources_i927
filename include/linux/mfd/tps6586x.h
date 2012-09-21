@@ -55,12 +55,27 @@ enum {
 enum pwm_pfm_mode {
 	PWM_ONLY,
 	AUTO_PWM_PFM,
-	NOT_CONFIGURABLE
+	PWM_DEFAULT_VALUE,
+
+};
+
+enum slew_rate_settings {
+	SLEW_RATE_INSTANTLY = 0,
+	SLEW_RATE_0110UV_PER_SEC = 0x1,
+	SLEW_RATE_0220UV_PER_SEC = 0x2,
+	SLEW_RATE_0440UV_PER_SEC = 0x3,
+	SLEW_RATE_0880UV_PER_SEC = 0x4,
+	SLEW_RATE_1760UV_PER_SEC = 0x5,
+	SLEW_RATE_3520UV_PER_SEC = 0x6,
+	SLEW_RATE_7040UV_PER_SEC = 0x7,
+	SLEW_RATE_DEFAULT_VALUE,
 };
 
 struct tps6586x_settings {
 	/* SM0, SM1 and SM2 have PWM-only and auto PWM/PFM mode */
 	enum pwm_pfm_mode sm_pwm_mode;
+	/* SM0 and SM1 have slew rate settings */
+	enum slew_rate_settings slew_rate;
 };
 
 enum {
@@ -97,6 +112,8 @@ struct tps6586x_platform_data {
 
 	int gpio_base;
 	int irq_base;
+
+	bool use_power_off;
 };
 
 /*
@@ -111,6 +128,5 @@ extern int tps6586x_set_bits(struct device *dev, int reg, uint8_t bit_mask);
 extern int tps6586x_clr_bits(struct device *dev, int reg, uint8_t bit_mask);
 extern int tps6586x_update(struct device *dev, int reg, uint8_t val,
 			   uint8_t mask);
-extern int tps6586x_power_off(void);
 
 #endif /*__LINUX_MFD_TPS6586X_H */

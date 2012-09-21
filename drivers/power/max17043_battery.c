@@ -56,6 +56,8 @@ struct max17043_chip {
 	int status;
 	/* State Of Charge */
 	int pure_soc;
+	/* State Of Charge */
+	int comp_full_temp;
 };
 
 static int max17043_write_reg(struct i2c_client *client, int reg, u16 value)
@@ -114,7 +116,7 @@ static void max17043_calc_rcomp_from_temp(struct i2c_client *client, int temp)
 	struct max17043_chip *chip = i2c_get_clientdata(client);
 	struct power_supply *psp = power_supply_get_by_name("battery");
 	union power_supply_propval val;
-		
+
 	s16 temp_rcomp = 0;
 	u8 new_rcomp = 0;
 
@@ -122,10 +124,10 @@ static void max17043_calc_rcomp_from_temp(struct i2c_client *client, int temp)
 		pr_err("%s: fail to get battery ps\n", __func__);
 		return;
 	}
-		
+
 	psp->get_property(psp, POWER_SUPPLY_PROP_STATUS, &val);
 
-	if (val.intval == POWER_SUPPLY_STATUS_CHARGING) { 
+	if (val.intval == POWER_SUPPLY_STATUS_CHARGING) {
 		if (temp < chip->pdata->standard_temp)
 			temp_rcomp = chip->pdata->charging_rcomp+ (5 * ( chip->pdata->standard_temp - temp));
 		else
@@ -147,6 +149,26 @@ static void max17043_calc_rcomp_from_temp(struct i2c_client *client, int temp)
 	max17043_set_rcomp(client, new_rcomp);
 }
 
+#define COMP_FULL_MARGIN	500	/* 5% */
+static void max17043_update_full(struct i2c_client *client)
+{
+	struct max17043_chip *chip = i2c_get_clientdata(client);
+
+	if (chip->pure_soc > chip->pdata->comp_full - COMP_FULL_MARGIN)
+		chip->comp_full_temp =
+			(chip->pure_soc > 10000) ? 10000 : chip->pure_soc;
+	else
+		chip->comp_full_temp = chip->pdata->comp_full -
+			COMP_FULL_MARGIN;
+
+	chip->comp_full_temp =
+		((chip->comp_full_temp - chip->pdata->comp_empty) * 99 / 100) +
+		chip->pdata->comp_empty;
+
+	pr_info("%s: comp_full is update as %d\n",
+		__func__, chip->comp_full_temp);
+}
+
 static int max17043_set_property(struct power_supply *psy,
 			    enum power_supply_property psp,
 			    const union power_supply_propval *val)
@@ -157,8 +179,15 @@ static int max17043_set_property(struct power_supply *psy,
 	int temp;
 
 	switch (psp) {
-	case POWER_SUPPLY_PROP_TEMP_AMBIENT: 
-		temp = val->intval/10;	
+	case POWER_SUPPLY_PROP_STATUS:
+		if (val->intval == POWER_SUPPLY_STATUS_FULL)
+			max17043_update_full(chip->client);
+		break;
+	case POWER_SUPPLY_PROP_ONLINE:
+		max17043_update_full(chip->client);
+		break;
+	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
+		temp = val->intval/10;
 		max17043_calc_rcomp_from_temp(chip->client, temp);
 		break;
 	default:
@@ -192,7 +221,8 @@ static void max17043_get_soc(struct i2c_client *client)
 	data = max17043_read_reg(client, MAX17043_SOC);
 	pure_soc = ((data * 100)>> 8);
 
-	adj_soc = (pure_soc - chip->pdata->comp_empty ) * 100 / (chip->pdata->comp_full - chip->pdata->comp_empty);
+	adj_soc = (pure_soc - chip->pdata->comp_empty) * 100 /
+		(chip->comp_full_temp - chip->pdata->comp_empty);
 
 	if (adj_soc > 100)
 		adj_soc = 100;
@@ -337,13 +367,13 @@ static void max17043_low_bat_work(struct work_struct *work)
 	struct max17043_chip *chip = i2c_get_clientdata(client);
 	int new_config = 0, config = 0, athd = 0; /* Alert Threshold*/
 	int ret =0;
-	
+
 	if (max17043_check_status(chip->client))
 		chip->pdata->low_batt_cb();
 
 	config = max17043_read_reg(client, MAX17043_CONFIG);
 	athd = config & 0x1f;
-	
+
 	if(athd  != chip->pdata->alert_flag) {
 		/* soc 5% alret */
 		new_config = ((config & 0xff00) | chip->pdata->alert_flag);
@@ -431,6 +461,8 @@ static int __devinit max17043_probe(struct i2c_client *client,
 	chip->battery.properties	= max17043_battery_props;
 	chip->battery.num_properties	= ARRAY_SIZE(max17043_battery_props);
 
+	chip->comp_full_temp = chip->pdata->comp_full;
+
 	ret = power_supply_register(&client->dev, &chip->battery);
 	if (ret) {
 		dev_err(&client->dev, "failed: power supply register\n");
@@ -438,7 +470,7 @@ static int __devinit max17043_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	INIT_WORK(&low_bat_work, max17043_low_bat_work);	
+	INIT_WORK(&low_bat_work, max17043_low_bat_work);
 	wake_lock_init(&low_battery_wake_lock, WAKE_LOCK_SUSPEND, "low_battery_wake_lock");
 	max17043_get_version(client);
 	max17043_init_register(client);
@@ -447,12 +479,12 @@ static int __devinit max17043_probe(struct i2c_client *client,
 	ret = max17043_irq_init(chip);
 	if (ret)
 		goto err_kfree;
-	
+
 	return 0;
 
 err_kfree:
 	kfree(chip);
-	return ret;	
+	return ret;
 }
 
 static int __devexit max17043_remove(struct i2c_client *client)
@@ -520,3 +552,4 @@ module_exit(max17043_exit);
 MODULE_AUTHOR("Minkyu Kang <mk7.kang@samsung.com>");
 MODULE_DESCRIPTION("MAX17043 Fuel Gauge");
 MODULE_LICENSE("GPL");
+

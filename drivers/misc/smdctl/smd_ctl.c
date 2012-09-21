@@ -824,7 +824,7 @@ static long smdctl_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case IOCTL_CP_RESET:
 		pr_info("IOCTL_CP_RESET\n");
 		xmm6260_reset(smdctl);
-		break;	
+		break;
 
 	case IOCTL_ON_HSIC_ACT:
 		pr_info("IOCTL_ON_HSIC_ACT\n");

@@ -3,7 +3,7 @@
  *
  * driver supporting miscellaneous functions for Samsung boards
  *
- * COPYRIGHT(C) Samsung Electronics Co., Ltd. 2006-2010 All Right Reserved.  
+ * COPYRIGHT(C) Samsung Electronics Co., Ltd. 2006-2010 All Right Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -118,11 +118,11 @@ void sec_init_uartpath(void)
 	//sec_set_uartpath(UART_SEL_CP);
 
 	//kernel_sec_path_type type = kernel_sec_get_path(SEC_PORT_UART);
-	//if (type == SEC_PORT_PATH_AP) 
+	//if (type == SEC_PORT_PATH_AP)
 	//	gpio_set_value(GPIO_UART_SEL, 1);       // Set UART path to AP
 	//else
 	//	gpio_set_value(GPIO_UART_SEL, 0);       // Set UART path to CP
-	
+
 }
 
 static ssize_t uart_sel_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -162,7 +162,7 @@ static ssize_t uart_sel_store(struct device *dev, struct device_attribute *attr,
 	}
 	else
 		pr_info("Enter 1(AP uart) or 0(CP uart)...\n");
-	
+
 	wake_unlock(&sec_misc_wake_lock);
 	return size;
 }
@@ -197,7 +197,7 @@ static ssize_t usb_sel_store(struct device *dev, struct device_attribute *attr,c
 	if (sscanf(buf, "%i", &state) != 1 || (state < 0 || state > 2))
 		return -EINVAL;
 
-	// prevents the system from entering suspend 
+	// prevents the system from entering suspend
 	wake_lock(&sec_misc_wake_lock);
 
 	if(state == 2)	{
@@ -215,7 +215,7 @@ static ssize_t usb_sel_store(struct device *dev, struct device_attribute *attr,c
 
 	else
 		klogi("Enter 2(ADC usb) or 1(AP usb) or 0(CP usb)...\n");
-	
+
 	wake_unlock(&sec_misc_wake_lock);
 
 	return size;
@@ -304,14 +304,14 @@ static int __init sec_misc_init(void)
 	sec_init_ifconsense();
 
 	wake_lock_init(&sec_misc_wake_lock, WAKE_LOCK_SUSPEND, "sec_misc");
-	
+
 	return 0;
 }
 
 static void __exit sec_misc_exit(void)
 {
 	wake_lock_destroy(&sec_misc_wake_lock);
-	
+
 	device_remove_file(sec_misc_dev, &dev_attr_uartsel);
 	device_remove_file(sec_misc_dev, &dev_attr_usbsel);
 }

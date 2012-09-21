@@ -32,6 +32,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <bluetooth/bluetooth.h>
 #include <cutils/sockets.h>
 
 #define SDP_UNIX_PATH ANDROID_SOCKET_DIR"/bluetooth"
@@ -44,7 +45,7 @@ extern "C" {
  * All definitions are based on Bluetooth Assigned Numbers
  * of the Bluetooth Specification
  */
-#define SDP_PSM 		0x0001
+#define SDP_PSM		0x0001
 
 /*
  * Protocol UUIDs
@@ -55,6 +56,7 @@ extern "C" {
 #define TCP_UUID	0x0004
 #define TCS_BIN_UUID	0x0005
 #define TCS_AT_UUID	0x0006
+#define ATT_UUID	0x0007
 #define OBEX_UUID	0x0008
 #define IP_UUID		0x0009
 #define FTP_UUID	0x000a
@@ -128,6 +130,7 @@ extern "C" {
 #define PBAP_PCE_SVCLASS_ID		0x112e
 #define PBAP_PSE_SVCLASS_ID		0x112f
 #define PBAP_SVCLASS_ID			0x1130
+#define OBEX_MAP_SVCLASS_ID		0x1132
 #define PNP_INFO_SVCLASS_ID		0x1200
 #define GENERIC_NETWORKING_SVCLASS_ID	0x1201
 #define GENERIC_FILETRANS_SVCLASS_ID	0x1202
@@ -145,6 +148,7 @@ extern "C" {
 #define HDP_SOURCE_SVCLASS_ID		0x1401
 #define HDP_SINK_SVCLASS_ID		0x1402
 #define APPLE_AGENT_SVCLASS_ID		0x2112
+#define GENERIC_ATTRIB_SVCLASS_ID	0x1801
 
 /*
  * Standard profile descriptor identifiers; note these
@@ -200,6 +204,7 @@ extern "C" {
 #define PBAP_PCE_PROFILE_ID		PBAP_PCE_SVCLASS_ID
 #define PBAP_PSE_PROFILE_ID		PBAP_PSE_SVCLASS_ID
 #define PBAP_PROFILE_ID			PBAP_SVCLASS_ID
+#define OBEX_MAP_PROFILE_ID		0x1134
 #define PNP_INFO_PROFILE_ID		PNP_INFO_SVCLASS_ID
 #define GENERIC_NETWORKING_PROFILE_ID	GENERIC_NETWORKING_SVCLASS_ID
 #define GENERIC_FILETRANS_PROFILE_ID	GENERIC_FILETRANS_SVCLASS_ID
@@ -217,6 +222,8 @@ extern "C" {
 #define HDP_SOURCE_PROFILE_ID		HDP_SOURCE_SVCLASS_ID
 #define HDP_SINK_PROFILE_ID		HDP_SINK_SVCLASS_ID
 #define APPLE_AGENT_PROFILE_ID		APPLE_AGENT_SVCLASS_ID
+#define GENERIC_ACCESS_PROFILE_ID	0x1800
+#define GENERIC_ATTRIB_PROFILE_ID	GENERIC_ATTRIB_SVCLASS_ID
 
 /*
  * Compatibility macros for the old MDP acronym
@@ -283,6 +290,8 @@ extern "C" {
 #define SDP_ATTR_SUPPORTED_FUNCTIONS		0x0312
 #define SDP_ATTR_TOTAL_IMAGING_DATA_CAPACITY	0x0313
 #define SDP_ATTR_SUPPORTED_REPOSITORIES		0x0314
+#define SDP_ATTR_MAS_INSTANCE_ID		0x0315
+#define SDP_ATTR_SUPPORTED_MESSAGE_TYPES	0x0316
 
 #define SDP_ATTR_SPECIFICATION_ID		0x0200
 #define SDP_ATTR_VENDOR_ID			0x0201
@@ -315,7 +324,7 @@ extern "C" {
  * #define XXXLangBase yyyy
  * #define AttrServiceName_XXX	0x0000+XXXLangBase
  */
-#define SDP_PRIMARY_LANG_BASE 		0x0100
+#define SDP_PRIMARY_LANG_BASE		0x0100
 
 #define SDP_ATTR_SVCNAME_PRIMARY	0x0000 + SDP_PRIMARY_LANG_BASE
 #define SDP_ATTR_SVCDESC_PRIMARY	0x0001 + SDP_PRIMARY_LANG_BASE
@@ -340,8 +349,8 @@ extern "C" {
  * DataSequence and DataSequenceAlternates can be of size 2^{8, 16, 32}
  * The size are computed post-facto in the API and are not known apriori
  */
-#define SDP_DATA_NIL 		0x00
-#define SDP_UINT8  		0x08
+#define SDP_DATA_NIL		0x00
+#define SDP_UINT8		0x08
 #define SDP_UINT16		0x09
 #define SDP_UINT32		0x0A
 #define SDP_UINT64		0x0B
@@ -417,9 +426,6 @@ typedef struct {
  * Common definitions for attributes in the SDP.
  * Should the type of any of these change, you need only make a change here.
  */
-typedef struct {
-	uint8_t data[16];
-} uint128_t;
 
 typedef struct {
 	uint8_t type;

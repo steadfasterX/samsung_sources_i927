@@ -3,7 +3,7 @@
  *  BlueZ - Bluetooth protocol stack for Linux
  *
  *  Copyright (C) 2001-2002  Wayne Lee <waynelee@qualcomm.com>
- *  Copyright (C) 2003-2007  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2003-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -32,15 +32,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-
-#include <bluetooth/bluetooth.h>
-
-#include "parser.h"
-#include "rfcomm.h"
-#include "sdp.h"
+#include "parser/parser.h"
+#include "parser/rfcomm.h"
+#include "parser/sdp.h"
 
 static char *cr_str[] = {
 	"RSP",
@@ -55,11 +49,10 @@ static void print_rfcomm_hdr(long_frame_head* head, uint8_t *ptr, int len)
 	address_field addr = head->addr;
 	uint8_t ctr = head->control;
 	uint16_t ilen = head->length.bits.len;
-	uint8_t ctr_type,pf,dlci,fcs;
+	uint8_t pf, dlci, fcs;
 
 	dlci     = GET_DLCI(addr);
 	pf       = GET_PF(ctr);
-	ctr_type = CLR_PF(ctr);
 	fcs      = *(ptr + len - 1);
 
 	printf("cr %d dlci %d pf %d ilen %d fcs 0x%x ", addr.cr, dlci, pf, ilen, fcs); 
@@ -93,7 +86,7 @@ static inline void mcc_fcoff(int level, uint8_t *ptr, int len,
 	print_mcc(mcc_head);
 }
 
-static inline void mcc_msc(int level, uint8_t *ptr, int len,
+static inline void mcc_msc(int level, uint8_t *ptr, unsigned int len,
 				long_frame_head *head, mcc_long_frame_head *mcc_head)
 {
 	msc_msg *msc = (void*) (ptr - STRUCT_END(msc_msg, mcc_s_head));
@@ -116,7 +109,7 @@ static inline void mcc_msc(int level, uint8_t *ptr, int len,
 		printf("\n");
 }
 
-static inline void mcc_rpn(int level, uint8_t *ptr, int len,
+static inline void mcc_rpn(int level, uint8_t *ptr, unsigned int len,
 				long_frame_head *head, mcc_long_frame_head *mcc_head)
 {
 	rpn_msg *rpn = (void *) (ptr - STRUCT_END(rpn_msg, mcc_s_head));

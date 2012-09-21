@@ -1,3 +1,26 @@
+ver 2.2:
+	Fix issue with L2CAP CID matching.
+	Add support for L2CAP extended window size decoding.
+	Add support for L2CAP extended control field decoding.
+	Add support for L2CAP information decoding.
+	Add support for AVRCP decoding.
+	Add support for AVCTP decoding.
+
+ver 2.1:
+	Add support for decoding OBEX Action command.
+	Add support for decoding SMP commands.
+	Add support for decoding ATT commands.
+	Add support for missing LE decoding.
+
+ver 2.0:
+	Add support for decoding AMP events.
+	Add support for decoding AMP commands.
+	Add support for decoding LE advertising reports.
+	Add support for L2CAP fixed channel information.
+	Add support for L2CAP ERTM and Streaming Mode.
+	Make BT-Snoop format the default file format.
+	Make verbose parsing the default option.
+
 ver 1.42:
 	Decode the Read Link Policy Settings command.
 	Decode Default Link Policy Settings commands

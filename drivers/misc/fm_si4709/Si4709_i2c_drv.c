@@ -17,7 +17,7 @@ static struct i2c_client *Si4709_i2c_client;
 struct si4709_data {
 	struct i2c_client *client;
 };
- 
+
 /*I2C Setting*/
 #define SI4709_I2C_ADDRESS      0x20
 

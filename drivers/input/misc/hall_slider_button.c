@@ -34,19 +34,21 @@
 #include <mach/gpio-n1.h>
 #endif
 //#include <plat/gpio-cfg.h>
- 
+
 #include <linux/wakelock.h>
- 
+
 #define HALL_DEBUG 1
 //#define HALL_INT TEGRA_GPIO_PW3
 
-#define DEVICE_NAME "HALL"	
+#define DEVICE_NAME "HALL"
 
 #define HALL_INTERRUPT_MODE	1		//Currently configured for interrupt mode, for polling mode make it 0
 #define HALL_POLLING_MODE	!(HALL_INTERRUPT_MODE)
 
 #define HALL_INT_IRQ		TEGRA_GPIO_TO_IRQ(GPIO_HALL_INT)
 
+#define LID_CLOSED 1
+#define LID_OPEN 0
 
 struct wake_lock hallIC_wake_lock;
 
@@ -54,7 +56,7 @@ struct wake_lock hallIC_wake_lock;
 struct hall_data {
 	struct input_dev *input_dev;
 	struct work_struct work;
-	struct hrtimer timer;	
+	struct hrtimer timer;
 	int irq;
 
 };
@@ -70,7 +72,7 @@ int current_hall_ic_state = 0;
 
 
 static ssize_t hall_show(struct device *dev, struct device_attribute *attr, char *sysfsbuf)
-{	
+{
 
 	//Get the value
 	return sprintf(sysfsbuf, "%d\n", prev_val);
@@ -97,7 +99,7 @@ Workqueue Function
 static void hall_func(struct work_struct *work)
 {
 
-	struct hall_data *hall = container_of(work,struct hall_data,work);	
+	struct hall_data *hall = container_of(work,struct hall_data,work);
 	static int check_count = 0;
 
 #if HALL_DEBUG
@@ -107,12 +109,12 @@ static void hall_func(struct work_struct *work)
 	current_hall_ic_state = cur_val;
 
 	if(cur_val == 0)
-		cur_val = 1;
+		cur_val = LID_CLOSED;
 	else
-		cur_val = 0;
+		cur_val = LID_OPEN;
 
 	if(cur_val != prev_val)
-	{	
+	{
 		if(check_count > 2){
 			check_count = 0;
 		input_report_switch(hall->input_dev,SW_LID,cur_val);
@@ -142,8 +144,8 @@ Workqueue Timer Function
 static enum hrtimer_restart hall_timer_func(struct hrtimer *timer)
 {
 	struct hall_data *hall = container_of(timer, struct hall_data, timer);
-	ktime_t hall_polling_time;			
-	
+	ktime_t hall_polling_time;
+
 	queue_work(hall_workqueue, &hall->work);
 	hall_polling_time = ktime_set(0,0);
 	hall_polling_time = ktime_add_us(hall_polling_time,100000);
@@ -168,7 +170,7 @@ static void hall_int_func(struct work_struct *work)
 
     #define COUNT_MAX	3
     #define DEBOUNCE	10
-	
+
 #if HALL_DEBUG
 //	printk("Capture GPIO state and report event!!!\n");
 #endif
@@ -179,7 +181,7 @@ static void hall_int_func(struct work_struct *work)
 	{
 		//msleep(50);
 		//mdelay(100);
-		
+
 		check_hall_ic_state = gpio_get_value(GPIO_HALL_INT);
 
 		if(cur_val == check_hall_ic_state){
@@ -191,13 +193,13 @@ static void hall_int_func(struct work_struct *work)
 	}
 
 	if(cur_val == 0)
-		cur_val = 1;
+		cur_val = LID_CLOSED;
 	else
-		cur_val = 0;
+		cur_val = LID_OPEN;
 
 	if(cur_val != prev_val)
-	{	
-#if 0 // BL controlled by framework	
+	{
+#if 0 // BL controlled by framework
 		if (cur_val==1)
 		{
 			tegra_gpio_enable(GPIO_QKEY_BL_EN);
@@ -208,8 +210,9 @@ static void hall_int_func(struct work_struct *work)
 			tegra_gpio_enable(GPIO_QKEY_BL_EN);
 			gpio_direction_output(GPIO_QKEY_BL_EN,1);
 		}
-#endif		
+#endif
 		input_report_switch(hall_int_data->input_dev,SW_LID,cur_val);
+		input_sync(hall_int_data->input_dev);
 
 		printk("[HALL] GPIO state is changed. input_report_switch.. prev_val %d cur_val %d\n",prev_val,cur_val);
 
@@ -217,7 +220,7 @@ static void hall_int_func(struct work_struct *work)
 			current_hall_ic_state = 1;
 		else
 			current_hall_ic_state = 0;
-		
+
 		prev_val =	cur_val;
 
 		if(cur_val == 1)
@@ -230,7 +233,7 @@ static void hall_int_func(struct work_struct *work)
 		}
 	}else
 		printk("HALL GPIO state is not changed. prev_val %d cur_val %d\n",prev_val,cur_val);
-	
+
 	return;
 }
 
@@ -268,12 +271,12 @@ static int __init hall_probe(struct platform_device *pdev)
 
 	int ret;
 
-		
+
 	hall = kzalloc(sizeof(struct hall_data), GFP_KERNEL);
-	if (!hall) 
+	if (!hall)
 	{
 		return -ENOMEM;
-		
+
 	}
 	hall->input_dev = input_allocate_device();
 	if(!hall->input_dev)
@@ -281,20 +284,20 @@ static int __init hall_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	set_bit(SW_LID, hall->input_dev->swbit);		//NAGSM_Android_SEL_Kernel_Aakash_20100913	
+	set_bit(SW_LID, hall->input_dev->swbit);		//NAGSM_Android_SEL_Kernel_Aakash_20100913
 	set_bit(EV_SW, hall->input_dev->evbit);		//NAGSM_Android_SEL_Kernel_Aakash_20100913
 
 
 	platform_set_drvdata(pdev, hall);
 
-		
+
 	/* create and register the input driver */
 
-	
-	
+
+
 	hall->input_dev->name = DEVICE_NAME;
 	hall->input_dev->phys = "hall/input0";
-	
+
 	hall->input_dev->id.bustype = BUS_HOST;
 	hall->input_dev->id.vendor = 0x0000;
 	hall->input_dev->id.product = 0x0000;
@@ -317,7 +320,7 @@ static int __init hall_probe(struct platform_device *pdev)
     if (!hall_workqueue)
 	    return -ENOMEM;
     INIT_WORK(&hall->work, hall_func);
-	
+
 
 
 	hrtimer_init(&hall->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
@@ -325,7 +328,7 @@ static int __init hall_probe(struct platform_device *pdev)
 
 
 	hall_polling_time = ktime_set(0,0);
-	hall_polling_time = ktime_add_us(hall_polling_time,100000);	
+	hall_polling_time = ktime_add_us(hall_polling_time,100000);
     hrtimer_start(&hall->timer,hall_polling_time,HRTIMER_MODE_REL);
 
 
@@ -342,7 +345,7 @@ static int __init hall_probe(struct platform_device *pdev)
 
 //	s3c_gpio_cfgpin(GPIO_HALL_INT, S3C_GPIO_SFN(3));
 //	s3c_gpio_setpull(GPIO_HALL_INT, S3C_GPIO_PULL_NONE);
-	set_irq_type(HALL_INT_IRQ, IRQ_TYPE_EDGE_BOTH);
+	irq_set_irq_type(HALL_INT_IRQ, IRQ_TYPE_EDGE_BOTH);
 	//set_irq_type(GPIO_HALL_INT, IRQ_TYPE_EDGE_BOTH);
 
 	ret = request_irq(HALL_INT_IRQ, hall_func, IRQF_DISABLED, DEVICE_NAME, hall);
@@ -377,9 +380,9 @@ static int __init hall_probe(struct platform_device *pdev)
 	current_hall_ic_state = cur_val;
 
 	if(cur_val == 0)
-		cur_val = 1;
+		cur_val = LID_CLOSED;
 	else
-		cur_val = 0;
+		cur_val = LID_OPEN;
 
 	input_report_switch(hall->input_dev,SW_LID,cur_val);
 	prev_val =	cur_val;
@@ -390,7 +393,7 @@ static int __init hall_probe(struct platform_device *pdev)
 static int hall_remove(struct platform_device *pdev)
 {
 	struct input_dev *input_dev = platform_get_drvdata(pdev);
-	
+
 	input_unregister_device(input_dev);
 	kfree(pdev->dev.platform_data);
 	free_irq(0, (void *) pdev);
@@ -400,10 +403,10 @@ static int hall_remove(struct platform_device *pdev)
 }
 
 
-static int hall_suspend(struct platform_device *pdev)
+static int hall_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	struct input_dev *input_dev = platform_get_drvdata(pdev);
-	
+	//struct input_dev *input_dev = platform_get_drvdata(pdev);
+
 	//Release wakelock in 2 secs
 
 	printk(DEVICE_NAME " Suspend.\n");
@@ -413,8 +416,8 @@ static int hall_suspend(struct platform_device *pdev)
 
 static int hall_resume(struct platform_device *pdev)
 {
-	struct input_dev *input_dev = platform_get_drvdata(pdev);
-	
+	//struct input_dev *input_dev = platform_get_drvdata(pdev);
+
 	//Acquire wakelock for 10 sec
 
 	printk(DEVICE_NAME " Resume.\n");
@@ -439,7 +442,7 @@ static int __init hall_init(void)
 	wake_lock_init(&hallIC_wake_lock, WAKE_LOCK_SUSPEND, "hallIC_wakelock");
 
 	ret = platform_driver_register(&hall_driver);
-	
+
 	if(!ret)
 	   printk(KERN_INFO "Hall Driver\n");
 

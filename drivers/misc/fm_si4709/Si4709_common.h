@@ -23,7 +23,7 @@
 #define FM_PORT		"fm_rst"
 #else
 #define FM_RESET	GPIO_FM_RST
-#define FM_PORT		"GPB" 
+#define FM_PORT		"GPB"
 #endif // CONFIG_MACH_N1
 
 /* VNVS:28-OCT'09 : For testing FM tune and seek operation status */

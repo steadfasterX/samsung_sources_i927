@@ -27,6 +27,7 @@
 #endif
 
 #include <stdio.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <stdlib.h>
@@ -44,6 +45,7 @@
 #include "device.h"
 #include "manager.h"
 #include "avdtp.h"
+#include "media.h"
 #include "a2dp.h"
 #include "headset.h"
 #include "sink.h"
@@ -112,6 +114,25 @@ static void client_free(struct unix_client *client)
 
 	g_free(client->interface);
 	g_free(client);
+}
+
+static int set_nonblocking(int fd)
+{
+	long arg;
+
+	arg = fcntl(fd, F_GETFL);
+	if (arg < 0)
+		return -errno;
+
+	/* Return if already nonblocking */
+	if (arg & O_NONBLOCK)
+		return 0;
+
+	arg |= O_NONBLOCK;
+	if (fcntl(fd, F_SETFL, arg) < 0)
+		return -errno;
+
+	return 0;
 }
 
 /* Pass file descriptor through local domain sockets (AF_LOCAL, formerly
@@ -497,6 +518,29 @@ static void print_sbc(struct sbc_codec_cap *sbc)
 		sbc->min_bitpool, sbc->max_bitpool);
 }
 
+/* SS_BLUETOOTH(changeon.park) 2012.02.07 */
+#ifdef GLOBALCONFIG_BLUETOOTH_APT_X_SUPPORT
+static void print_aptx(struct aptx_codec_cap *aptx)
+{
+
+	DBG("Media Codec: APTX"
+		" Channel Modes: %u"
+		" Frequencies: %u"
+		" Vender ID: %u%u%u%u"
+		" Codec ID: %u%u",
+
+		aptx->channel_mode, 
+		aptx->frequency,
+		aptx->vender_id0,
+		aptx->vender_id1,
+		aptx->vender_id2,
+		aptx->vender_id3,
+		aptx->codec_id0, 
+		aptx->codec_id1 );
+}
+#endif
+/* SS_BLUETOOTH(changeon.park) End */
+
 static int a2dp_append_codec(struct bt_get_capabilities_rsp *rsp,
 				struct avdtp_service_capability *cap,
 				uint8_t seid,
@@ -563,7 +607,72 @@ static int a2dp_append_codec(struct bt_get_capabilities_rsp *rsp,
 		mpeg->bitrate = mpeg_cap->bitrate;
 
 		print_mpeg12(mpeg_cap);
-	} else {
+	}
+#ifdef GLOBALCONFIG_BLUETOOTH_APT_X_SUPPORT
+	/* endianess prevent direct cast */
+	else if (codec_cap->media_codec_type == NON_A2DP_CODEC_APTX) {
+		struct aptx_codec_cap *aptx_cap = (void *) codec_cap;
+
+		if((aptx_cap->vender_id0 == APTX_VENDER_ID0)
+				&& (aptx_cap->vender_id1 == APTX_VENDER_ID1)
+				&& (aptx_cap->vender_id2 == APTX_VENDER_ID2)
+				&& (aptx_cap->vender_id3 == APTX_VENDER_ID3)
+				&& (aptx_cap->codec_id0 == APTX_CODEC_ID0)
+				&& (aptx_cap->codec_id1 == APTX_CODEC_ID1) )
+
+		{
+			aptx_capabilities_t *aptx = (void *) codec;
+
+			if (space_left < sizeof(aptx_capabilities_t))
+			return -ENOMEM;
+			if (type == AVDTP_SEP_TYPE_SINK)
+			codec->type = BT_A2DP_APTX_SINK;
+			else if (type == AVDTP_SEP_TYPE_SOURCE)
+			codec->type = BT_A2DP_APTX_SOURCE;
+			else
+			return -EINVAL;
+
+			codec->length = sizeof(aptx_capabilities_t);
+
+			aptx->vender_id0 = aptx_cap->vender_id0;
+			aptx->vender_id1 = aptx_cap->vender_id1;
+			aptx->vender_id2 = aptx_cap->vender_id2;
+			aptx->vender_id3 = aptx_cap->vender_id3;
+			aptx->codec_id0 = aptx_cap->codec_id0;
+			aptx->codec_id1 = aptx_cap->codec_id1;
+			aptx->frequency = aptx_cap->frequency;
+			aptx->channel_mode = aptx_cap->channel_mode;
+
+			DBG("Printing aptX non-a2dp codec\n");
+			print_aptx(aptx_cap);
+		}
+		else {
+		size_t codec_length, type_length, total_length;
+
+		codec_length = cap->length - (sizeof(struct avdtp_service_capability)
+				+ sizeof(struct avdtp_media_codec_capability));
+		type_length = sizeof(codec_cap->media_codec_type);
+		total_length = type_length + codec_length +
+				sizeof(codec_capabilities_t);
+
+		if (space_left < total_length)
+			return -ENOMEM;
+
+		if (type == AVDTP_SEP_TYPE_SINK)
+			codec->type = BT_A2DP_UNKNOWN_SINK;
+		else if (type == AVDTP_SEP_TYPE_SOURCE)
+			codec->type = BT_A2DP_UNKNOWN_SOURCE;
+		else
+			return -EINVAL;
+
+		codec->length = total_length;
+		memcpy(codec->data, &codec_cap->media_codec_type, type_length);
+		memcpy(codec->data + type_length, codec_cap->data,
+			codec_length);
+		}
+	}
+#else
+	else {
 		size_t codec_length, type_length, total_length;
 
 		codec_length = cap->length - (sizeof(struct avdtp_service_capability)
@@ -587,6 +696,8 @@ static int a2dp_append_codec(struct bt_get_capabilities_rsp *rsp,
 		memcpy(codec->data + type_length, codec_cap->data,
 			codec_length);
 	}
+#endif
+/* SS_BLUETOOTH(changeon.park) End */
 
 	codec->seid = seid;
 	codec->configured = configured;
@@ -608,7 +719,6 @@ static void a2dp_discovery_complete(struct avdtp *session, GSList *seps,
 	char buf[BT_SUGGESTED_BUFFER_SIZE];
 	struct bt_get_capabilities_rsp *rsp = (void *) buf;
 	struct a2dp_data *a2dp = &client->d.a2dp;
-	GSList *l;
 
 	if (!g_slist_find(clients, client)) {
 		DBG("Client disconnected during discovery");
@@ -628,8 +738,8 @@ static void a2dp_discovery_complete(struct avdtp *session, GSList *seps,
 	ba2str(&client->dev->dst, rsp->destination);
 	strncpy(rsp->object, client->dev->path, sizeof(rsp->object));
 
-	for (l = seps; l; l = g_slist_next(l)) {
-		struct avdtp_remote_sep *rsep = l->data;
+	for (; seps; seps = g_slist_next(seps)) {
+		struct avdtp_remote_sep *rsep = seps->data;
 		struct a2dp_sep *sep;
 		struct avdtp_service_capability *cap;
 		struct avdtp_stream *stream;
@@ -676,6 +786,10 @@ static void a2dp_discovery_complete(struct avdtp *session, GSList *seps,
 		a2dp_append_codec(rsp, cap, seid, type, configured, lock);
 	}
 
+	rsp->isEdrCapable = a2dp_read_edrcapability(&client->dev->src,
+							&client->dev->dst);
+	DBG("EdrCapable, %d", rsp->isEdrCapable);
+
 	unix_ipc_sendmsg(client, &rsp->h);
 
 	return;
@@ -705,7 +819,9 @@ static void a2dp_config_complete(struct avdtp *session, struct a2dp_sep *sep,
 	struct a2dp_data *a2dp = &client->d.a2dp;
 	uint16_t imtu, omtu;
 	GSList *caps;
-
+        #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+	struct avdtp_service_capability *protection_cap;
+        #endif
 	client->req_id = 0;
 
 	if (err)
@@ -736,6 +852,20 @@ static void a2dp_config_complete(struct avdtp *session, struct a2dp_sep *sep,
 	/* FIXME: Use imtu when fd_opt is CFG_FD_OPT_READ */
 	rsp->link_mtu = omtu;
 
+        #ifdef GLOBALCONFIG_BT_SCMST_FEATURE
+	protection_cap = avdtp_get_protection_cap(stream);
+
+	/* Initialize to Zero */
+	rsp->content_protection = 0;
+
+	if (protection_cap != NULL) {
+		if (protection_cap->length >= 2) {
+			struct avdtp_cp_cap *prot = (void *)protection_cap->data;
+
+			rsp->content_protection = (prot->cp_type_msb << 8) | prot->cp_type_lsb;
+		}
+	}
+        #endif
 	unix_ipc_sendmsg(client, &rsp->h);
 
 	client->cb_id = avdtp_stream_add_cb(session, stream,
@@ -748,11 +878,17 @@ failed:
 
 	unix_ipc_error(client, BT_SET_CONFIGURATION, EIO);
 
+	/*SS_BLUETOOTH(junho1.kim) 2012.03.30 */
+	// for bluetooth_parse_capabilities fail issue from QCT
+	if (a2dp->sep) {
+		a2dp_sep_unlock(a2dp->sep, a2dp->session);
+		a2dp->sep = NULL;
+	}
+
 	avdtp_unref(a2dp->session);
 
 	a2dp->session = NULL;
 	a2dp->stream = NULL;
-	a2dp->sep = NULL;
 }
 
 static void a2dp_resume_complete(struct avdtp *session,
@@ -763,6 +899,11 @@ static void a2dp_resume_complete(struct avdtp *session,
 	struct bt_start_stream_rsp *rsp = (void *) buf;
 	struct bt_new_stream_ind *ind = (void *) buf;
 	struct a2dp_data *a2dp = &client->d.a2dp;
+
+	if (!g_slist_find(clients, client)) {
+		error("Some old cb. Shouldnt happen as we do cancel in free");
+		return;
+	}
 
 	if (err)
 		goto failed;
@@ -815,7 +956,6 @@ static void a2dp_suspend_complete(struct avdtp *session,
 	struct unix_client *client = user_data;
 	char buf[BT_SUGGESTED_BUFFER_SIZE];
 	struct bt_stop_stream_rsp *rsp = (void *) buf;
-	struct a2dp_data *a2dp = &client->d.a2dp;
 
 	if (err)
 		goto failed;
@@ -833,15 +973,6 @@ failed:
 	error("suspend failed");
 
 	unix_ipc_error(client, BT_STOP_STREAM, EIO);
-
-	if (a2dp->sep) {
-		a2dp_sep_unlock(a2dp->sep, a2dp->session);
-		a2dp->sep = NULL;
-	}
-
-	avdtp_unref(a2dp->session);
-	a2dp->session = NULL;
-	a2dp->stream = NULL;
 }
 
 static void start_discovery(struct audio_device *dev, struct unix_client *client)
@@ -1053,6 +1184,8 @@ static void start_config(struct audio_device *dev, struct unix_client *client)
 	}
 
 	client->req_id = id;
+	g_slist_free(client->caps);
+	client->caps = NULL;
 
 	return;
 
@@ -1062,29 +1195,28 @@ failed:
 
 static void start_resume(struct audio_device *dev, struct unix_client *client)
 {
-	struct a2dp_data *a2dp;
+	struct a2dp_data *a2dp = NULL;
 	struct headset_data *hs;
 	unsigned int id;
-	gboolean unref_avdtp_on_fail = FALSE;
+	struct avdtp *session = NULL;
 
 	switch (client->type) {
 	case TYPE_SINK:
 	case TYPE_SOURCE:
 		a2dp = &client->d.a2dp;
 
-		if (!a2dp->session) {
-			a2dp->session = avdtp_get(&dev->src, &dev->dst);
-			unref_avdtp_on_fail = TRUE;
-		}
-
-		if (!a2dp->session) {
-			error("Unable to get a session");
-			goto failed;
-		}
-
 		if (!a2dp->sep) {
 			error("seid not opened");
 			goto failed;
+		}
+
+		if (!a2dp->session) {
+			session = avdtp_get(&dev->src, &dev->dst);
+			if (!session) {
+				error("Unable to get a session");
+				goto failed;
+			}
+			a2dp->session = session;
 		}
 
 		id = a2dp_resume(a2dp->session, a2dp->sep, a2dp_resume_complete,
@@ -1129,33 +1261,38 @@ static void start_resume(struct audio_device *dev, struct unix_client *client)
 	return;
 
 failed:
-	if (unref_avdtp_on_fail && a2dp->session) {
-		avdtp_unref(a2dp->session);
+	if (session) {
+		avdtp_unref(session);
 		a2dp->session = NULL;
 	}
+
 	unix_ipc_error(client, BT_START_STREAM, EIO);
 }
 
 static void start_suspend(struct audio_device *dev, struct unix_client *client)
 {
-	struct a2dp_data *a2dp;
+	struct a2dp_data *a2dp = NULL;
 	struct headset_data *hs;
 	unsigned int id;
-	gboolean unref_avdtp_on_fail = FALSE;
+	struct avdtp *session = NULL;
 
 	switch (client->type) {
 	case TYPE_SINK:
 	case TYPE_SOURCE:
 		a2dp = &client->d.a2dp;
 
-		if (!a2dp->session) {
-			a2dp->session = avdtp_get(&dev->src, &dev->dst);
-			unref_avdtp_on_fail = TRUE;
+		if (!a2dp->sep) {
+			error("seid not opened");
+			goto failed;
 		}
 
 		if (!a2dp->session) {
-			error("Unable to get a session");
-			goto failed;
+			session = avdtp_get(&dev->src, &dev->dst);
+			if (!session) {
+				error("Unable to get a session");
+				goto failed;
+			}
+			a2dp->session = session;
 		}
 
 		if (!a2dp->sep) {
@@ -1201,10 +1338,11 @@ static void start_suspend(struct audio_device *dev, struct unix_client *client)
 	return;
 
 failed:
-	if (unref_avdtp_on_fail && a2dp->session) {
-		avdtp_unref(a2dp->session);
+	if (session) {
+		avdtp_unref(session);
 		a2dp->session = NULL;
 	}
+
 	unix_ipc_error(client, BT_STOP_STREAM, EIO);
 }
 
@@ -1249,9 +1387,11 @@ static void start_close(struct audio_device *dev, struct unix_client *client,
 	case TYPE_SINK:
 		a2dp = &client->d.a2dp;
 
-		if (client->cb_id > 0)
+		if (client->cb_id > 0) {
 			avdtp_stream_remove_cb(a2dp->session, a2dp->stream,
 								client->cb_id);
+			client->cb_id = 0;
+		}
 		if (a2dp->sep) {
 			a2dp_sep_unlock(a2dp->sep, a2dp->session);
 			a2dp->sep = NULL;
@@ -1260,6 +1400,7 @@ static void start_close(struct audio_device *dev, struct unix_client *client,
 			avdtp_unref(a2dp->session);
 			a2dp->session = NULL;
 		}
+		a2dp->stream = NULL;
 		break;
 	default:
 		error("No known services for device");
@@ -1359,12 +1500,19 @@ static int handle_sco_open(struct unix_client *client, struct bt_open_req *req)
 		!g_str_equal(client->interface, AUDIO_GATEWAY_INTERFACE))
 		return -EIO;
 
+/*
 	DBG("open sco - object=%s source=%s destination=%s lock=%s%s",
 			strcmp(req->object, "") ? req->object : "ANY",
 			strcmp(req->source, "") ? req->source : "ANY",
 			strcmp(req->destination, "") ? req->destination : "ANY",
 			req->lock & BT_READ_LOCK ? "read" : "",
 			req->lock & BT_WRITE_LOCK ? "write" : "");
+*/
+	DBG("open sco - object=%s source=%s destination= lock=%s%s",
+			strcmp(req->object, "") ? req->object : "ANY",
+			strcmp(req->source, "") ? req->source : "ANY",
+			req->lock & BT_READ_LOCK ? "read" : "",
+			req->lock & BT_WRITE_LOCK ? "write" : "");   // log checker (BT)
 
 	return 0;
 }
@@ -1377,13 +1525,20 @@ static int handle_a2dp_open(struct unix_client *client, struct bt_open_req *req)
 	else if (!g_str_equal(client->interface, AUDIO_SINK_INTERFACE) &&
 			!g_str_equal(client->interface, AUDIO_SOURCE_INTERFACE))
 		return -EIO;
-
+/*
 	DBG("open a2dp - object=%s source=%s destination=%s lock=%s%s",
 			strcmp(req->object, "") ? req->object : "ANY",
 			strcmp(req->source, "") ? req->source : "ANY",
 			strcmp(req->destination, "") ? req->destination : "ANY",
 			req->lock & BT_READ_LOCK ? "read" : "",
 			req->lock & BT_WRITE_LOCK ? "write" : "");
+*/
+
+	DBG("open a2dp - object=%s source=%s destination= lock=%s%s",
+			strcmp(req->object, "") ? req->object : "ANY",
+			strcmp(req->source, "") ? req->source : "ANY",
+			req->lock & BT_READ_LOCK ? "read" : "",
+			req->lock & BT_WRITE_LOCK ? "write" : "");   // log checker (BT)
 
 	return 0;
 }
@@ -1465,6 +1620,11 @@ static int handle_a2dp_transport(struct unix_client *client,
 	struct avdtp_service_capability *media_transport, *media_codec;
 	struct sbc_codec_cap sbc_cap;
 	struct mpeg_codec_cap mpeg_cap;
+/* SS_BLUETOOTH(changeon.park) 2012.02.07 */
+#ifdef GLOBALCONFIG_BLUETOOTH_APT_X_SUPPORT
+	struct aptx_codec_cap aptx_cap;
+#endif
+/* SS_BLUETOOTH(changeon.park) End */
 
 	if (!client->interface)
 		/* FIXME: are we treating a sink or a source? */
@@ -1503,7 +1663,35 @@ static int handle_a2dp_transport(struct unix_client *client,
 							sizeof(mpeg_cap));
 
 		print_mpeg12(&mpeg_cap);
-	} else if (req->codec.type == BT_A2DP_SBC_SINK ||
+	} 
+/* SS_BLUETOOTH(changeon.park) 2012.02.07 */
+#ifdef GLOBALCONFIG_BLUETOOTH_APT_X_SUPPORT
+	else if (req->codec.type == BT_A2DP_APTX_SINK ||
+		req->codec.type == BT_A2DP_APTX_SOURCE) {
+
+		aptx_capabilities_t *aptx = (void *) &req->codec;
+		memset(&aptx_cap, 0, sizeof(aptx_cap));
+	
+		aptx_cap.cap.media_type = AVDTP_MEDIA_TYPE_AUDIO;
+		aptx_cap.cap.media_codec_type = NON_A2DP_CODEC_APTX;
+
+		aptx_cap.frequency = aptx->frequency;
+		aptx_cap.channel_mode = aptx->channel_mode;
+
+		aptx_cap.vender_id0 = aptx->vender_id0;
+		aptx_cap.vender_id1 = aptx->vender_id1;
+		aptx_cap.vender_id2 = aptx->vender_id2;
+		aptx_cap.vender_id3 = aptx->vender_id3;
+		aptx_cap.codec_id0 = aptx->codec_id0;
+		aptx_cap.codec_id1 = aptx->codec_id1;
+	
+		media_codec = avdtp_service_cap_new(AVDTP_MEDIA_CODEC, &aptx_cap,
+							sizeof(aptx_cap));
+		print_aptx(&aptx_cap);
+	}
+#endif
+/* SS_BLUETOOTH(changeon.park) End */
+        else if (req->codec.type == BT_A2DP_SBC_SINK ||
 			req->codec.type == BT_A2DP_SBC_SOURCE) {
 		sbc_capabilities_t *sbc = (void *) &req->codec;
 
@@ -1768,7 +1956,7 @@ static gboolean server_cb(GIOChannel *chan, GIOCondition cond, gpointer data)
 		return FALSE;
 
 	if (cond & (G_IO_HUP | G_IO_ERR)) {
-		g_io_channel_close(chan);
+		g_io_channel_shutdown(chan, TRUE, NULL);
 		return FALSE;
 	}
 

@@ -131,7 +131,7 @@ int __init register_smd_resource(void)
 		smd_res[10].start = P3_GPIO_HOST_WAKEUP_OLD;
 		smd_res[10].end	 = P3_GPIO_HOST_WAKEUP_OLD;
 	}
-		
+
 	for (i = 0; i < ARRAY_SIZE(smd_res); i++) {
 		if (smd_res[i].start != NULL)
 			tegra_gpio_enable(smd_res[i].start);
