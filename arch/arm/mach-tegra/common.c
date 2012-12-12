@@ -176,7 +176,7 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "vi_sensor",	"pll_c",	0,		false },
 	{ "vi",		"pll_c",	0,		false },
 	{ "2d",		"pll_c",	0,		false },
-	{ "3d",		"pll_c",	0,		false },
+	{ "3d",		"pll_c",	300000000,	false },
 #else
 	{ "pll_p",	NULL,		0,		true },
 	{ "pll_p_out1",	"pll_p",	0,		false },

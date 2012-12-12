@@ -934,6 +934,7 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	int p_state;
 	struct io_device *iod = (struct io_device *)filp->private_data;
 	struct link_device *ld = get_current_link(iod);
+	char str[TASK_COMM_LEN];
 
 	mif_debug("cmd = 0x%x\n", cmd);
 
@@ -1016,8 +1017,12 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return -EINVAL;
 
 	case IOCTL_MODEM_CP_UPLOAD:
-		mif_err("misc_ioctl : IOCTL_MODEM_CP_UPLOAD\n");
-		panic("CP Crash");
+		mif_err("misc_ioctl : IOCTL_MODEM_CP_UPLOAD, %s\n",
+				get_task_comm(str, get_current()));
+		if (!strcmp(get_task_comm(str, get_current()), "cbd")) {
+			mif_err("[MODEM_IF] test\n");
+			panic("CP Crash");
+		}
 		return 0;
 
 	case IOCTL_MODEM_DUMP_RESET:

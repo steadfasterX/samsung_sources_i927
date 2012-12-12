@@ -25,7 +25,7 @@
 #ifdef CONFIG_MACH_BOSE_ATT
 #include "s5k6aafx_setting_bose.h"
 #else
-#include <s5k6aafx_setting.h>
+#include "s5k6aafx_setting.h"
 #endif
 #include <linux/regulator/consumer.h>
 #include <linux/delay.h>

@@ -813,6 +813,8 @@ static int i2c_touchkey_probe(struct i2c_client *client, const struct i2c_device
 
 	set_bit(EV_SYN, input_dev->evbit);
 	set_bit(EV_KEY, input_dev->evbit);
+	set_bit(EV_LED, input_dev->evbit);
+	set_bit(LED_MISC, input_dev->ledbit);
 	set_bit(touchkey_keycode[1], input_dev->keybit);
 	set_bit(touchkey_keycode[2], input_dev->keybit);
 	set_bit(touchkey_keycode[3], input_dev->keybit);

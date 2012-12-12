@@ -95,7 +95,6 @@ static int xmm6260_on(struct modem_ctl *mc)
 	gpio_set_value(mc->gpio_cp_reset, 0);
 	udelay(160);
 	gpio_set_value(mc->gpio_pda_active, 0);
-	msleep(500); /* must be >500ms for CP can boot up under -20 degrees */
 	gpio_set_value(mc->gpio_cp_reset, 1);
 	udelay(160);
 	gpio_set_value(mc->gpio_reset_req_n, 1);

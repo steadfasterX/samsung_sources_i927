@@ -23,6 +23,7 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/mmc/host.h>
+#include <linux/skbuff.h>
 
 #include <asm/mach-types.h>
 #include <mach/irqs.h>
@@ -40,67 +41,129 @@
 #define BOARD_REV06 0x09
 #define BOARD_REV08 0x0B
 
+#ifdef CONFIG_BROADCOM_WIFI_RESERVED_MEM
+
+#define WLAN_STATIC_SCAN_BUF0			5
+#define WLAN_STATIC_SCAN_BUF1			6
+#define PREALLOC_WLAN_SEC_NUM			4
+#define PREALLOC_WLAN_BUF_NUM			160
+#define PREALLOC_WLAN_SECTION_HEADER	24
+
+#define WLAN_SECTION_SIZE_0	(PREALLOC_WLAN_BUF_NUM * 128)
+#define WLAN_SECTION_SIZE_1	(PREALLOC_WLAN_BUF_NUM * 128)
+#define WLAN_SECTION_SIZE_2	(PREALLOC_WLAN_BUF_NUM * 512)
+#define WLAN_SECTION_SIZE_3	(PREALLOC_WLAN_BUF_NUM * 1024)
+
+#define DHD_SKB_HDRSIZE			336
+#define DHD_SKB_1PAGE_BUFSIZE	((PAGE_SIZE*1)-DHD_SKB_HDRSIZE)
+#define DHD_SKB_2PAGE_BUFSIZE	((PAGE_SIZE*2)-DHD_SKB_HDRSIZE)
+#define DHD_SKB_4PAGE_BUFSIZE	((PAGE_SIZE*4)-DHD_SKB_HDRSIZE)
+
+#define WLAN_SKB_BUF_NUM	17
+
+static struct sk_buff *wlan_static_skb[WLAN_SKB_BUF_NUM];
+
+struct wlan_mem_prealloc {
+	void *mem_ptr;
+	unsigned long size;
+};
+
+static struct wlan_mem_prealloc wlan_mem_array[PREALLOC_WLAN_SEC_NUM] = {
+	{NULL, (WLAN_SECTION_SIZE_0 + PREALLOC_WLAN_SECTION_HEADER)},
+	{NULL, (WLAN_SECTION_SIZE_1 + PREALLOC_WLAN_SECTION_HEADER)},
+	{NULL, (WLAN_SECTION_SIZE_2 + PREALLOC_WLAN_SECTION_HEADER)},
+	{NULL, (WLAN_SECTION_SIZE_3 + PREALLOC_WLAN_SECTION_HEADER)}
+};
+
+void *wlan_static_scan_buf0;
+void *wlan_static_scan_buf1;
+static void *brcm_wlan_mem_prealloc(int section, unsigned long size)
+{
+	if (section == PREALLOC_WLAN_SEC_NUM)
+		return wlan_static_skb;
+	if (section == WLAN_STATIC_SCAN_BUF0)
+		return wlan_static_scan_buf0;
+	if (section == WLAN_STATIC_SCAN_BUF1)
+		return wlan_static_scan_buf1;
+	if ((section < 0) || (section > PREALLOC_WLAN_SEC_NUM))
+		return NULL;
+
+	if (wlan_mem_array[section].size < size)
+		return NULL;
+
+	return wlan_mem_array[section].mem_ptr;
+}
+
+static int brcm_init_wlan_mem(void)
+{
+	int i;
+	int j;
+
+	for (i = 0; i < 8; i++) {
+		wlan_static_skb[i] = dev_alloc_skb(DHD_SKB_1PAGE_BUFSIZE);
+		if (!wlan_static_skb[i])
+			goto err_skb_alloc;
+	}
+
+	for (; i < 16; i++) {
+		wlan_static_skb[i] = dev_alloc_skb(DHD_SKB_2PAGE_BUFSIZE);
+		if (!wlan_static_skb[i])
+			goto err_skb_alloc;
+	}
+
+	wlan_static_skb[i] = dev_alloc_skb(DHD_SKB_4PAGE_BUFSIZE);
+	if (!wlan_static_skb[i])
+		goto err_skb_alloc;
+
+	for (i = 0 ; i < PREALLOC_WLAN_SEC_NUM ; i++) {
+		wlan_mem_array[i].mem_ptr =
+				kmalloc(wlan_mem_array[i].size, GFP_KERNEL);
+
+		if (!wlan_mem_array[i].mem_ptr)
+			goto err_mem_alloc;
+	}
+	wlan_static_scan_buf0 = kmalloc(65536, GFP_KERNEL);
+	if (!wlan_static_scan_buf0)
+		goto err_mem_alloc;
+	wlan_static_scan_buf1 = kmalloc(65536, GFP_KERNEL);
+	if (!wlan_static_scan_buf1)
+		goto err_mem_alloc;
+	printk(KERN_INFO"%s: WIFI MEM Allocated\n", __func__);
+	return 0;
+
+ err_mem_alloc:
+	pr_err("Failed to mem_alloc for WLAN\n");
+	for (j = 0 ; j < i ; j++)
+		kfree(wlan_mem_array[j].mem_ptr);
+
+	i = WLAN_SKB_BUF_NUM;
+
+ err_skb_alloc:
+	pr_err("Failed to skb_alloc for WLAN\n");
+	for (j = 0 ; j < i ; j++)
+		dev_kfree_skb(wlan_static_skb[j]);
+
+	return -ENOMEM;
+}
+#endif /* CONFIG_BROADCOM_WIFI_RESERVED_MEM */
+struct platform_device *tegra_sdhci_device0_ptr;
 
 static void (*wifi_status_cb)(int card_present, void *dev_id);
 static void *wifi_status_cb_devid;
 static int n1_wifi_status_register(void (*callback)(int , void *), void *);
 static struct clk *wifi_32k_clk;
+
 static int n1_wifi_reset(int on);
-int n1_wifi_power(int on);
-struct platform_device *tegra_sdhci_device0_ptr;
-
-static int n1_wifi_status_register(
-		void (*callback)(int card_present, void *dev_id),
-		void *dev_id)
-{
-	if (wifi_status_cb)
-		return -EAGAIN;
-	wifi_status_cb = callback;
-	wifi_status_cb_devid = dev_id;
-	return 0;
-}
-
-// N1_ICS
-static int n1_wifi_set_carddetect(int val)
-{
-	pr_debug("%s: %d\n", __func__, val);
-	if (wifi_status_cb)
-		wifi_status_cb(val, wifi_status_cb_devid);
-	else
-		pr_warning("%s: Nobody to notify\n", __func__);
-	return 0;
-}
-
-int n1_wifi_power(int on)
-{
-	pr_debug("%s: %d\n", __func__, on);
-
-	if (system_rev == 0 || system_rev == 1)
-		gpio_set_value(TEGRA_GPIO_PQ2, on);
-	else
-		gpio_set_value(GPIO_WLAN_EN, on);
-
-	mdelay(100);
-
-	if (on)
-		clk_enable(wifi_32k_clk);
-	else
-		clk_disable(wifi_32k_clk);
-
-	return 0;
-}
-EXPORT_SYMBOL(n1_wifi_power);
-
-static int n1_wifi_reset(int on)
-{
-	pr_debug("%s: do nothing\n", __func__);
-	return 0;
-}
+static int n1_wifi_power(int on);
+static int n1_wifi_set_carddetect(int val);
 
 static struct wifi_platform_data n1_wifi_control = {
 	.set_power      = n1_wifi_power,
 	.set_reset      = n1_wifi_reset,
 	.set_carddetect = n1_wifi_set_carddetect,
+#ifdef CONFIG_BROADCOM_WIFI_RESERVED_MEM
+	.mem_prealloc = brcm_wlan_mem_prealloc,
+#endif
 };
 
 static struct platform_device n1_wifi_device = {
@@ -226,8 +289,58 @@ static struct platform_device tegra_sdhci_device3 = {
 	},
 };
 
+static int n1_wifi_status_register(
+		void (*callback)(int card_present, void *dev_id),
+		void *dev_id)
+{
+	printk(KERN_INFO "%s: start\n", __func__);
+	if (wifi_status_cb)
+		return -EAGAIN;
+	wifi_status_cb = callback;
+	wifi_status_cb_devid = dev_id;
+	return 0;
+}
+
+static int n1_wifi_set_carddetect(int val)
+{
+	printk(KERN_INFO "%s: start\n", __func__);
+	pr_debug("%s: %d\n", __func__, val);
+	if (wifi_status_cb)
+		wifi_status_cb(val, wifi_status_cb_devid);
+	else
+		pr_warning("%s: Nobody to notify\n", __func__);
+	return 0;
+}
+
+static int n1_wifi_power(int on)
+{
+	printk(KERN_INFO "%s: start\n", __func__);
+	pr_debug("%s: %d\n", __func__, on);
+
+	if (system_rev == 0 || system_rev == 1)
+		gpio_set_value(TEGRA_GPIO_PQ2, on);
+	else
+		gpio_set_value(GPIO_WLAN_EN, on);
+
+	mdelay(100);
+
+	if (on)
+		clk_enable(wifi_32k_clk);
+	else
+		clk_disable(wifi_32k_clk);
+
+	return 0;
+}
+static int n1_wifi_reset(int on)
+{
+	printk(KERN_INFO "%s: start\n", __func__);
+	pr_debug("%s: do nothing\n", __func__);
+	return 0;
+}
+
 static int __init n1_wifi_init(void)
 {
+	printk(KERN_INFO "%s: start\n", __func__);
 	wifi_32k_clk = clk_get_sys(NULL, "blink");
 	if (IS_ERR(wifi_32k_clk)) {
 		pr_err("%s: unable to get blink clock\n", __func__);
@@ -243,12 +356,16 @@ static int __init n1_wifi_init(void)
 		tegra_gpio_enable(GPIO_WLAN_EN);
 		gpio_direction_output(GPIO_WLAN_EN, 0);
 	}
+#ifdef CONFIG_BROADCOM_WIFI_RESERVED_MEM
+	brcm_init_wlan_mem();
+#endif
 
 	return platform_device_register(&n1_wifi_device);
 }
 
 int __init n1_sdhci_init(void)
 {
+	printk(KERN_INFO "%s: start\n", __func__);
 	if(system_rev >= BOARD_REV08)
 #if defined CONFIG_MACH_BOSE_ATT
 		tegra_sdhci_platform_data2.cd_gpio = 0xffff;
